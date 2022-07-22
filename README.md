@@ -1,4 +1,4 @@
-# GNNs for Charged Particle Tracking 
+# GNNs for Charged Particle Tracking
 
 ## Organization (to-do)
 - /src/gnn_tracking
