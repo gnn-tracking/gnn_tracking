@@ -27,5 +27,10 @@ repos:
         args: ["-I", "codespell.txt"]
         exclude: '.*\.ipynb'
 
+-   repo: https://github.com/kynan/nbstripout
+    rev: 0.5.0
+    hooks:
+    -   id: nbstripout
+
 ci:
     autoupdate_schedule: monthly
