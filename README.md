@@ -1,5 +1,15 @@
 # GNNs for Charged Particle Tracking
 
+## Development setup
+
+Install the pre-commit hooks with
+
+```bash
+pip3 install pre-commit
+# cd to this directory
+pre-commit install
+```
+
 ## Organization (to-do)
 - /src/gnn_tracking
   - preprocessing
