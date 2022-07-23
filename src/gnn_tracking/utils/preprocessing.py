@@ -1,10 +1,10 @@
+import logging
 import os
 import sys
-import logging
 from os.path import join
 
-import yaml
 import numpy as np
+import yaml
 
 
 def open_yaml(infile, task=0):

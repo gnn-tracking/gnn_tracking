@@ -1,23 +1,23 @@
-import os
-import sys
 import argparse
+import itertools
 import logging
 import multiprocessing as mp
-import itertools
+import os
+import sys
 from functools import partial
 
 sys.path.append("../")
 sys.path.append("../../")
 
-import yaml
 import pickle
-import numpy as np
-import pandas as pd
 import time
 
+import numpy as np
+import pandas as pd
+import yaml
+from build_graphs import *
 from utils.graph_building_utils import *
 from utils.hit_processing_utils import *
-from build_graphs import *
 
 # grab job ID
 idx = int(os.environ["SLURM_ARRAY_TASK_ID"])

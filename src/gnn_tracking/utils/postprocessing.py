@@ -2,18 +2,17 @@ import os
 import sys
 
 sys.path.append("../")
-from random import shuffle
 from collections import Counter
+from random import shuffle
 
 import numpy as np
 import pandas as pd
+from models.condensation_loss import *
+from models.track_condensation_network import TCN
+from sklearn.cluster import DBSCAN
 from torch_geometric.data import Data, Dataset
 from torch_geometric.loader import DataLoader
-from sklearn.cluster import DBSCAN
-
 from utils.data_utils import GraphDataset
-from models.track_condensation_network import TCN
-from models.condensation_loss import *
 
 
 def div(a, b):

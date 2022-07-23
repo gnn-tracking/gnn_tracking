@@ -2,9 +2,9 @@ import os
 import sys
 
 sys.path.append("../")
+import logging
 from collections import Counter
 from os.path import join
-import logging
 
 import numpy as np
 import pandas as pd
