@@ -1,11 +1,13 @@
 import torch
-import torch_geometric
-from torch import Tensor
 import torch.nn as nn
 import torch.nn.functional as F
+import torch_geometric
 import torch_geometric.transforms as T
+from torch import Tensor
+from torch.nn import Linear, ReLU
+from torch.nn import Sequential as Seq
+from torch.nn import Sigmoid
 from torch_geometric.nn import MessagePassing
-from torch.nn import Sequential as Seq, Linear, ReLU, Sigmoid
 
 
 class RelationalModel(nn.Module):

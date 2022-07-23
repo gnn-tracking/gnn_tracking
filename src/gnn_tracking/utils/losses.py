@@ -1,5 +1,5 @@
 import torch
-from torch.nn.functional import mse_loss, binary_cross_entropy
+from torch.nn.functional import binary_cross_entropy, mse_loss
 
 
 class EdgeWeightLoss(torch.nn.Module):

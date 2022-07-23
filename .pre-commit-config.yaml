@@ -12,6 +12,12 @@ repos:
     -   id: detect-private-key
     -   id: end-of-file-fixer
     -   id: trailing-whitespace
+-   repo: https://github.com/pycqa/isort
+    rev: 5.10.1
+    hooks:
+      - id: isort
+        name: isort (python)
+        args: ["--profile", "black", ]
 -   repo: https://github.com/PyCQA/flake8
     rev: '4.0.1'
     hooks:
@@ -27,6 +33,10 @@ repos:
     -   id: codespell
         args: ["-I", "codespell.txt"]
         exclude: '.*\.ipynb'
+-   repo: https://github.com/asottile/pyupgrade
+    rev: v2.37.2
+    hooks:
+    -   id: pyupgrade
 
 -   repo: https://github.com/kynan/nbstripout
     rev: 0.5.0

@@ -1,10 +1,10 @@
-import os
-import sys
 import argparse
 import multiprocessing as mp
+import os
+import sys
+from collections import OrderedDict
 from functools import partial
 from os.path import join
-from collections import OrderedDict
 
 sys.path.append("../")
 
@@ -12,10 +12,9 @@ import numpy as np
 import pandas as pd
 import trackml.dataset
 from scipy import optimize
-
+from utils.data_utils import *
 from utils.graph_building_utils import *
 from utils.hit_processing_utils import *
-from utils.data_utils import *
 
 
 def parse_args(args):

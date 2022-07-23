@@ -2,8 +2,8 @@ import os
 import sys
 
 sys.path.append("../")
-from os.path import join
 import logging
+from os.path import join
 
 import numpy as np
 import torch
