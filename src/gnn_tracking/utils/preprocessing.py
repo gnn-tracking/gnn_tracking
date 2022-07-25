@@ -45,54 +45,6 @@ def map_pt(pt, to_str=True):
     return str_to_num[pt]
 
 
-def get_trackml_prefixes(
-    indir, trackml=True, evtid_min=0, evtid_max=8000, n_tasks=1, task=0, codalab=True
-):
-    all_files = os.listdir(indir)
-    suffix = "-hits.csv.gz"
-    if not codalab:
-        suffix = "-hits.csv"
-    file_prefixes = sorted(
-        join(indir, f.replace(suffix, "")) for f in all_files if f.endswith(suffix)
-    )
-    evtids = [int(prefix[-9:]) for prefix in file_prefixes]
-    if evtid_min < np.min(evtids):
-        evtid_min = np.min(evtids)
-    if evtid_max > np.max(evtids):
-        evtid_max = np.max(evtids)
-    file_prefixes = [
-        prefix
-        for prefix in file_prefixes
-        if (
-            (int(prefix.split("0000")[-1]) >= evtid_min)
-            and (int(prefix.split("0000")[-1]) <= evtid_max)
-        )
-    ]
-    file_prefixes = np.array_split(file_prefixes, n_tasks)[task]
-    return file_prefixes
-
-
-def load_module_map(path):
-    module_map = np.load(path)
-    module_map = {key: item.astype(bool) for key, item in module_maps.items()}
-    return module_map
-
-
-def filter_file_prefixes(file_prefixes, outdir):
-    existing_files = os.listdir(outdir)
-    existing_evtids = [f.split("_")[0].split("00000")[-1] for f in existing_files]
-    existing_evtids = np.unique(existing_evtids)
-    logging.info(f"Requested {len(file_prefixes)} new graphs.")
-    file_prefixes = [
-        f for f in file_prefixes if f.split("00000")[-1] not in existing_evtids
-    ]
-    logging.info(
-        "Skipping pre-existing graphs, calculating "
-        + f"{len(file_prefixes)} new graphs"
-    )
-    return file_prefixes
-
-
 def relabel_pids(hits, particles):
     particles = particles[particles.particle_id.isin(pd.unique(hits.particle_id))]
     particle_id_map = {p: i + 1 for i, p in enumerate(particles["particle_id"].values)}
@@ -102,3 +54,29 @@ def relabel_pids(hits, particles):
     )
     hits = hits.assign(particle_id=hits["particle_id"].map(particle_id_map))
     return hits, particles
+
+def calc_eta(r, z):
+    theta = np.arctan2(r, z)
+    eta = -1.0 * np.log(np.tan(theta / 2.0))
+
+def append_features(hits, particles, truth):
+    particles['pt'] = np.sqrt(particles.px**2 + 
+                              particles.py**2)
+    particles['eta_pt'] = calc_eta(particles.pt, 
+                                   particles.pz)
+    truth = (truth[['hit_id', 'particle_id']]
+             .merge(particles[['particle_id', 'pt', 'eta_pt', 'q', 'vx', 'vy']], 
+                    on='particle_id'))
+    hits['r'] = np.sqrt(hits.x**2 + hits.y**2)
+    hits['phi'] = np.arctan2(hits.y, hits.x)
+    hits['eta_rz'] = calc_eta(hits.r, hits.z)
+    hits['u'] = hits['x']/(hits['x']**2 + hits['y']**2)
+    hits['v'] = hits['y']/(hits['x']**2 + hits['y']**2)
+    hits = (hits[['hit_id', 'r', 'phi', 'eta_rz', 
+                  'x', 'y', 'z', 'u', 'v', 'volume_id']]
+            .merge(truth[['hit_id', 'particle_id', 'pt', 'eta_pt']], 
+                          on='hit_id'))
+    data = Data(x=hits[['x', 'y', 'z', 'r', 'phi', 'eta_rz', 'u', 'v']].values,
+                particle_id=hits['particle_id'].values, 
+                pt=hits['pt'].values)
+    return data

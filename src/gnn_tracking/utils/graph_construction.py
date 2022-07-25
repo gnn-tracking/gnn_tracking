@@ -33,7 +33,7 @@ def calc_eta(r, z):
     return -1.0 * np.log(np.tan(theta / 2.0))
 
 
-def empty_graph():
+def empty_graph(s):
     singles = {k: np.array([]) for k in ["x", "hit_id", "particle_id", "y"]}
     doubles = {k: np.array([[], []]) for k in ["edge_index", "edge_hit_id"]}
     quadrouples = {"edge_attr": np.array([[], [], [], []])}

@@ -8,8 +8,6 @@ from datetime import datetime
 from functools import partial
 from os.path import join
 
-sys.path.append("../")
-
 import pickle
 
 import numpy as np
@@ -21,8 +19,7 @@ import time
 
 import trackml.dataset
 from torch_geometric.data import Data
-from utils.graph_building_utils import *
-from utils.hit_processing_utils import *
+
 
 
 def parse_args(args):
