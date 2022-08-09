@@ -530,7 +530,10 @@ def graph_summary(
         "boundary_fraction": boundary_fraction,
     }
 
-    logging.info(tabulate(info_dict.items(), floatfmt=".5f", tablefmt="fancy_grid"))
+    logging.info(
+        f"Graph summary statistics for event {evtid}\n"
+        + tabulate(info_dict.items(), floatfmt=".5f", tablefmt="fancy_grid")
+    )
 
     info_dict["sector_stats"] = sector_stats
 
