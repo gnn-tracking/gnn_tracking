@@ -5,6 +5,7 @@ from collections import Counter
 
 import numpy as np
 import pandas as pd
+from tabulate import tabulate
 
 from gnn_tracking.utils.preprocessing import relabel_pids as relabel_pid_func
 
@@ -529,23 +530,22 @@ def graph_summary(
         total_track_segs - total_track_segs_sectored, total_track_segs
     )
 
-    logging.info(
-        f"Event {evtid}, graph summary statistics\n"
-        + f"...total nodes: {total_nodes}\n"
-        + f"...total edges: {total_edges}\n"
-        + f"...efficiency: {efficiency:.5f}\n"
-        + f"...purity: {purity:.5f}\n"
-        + f"...purity_corr: {purity_corr:.5f}\n"
-        + f"...duplicated true edges: {te_excess}\n"
-        + f"...duplicated false edges: {fe_excess}\n"
-        + f"...boundary edge fraction: {boundary_fraction:.5f}"
-    )
-
-    return {
+    info_dict = {
         "n_nodes": total_nodes,
         "n_edges": total_edges,
         "efficiency": efficiency,
         "purity": purity,
+        "purity_corr": purity_corr,
+        "duplicated true edges": te_excess,
+        "duplicated false edges": fe_excess,
         "boundary_fraction": boundary_fraction,
-        "sector_stats": sector_stats,
     }
+
+    logging.info(
+        f"Graph summary statistics for event {evtid}\n"
+        + tabulate(info_dict.items(), floatfmt=".5f", tablefmt="fancy_grid")
+    )
+
+    info_dict["sector_stats"] = sector_stats
+
+    return info_dict
