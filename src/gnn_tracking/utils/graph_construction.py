@@ -9,6 +9,8 @@ from os.path import join
 import numpy as np
 import pandas as pd
 
+from gnn_tracking.utils.preprocessing import relabel_pids as relabel_pid_func
+
 
 def initialize_logger(verbose=False):
     log_format = "%(asctime)s %(levelname)s %(message)s"
@@ -148,15 +150,15 @@ def split_detector_sectors(
 
 
 def select_hits(
-    hits,
-    truth,
-    particles,
+    hits: pd.DataFrame,
+    truth: pd.DataFrame,
+    particles: pd.DataFrame,
     pt_min=0,
     endcaps=False,
     remove_noise=False,
     remove_duplicates=False,
     relabel_pids=False,
-):
+) -> tuple[pd.DataFrame, pd.DataFrame]:
 
     # Barrel volume and layer ids
     vlids = [(8, 2), (8, 4), (8, 6), (8, 8)]
@@ -227,7 +229,7 @@ def select_hits(
         hits = particle_hits.append(noise_hits)
 
     if relabel_pids:
-        hits, particles = relabel_pids(hits, particles)
+        hits, particles = relabel_pid_func(hits, particles)
     return hits, particles
 
 
