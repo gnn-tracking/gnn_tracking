@@ -1,13 +1,12 @@
-import os
-import sys
+from __future__ import annotations
 
-sys.path.append("../")
 import logging
 from collections import Counter
-from os.path import join
 
 import numpy as np
 import pandas as pd
+
+from gnn_tracking.utils.preprocessing import relabel_pids as relabel_pid_func
 
 
 def initialize_logger(verbose=False):
@@ -17,7 +16,7 @@ def initialize_logger(verbose=False):
     logging.info("Initializing")
 
 
-def calc_dphi(phi1, phi2):
+def calc_dphi(phi1: np.ndarray, phi2: np.ndarray) -> np.ndarray:
     """Computes phi2-phi1 given in range [-pi,pi]"""
     dphi = phi2 - phi1
     dphi[dphi > np.pi] -= 2 * np.pi
@@ -25,7 +24,7 @@ def calc_dphi(phi1, phi2):
     return dphi
 
 
-def calc_eta(r, z):
+def calc_eta(r: np.ndarray, z: np.ndarray) -> np.ndarray:
     """Computes pseudorapidity
     (https://en.wikipedia.org/wiki/Pseudorapidity)
     """
@@ -33,7 +32,7 @@ def calc_eta(r, z):
     return -1.0 * np.log(np.tan(theta / 2.0))
 
 
-def empty_graph(s):
+def empty_graph(s) -> dict[str, np.ndarray]:
     singles = {k: np.array([]) for k in ["x", "hit_id", "particle_id", "y"]}
     doubles = {k: np.array([[], []]) for k in ["edge_index", "edge_hit_id"]}
     quadrouples = {"edge_attr": np.array([[], [], [], []])}
@@ -44,9 +43,13 @@ def empty_graph(s):
 
 
 def split_detector_sectors(
-    hits, phi_edges, eta_edges, verbose=False, phi_overlap=0.1, eta_overlaps=0.1
-):
-
+    hits: pd.DataFrame,
+    phi_edges,
+    eta_edges,
+    verbose=False,
+    phi_overlap=0.1,
+    eta_overlaps=0.1,
+) -> tuple[dict[tuple[int, int], pd.DataFrame], dict[tuple[int, int], dict[str, any]]]:
     """Split hits according to provided phi and eta boundaries."""
     hits_sectors = {}
     sector_info = {}
@@ -148,15 +151,20 @@ def split_detector_sectors(
 
 
 def select_hits(
-    hits,
-    truth,
-    particles,
+    hits: pd.DataFrame,
+    truth: pd.DataFrame,
+    particles: pd.DataFrame,
     pt_min=0,
     endcaps=False,
     remove_noise=False,
     remove_duplicates=False,
     relabel_pids=False,
-):
+) -> tuple[pd.DataFrame, pd.DataFrame]:
+    """Cleans hits in the event
+
+    Returns:
+        hits, particles
+    """
 
     # Barrel volume and layer ids
     vlids = [(8, 2), (8, 4), (8, 6), (8, 8)]
@@ -227,22 +235,25 @@ def select_hits(
         hits = particle_hits.append(noise_hits)
 
     if relabel_pids:
-        hits, particles = relabel_pids(hits, particles)
+        hits, particles = relabel_pid_func(hits, particles)
     return hits, particles
 
 
 def select_edges(
-    hits1,
-    hits2,
-    layer1,
-    layer2,
-    phi_slope_max,
-    z0_max,
+    hits1: pd.DataFrame,
+    hits2: pd.DataFrame,
+    layer1: int,
+    layer2: int,
+    phi_slope_max: float,
+    z0_max: float,
     dR_max=0.5,
     uv_approach_max=100,
-    module_map=[],
+    module_map: list | None = None,
     use_module_map=False,
-):
+) -> pd.DataFrame:
+    # fixme: This doesn't seem to be the correct data type for the module_map
+    if module_map is None:
+        module_map = []
 
     # start with all possible pairs of hits
     keys = ["evtid", "r", "phi", "z", "u", "v", "module_id", "overlapped"]

@@ -1,9 +1,9 @@
 import logging
 import os
-import sys
 from os.path import join
 
 import numpy as np
+import pandas as pd
 import yaml
 
 
@@ -55,28 +55,29 @@ def relabel_pids(hits, particles):
     hits = hits.assign(particle_id=hits["particle_id"].map(particle_id_map))
     return hits, particles
 
+
 def calc_eta(r, z):
     theta = np.arctan2(r, z)
     eta = -1.0 * np.log(np.tan(theta / 2.0))
 
+
 def append_features(hits, particles, truth):
-    particles['pt'] = np.sqrt(particles.px**2 + 
-                              particles.py**2)
-    particles['eta_pt'] = calc_eta(particles.pt, 
-                                   particles.pz)
-    truth = (truth[['hit_id', 'particle_id']]
-             .merge(particles[['particle_id', 'pt', 'eta_pt', 'q', 'vx', 'vy']], 
-                    on='particle_id'))
-    hits['r'] = np.sqrt(hits.x**2 + hits.y**2)
-    hits['phi'] = np.arctan2(hits.y, hits.x)
-    hits['eta_rz'] = calc_eta(hits.r, hits.z)
-    hits['u'] = hits['x']/(hits['x']**2 + hits['y']**2)
-    hits['v'] = hits['y']/(hits['x']**2 + hits['y']**2)
-    hits = (hits[['hit_id', 'r', 'phi', 'eta_rz', 
-                  'x', 'y', 'z', 'u', 'v', 'volume_id']]
-            .merge(truth[['hit_id', 'particle_id', 'pt', 'eta_pt']], 
-                          on='hit_id'))
-    data = Data(x=hits[['x', 'y', 'z', 'r', 'phi', 'eta_rz', 'u', 'v']].values,
-                particle_id=hits['particle_id'].values, 
-                pt=hits['pt'].values)
+    particles["pt"] = np.sqrt(particles.px**2 + particles.py**2)
+    particles["eta_pt"] = calc_eta(particles.pt, particles.pz)
+    truth = truth[["hit_id", "particle_id"]].merge(
+        particles[["particle_id", "pt", "eta_pt", "q", "vx", "vy"]], on="particle_id"
+    )
+    hits["r"] = np.sqrt(hits.x**2 + hits.y**2)
+    hits["phi"] = np.arctan2(hits.y, hits.x)
+    hits["eta_rz"] = calc_eta(hits.r, hits.z)
+    hits["u"] = hits["x"] / (hits["x"] ** 2 + hits["y"] ** 2)
+    hits["v"] = hits["y"] / (hits["x"] ** 2 + hits["y"] ** 2)
+    hits = hits[
+        ["hit_id", "r", "phi", "eta_rz", "x", "y", "z", "u", "v", "volume_id"]
+    ].merge(truth[["hit_id", "particle_id", "pt", "eta_pt"]], on="hit_id")
+    data = Data(
+        x=hits[["x", "y", "z", "r", "phi", "eta_rz", "u", "v"]].values,
+        particle_id=hits["particle_id"].values,
+        pt=hits["pt"].values,
+    )
     return data
