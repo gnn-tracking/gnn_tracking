@@ -242,9 +242,11 @@ def select_edges(
     z0_max,
     dR_max=0.5,
     uv_approach_max=100,
-    module_map=[],
+    module_map=None,
     use_module_map=False,
 ):
+    if module_map is None:
+        module_map = []
 
     # start with all possible pairs of hits
     keys = ["evtid", "r", "phi", "z", "u", "v", "module_id", "overlapped"]
