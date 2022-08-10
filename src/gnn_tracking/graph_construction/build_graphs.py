@@ -1,14 +1,15 @@
+from __future__ import annotations
+
 import argparse
 import logging
 import multiprocessing as mp
 import os
+import pickle
 import sys
 from collections import Counter
 from datetime import datetime
 from functools import partial
 from os.path import join
-
-import pickle
 
 import numpy as np
 import pandas as pd
@@ -19,7 +20,6 @@ import time
 
 import trackml.dataset
 from torch_geometric.data import Data
-
 
 
 def parse_args(args):

@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import torch
 from torch.nn.functional import binary_cross_entropy, mse_loss
 
@@ -6,6 +8,7 @@ class EdgeWeightLoss(torch.nn.Module):
     def forward(self, w, beta, x, y, particle_id):
         bce_loss = binary_cross_entropy(w, y, reduction="mean")
         return bce_loss
+
 
 class PotentialLoss(torch.nn.Module):
     def __init__(self, q_min=0.01, device="cpu"):
