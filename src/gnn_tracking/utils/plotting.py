@@ -2,7 +2,60 @@ import mplhep as hep
 import numpy as np
 from matplotlib import pyplot as plt
 
+
 plt.style.use(hep.style.CMS)
+
+class GraphPlotter():
+    def __init__(self, style='seaborn-paper'):
+        self.style=style
+        
+    def configure_plt(self):
+        plt.style.use(self.style)
+        rcParams.update({'figure.autolayout': True})
+
+    def plot_rz(self, graph: Data, name: str, 
+                scale=np.array([1,1,1]), savefig=False):
+        x = graph.x[:,:3] / scale
+        y = graph.y
+        edge_index = graph.edge_index
+        feats_o = x[edge_index[0,:]]
+        feats_i = x[edge_index[1,:]]
+        true_edges_o = feats_o[y>0.5]
+        true_edges_i = feats_i[y>0.5]
+        false_edges_o = feats_o[y<0.5]
+        false_edges_i = feats_i[y<0.5]
+        
+        fig, ax = plt.subplots(dpi=200, figsize=(12,12))
+        for i in range(len(true_edges_o)):
+            ax.plot(
+                (true_edges_o[i][2], true_edges_i[i][2]),
+                (true_edges_o[i][0], true_edges_i[i][0]),
+                marker="o",
+                ls="-",
+                color="blue",
+                lw=0.25,
+                ms=0.1,
+                alpha=1,
+            )
+        for i in range(len(false_edges_o)):
+            ax.plot(
+                (false_edges_o[i][2], false_edges_i[i][2]),
+                (false_edges_o[i][0], false_edges_i[i][0]),
+                marker="o",
+                ls="-",
+                color="black",
+                lw=0.15,
+                ms=0.1,
+                alpha=0.4,
+            )
+            
+        ax.set_ylabel("r [m]")
+        ax.set_xlabel("z [m]")
+        plt.title(name)
+        if savefig:
+            plt.savefig(filename, dpi=1200)
+        plt.tight_layout()
+        plt.show()
 
 
 def plot_rz(X, idxs, y, save_fig=False, filename="rz.png"):

@@ -1,28 +1,40 @@
+from __future__ import annotations
+
 import os
 from os.path import join as join
+
 import numpy as np
 import pandas as pd
 import torch
 
+
 class GraphBuilder:
-    def __init__(self, indir, outdir, pixel_only=True, redo=True,
-                 phi_slope_max=0.005, z0_max=200, 
-                 dR_max=1.7, uv_approach_max=0.0015,
-                 feature_names=["r", "phi", "z", "eta_rz", "u", "v", "layer"],
-                 feature_scale=np.array([1000.0, np.pi, 1000.0, 1, 1 / 1000.0, 1 / 1000.0])):
-        self.indir=indir
-        self.outdir=outdir
+    def __init__(
+        self,
+        indir,
+        outdir,
+        pixel_only=True,
+        redo=True,
+        phi_slope_max=0.005,
+        z0_max=200,
+        dR_max=1.7,
+        uv_approach_max=0.0015,
+        feature_names=["r", "phi", "z", "eta_rz", "u", "v", "layer"],
+        feature_scale=np.array([1000.0, np.pi, 1000.0, 1, 1 / 1000.0, 1 / 1000.0]),
+    ):
+        self.indir = indir
+        self.outdir = outdir
         self.pixel_only = pixel_only
-        self.redo=redo
-        self.phi_slope_max=phi_slope_max
-        self.z0_max=z0_max
-        self.dR_max=dR_max
-        self.uv_approach_max=uv_approach_max
-        self.feature_names=feature_names
-        self.feature_scale=feature_scale
-        self.data_list=[]
+        self.redo = redo
+        self.phi_slope_max = phi_slope_max
+        self.z0_max = z0_max
+        self.dR_max = dR_max
+        self.uv_approach_max = uv_approach_max
+        self.feature_names = feature_names
+        self.feature_scale = feature_scale
+        self.data_list = {}
         self.outfiles = os.listdir(outdir)
-        
+
     def calc_dphi(self, phi1: np.ndarray, phi2: np.ndarray) -> np.ndarray:
         """Computes phi2-phi1 given in range [-pi,pi]"""
         dphi = phi2 - phi1
@@ -36,20 +48,20 @@ class GraphBuilder:
         """
         theta = np.arctan2(r, z)
         return -1.0 * np.log(np.tan(theta / 2.0))
-    
+
     def get_dataframe(self, evt, evtid):
-        to_df = {'evtid': evtid}
+        to_df = {"evtid": evtid}
         for i, n in enumerate(self.feature_names):
             to_df[n] = evt.x[:, i]
-        to_df['pt'] = evt.pt
-        to_df['particle_id'] = evt.particle_id
+        to_df["pt"] = evt.pt
+        to_df["particle_id"] = evt.particle_id
         return pd.DataFrame(to_df)
-    
+
     def select_edges(self, hits1, hits2, layer1, layer2):
-        hit_pairs = (
-            hits1.reset_index().merge(hits2.reset_index(), on="evtid", suffixes=("_1", "_2"))
+        hit_pairs = hits1.reset_index().merge(
+            hits2.reset_index(), on="evtid", suffixes=("_1", "_2")
         )
-        
+
         # define various geometric quantities
         dphi = self.calc_dphi(hit_pairs.phi_1, hit_pairs.phi_2)
         dz = hit_pairs.z_2 - hit_pairs.z_1
@@ -64,10 +76,10 @@ class GraphBuilder:
         b = hit_pairs.v_1 - m * hit_pairs.u_1
         u_approach = -m * b / (1 + m**2)
         v_approach = u_approach * m + b
-        
+
         # restrict the distance of closest approach in the uv plane
         uv_approach = np.sqrt(u_approach**2 + v_approach**2)
-        
+
         # restrict phi_slope and z0
         phi_slope = dphi / dr
         z0 = hit_pairs.z_1 - hit_pairs.r_1 * dz / dr
@@ -82,7 +94,7 @@ class GraphBuilder:
         if (layer1 == 1) and (layer2 == 11 or layer2 == 4):
             z_coord = 115.37811279296875 * dz / dr + z0
             intersected_layer = np.logical_and(z_coord > -490.975, z_coord < 490.975)
-            
+
         # filter edges according to selection criteria
         good_edge_mask = (
             (phi_slope.abs() < self.phi_slope_max)
@@ -91,7 +103,7 @@ class GraphBuilder:
             & (uv_approach < self.uv_approach_max)
             & (intersected_layer == False)
         )
-        
+
         # store edges (in COO format) and geometric edge features
         selected_edges = pd.DataFrame(
             {
@@ -105,18 +117,107 @@ class GraphBuilder:
         )
 
         return selected_edges
+
+    def correct_truth_labels(self, hits, edges, y, particle_ids):
+        """Corrects for extra edges surviving the barrel intersection
+        cut, i.e. for each particle counts the number of extra
+        "transition edges" crossing from a barrel layer to an
+        innermost endcap slayer; the sum is n_incorrect
+        - [edges] = n_edges x 2
+        - [y] = n_edges
+        - [particle_ids] = n_edges
+        """
+        # layer indices for barrel-to-endcap edges
+        barrel_to_endcaps = {
+            (0, 4),
+            (1, 4),
+            (2, 4),
+            (3, 4),  # barrel to l-EC
+            (0, 11),
+            (1, 11),
+            (2, 11),
+            (3, 11),
+        }  # barrel to r-EC
+        precedence = {
+            (0, 4): 0,
+            (1, 4): 1,
+            (2, 4): 2,
+            (3, 4): 3,
+            (0, 11): 0,
+            (1, 11): 1,
+            (2, 11): 2,
+            (3, 11): 3,
+        }
+
+        # group hits by particle id, get layer indices
+        hits_by_particle = hits.groupby("particle_id")
+        layers_1 = hits.layer.loc[edges.index_1].values
+        layers_2 = hits.layer.loc[edges.index_2].values
         
-    def build_edges(self, evt):
+        # loop over particle_id, particle_hits,
+        # count extra transition edges as n_incorrect
+        n_corrected = 0
+        for p, particle_hits in hits_by_particle:
+            if p == 0:
+                continue
+            particle_hit_ids = np.arange(len(hits))#= particle_hits["hit_id"].values
+
+            # grab true segment indices for particle p
+            relevant_indices = (particle_ids == p) & (y == 1)
+            
+            # get layers connected by particle's edges
+            particle_l1 = layers_1[relevant_indices]
+            particle_l2 = layers_2[relevant_indices]
+            layer_pairs = set(zip(particle_l1, particle_l2))
+            
+            # count the number of transition edges between barrel/endcaps
+            transition_edges = layer_pairs.intersection(barrel_to_endcaps)
+            if len(transition_edges) > 1:
+                transition_edges = list(transition_edges)
+                edge_precedence = np.array([precedence[e] for e in transition_edges])
+                max_precedence = np.amax(edge_precedence)
+                to_relabel = np.array(transition_edges)[(edge_precedence < max_precedence)]
+                for l1, l2 in to_relabel:
+                    relabel = (layers_1 == l1) & (layers_2 == l2) & relevant_indices
+                    relabel_idx = np.where(relabel == True)[0]
+                    y[relabel_idx] = 0
+                    n_corrected += len(relabel_idx)
+
+        if n_corrected>0: 
+            print(f"Relabeled {n_corrected} edges crossing from barrel to endcaps.")
+            print(f"Updated y has {int(np.sum(y))}/{len(y)} true edges.")
+        return y, n_corrected
+
+    def build_edges(self, hits):
         if self.pixel_only:
-            layer_pairs = [(0,1), (1,2), (2,3), # barrel-barrel
-                           (0, 4), (1, 4), (2, 4), (3, 4),  # barrel-LEC
-                           (0, 11), (1, 11), (2, 11), (3, 11),  # barrel-REC
-                           (4, 5), (5, 6), (6, 7), (7, 8), (8, 9), (9, 10), # LEC-LEC
-                           (11, 12), (12, 13), (13, 14), (14, 15), (15, 16), (16, 17) # REC-REC
-                          ]
+            layer_pairs = [
+                (0, 1),
+                (1, 2),
+                (2, 3),  # barrel-barrel
+                (0, 4),
+                (1, 4),
+                (2, 4),
+                (3, 4),  # barrel-LEC
+                (0, 11),
+                (1, 11),
+                (2, 11),
+                (3, 11),  # barrel-REC
+                (4, 5),
+                (5, 6),
+                (6, 7),
+                (7, 8),
+                (8, 9),
+                (9, 10),  # LEC-LEC
+                (11, 12),
+                (12, 13),
+                (13, 14),
+                (14, 15),
+                (15, 16),
+                (16, 17),  # REC-REC
+            ]
         else:
             layer_pairs = []
-        groups = evt.groupby("layer")
+        groups = hits.groupby("layer")
         edges = []
         for (layer1, layer2) in layer_pairs:
             try:
@@ -124,7 +225,7 @@ class GraphBuilder:
                 hits2 = groups.get_group(layer2)
             except KeyError as e:
                 continue
-            
+
             edges_layer_pair = self.select_edges(
                 hits1,
                 hits2,
@@ -141,32 +242,43 @@ class GraphBuilder:
                 edges.dR.values,
             )
         )
-        node_idx = np.arange(len(evt['r']))
+        node_idx = np.arange(len(hits["r"]))
         node_idx = pd.Series(node_idx, index=node_idx)
         edge_start = node_idx.loc[edges.index_1].values
         edge_end = node_idx.loc[edges.index_2].values
         edge_index = np.stack((edge_start, edge_end))
-        return edge_index, edge_attr
-        
+
+        pid1 = hits.particle_id.loc[edges.index_1].values
+        pid2 = hits.particle_id.loc[edges.index_2].values
+        y = np.zeros(len(pid1))
+        y[:] = ((pid1 == pid2) & (pid1>0) & (pid2>0))
+        y, n_corrected = self.correct_truth_labels(hits, edges[['index_1', 'index_2']],
+                                              y, pid1)
+
+        return edge_index, edge_attr, y
+
     def process(self, n=10**6, verbose=False):
         infiles = os.listdir(self.indir)
         for f in infiles:
-            name = f.split('/')[-1]
+            name = f.split("/")[-1]
             if f in self.outfiles and not self.redo:
                 graph = torch.load(join(self.outdir, name))
-                self.data_list.append(graph)
+                self.data_list[name] = graph
             else:
-                evtid = f.split('.')[0][5:]
-                if verbose: print(f'Processing {f}')
+                evtid = f.split(".")[0][5:]
+                if verbose:
+                    print(f"Processing {f}")
                 f = join(self.indir, f)
                 graph = torch.load(f)
                 df = self.get_dataframe(graph, evtid)
-                edge_index, edge_attr = self.build_edges(df)
+                edge_index, edge_attr, y = self.build_edges(df)
                 graph.edge_index = edge_index
                 graph.edge_attr = edge_attr
-                if verbose: print(graph)
+                graph.y = y
+                if verbose:
+                    print(graph)
                 outfile = join(self.outdir, name)
-                if verbose: print(f'Writing {outfile}')
+                if verbose:
+                    print(f"Writing {outfile}")
                 torch.save(graph, outfile)
-                self.data_list.append(graph)
-            
+                self.data_list[name] = graph
