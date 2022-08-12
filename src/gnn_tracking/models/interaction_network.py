@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import torch
 from models.mlp import MLP
 from torch import Tensor

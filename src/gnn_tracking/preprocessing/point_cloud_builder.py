@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import os
 from os.path import join
 
@@ -5,7 +7,6 @@ import numpy as np
 import torch
 from torch_geometric.data import Data
 from trackml.dataset import load_event
-
 
 class GraphSectors:
     def __init__(

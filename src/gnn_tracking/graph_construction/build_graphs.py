@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import argparse
 import logging
 import multiprocessing as mp
@@ -11,8 +13,21 @@ import numpy as np
 import pandas as pd
 
 pd.options.mode.chained_assignment = None
+from utils.preprocessing import map_pt, open_yaml
+
+pd.options.mode.chained_assignment = None
+
 import trackml.dataset
-from utils.graph_construction import *
+
+from gnn_tracking.utils.graph_construction import (
+    correct_truth_labels,
+    empty_graph,
+    graph_summary,
+    initialize_logger,
+    select_edges,
+    select_hits,
+    split_detector_sectors,
+)
 
 
 def parse_args(args):
