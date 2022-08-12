@@ -13,6 +13,7 @@ import pandas as pd
 import trackml.dataset
 from scipy import optimize
 
+
 def parse_args(args):
     """Parse command line arguments."""
     parser = argparse.ArgumentParser("prepare.py")

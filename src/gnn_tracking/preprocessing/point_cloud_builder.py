@@ -6,6 +6,7 @@ import torch
 from torch_geometric.data import Data
 from trackml.dataset import load_event
 
+
 class GraphSectors:
     def __init__(
             self,
@@ -90,5 +91,3 @@ class PointCloudBuilder:
                 data = self.append_features(hits, particles, truth)
                 torch.save(data, join(self.outdir, name))
                 self.data_list.append(data)
-
-

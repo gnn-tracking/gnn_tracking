@@ -6,12 +6,13 @@ import sys
 from datetime import datetime
 from functools import partial
 from os.path import join
+
 import numpy as np
 import pandas as pd
+
 pd.options.mode.chained_assignment = None
 import trackml.dataset
 from utils.graph_construction import *
-
 
 
 def parse_args(args):
