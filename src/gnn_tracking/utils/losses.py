@@ -33,15 +33,15 @@ class PotentialLoss(torch.nn.Module):
             p = pid.item()
             if p == 0:
                 continue
-            M = (particle_id == p).squeeze(-1)
+            M = (particle_id == p).squeeze(-1)  # type: ignore
             q_pid = q[M]
             x_pid = x[M]
             M = M.long()
             alpha = torch.argmax(q_pid)
             q_alpha = q_pid[alpha]
             x_alpha = x_pid[alpha]
-            va = self._v_attractive(x, x_alpha, q_alpha, device=self.device)
-            vr = self._v_repulsive(x, x_alpha, q_alpha, device=self.device)
+            va = self._v_attractive(x, x_alpha, q_alpha)
+            vr = self._v_repulsive(x, x_alpha, q_alpha)
             loss += torch.mean(q * (M * va + 10 * (1 - M) * vr))
         return loss
 
