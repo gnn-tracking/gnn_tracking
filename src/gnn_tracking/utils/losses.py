@@ -10,22 +10,27 @@ class EdgeWeightLoss(torch.nn.Module):
         return bce_loss
 
 
+T = torch.tensor
+
+
 class PotentialLoss(torch.nn.Module):
     def __init__(self, q_min=0.01, device="cpu"):
         super(PotentialLoss, self).__init__()
         self.q_min = q_min
         self.device = device
+        #: Scale up repulsive force by this factor
+        self.repulsion_scaling = 10
 
-    def _v_attractive(self, x, x_alpha, q_alpha):
+    def _v_attractive(self, x: T, x_alpha: T, q_alpha: T) -> T:
         norm_sq = torch.norm(x - x_alpha, dim=1) ** 2
         return norm_sq * q_alpha
 
-    def _v_repulsive(self, x, x_alpha, q_alpha):
+    def _v_repulsive(self, x: T, x_alpha: T, q_alpha: T) -> T:
         diffs = 1 - torch.norm(x - x_alpha, dim=1)
         hinges = torch.maximum(torch.zeros(len(x)).to(self.device), diffs)
         return hinges * q_alpha
 
-    def condensation_loss(self, beta, x, particle_id):
+    def condensation_loss(self, beta: T, x: T, particle_id: T) -> T:
         loss = torch.tensor(0.0, dtype=torch.float).to(self.device)
         q = torch.arctanh(beta) ** 2 + self.q_min
         # todo: maybe add pt cut
@@ -42,10 +47,10 @@ class PotentialLoss(torch.nn.Module):
             x_alpha = x_pid[alpha]
             va = self._v_attractive(x, x_alpha, q_alpha)
             vr = self._v_repulsive(x, x_alpha, q_alpha)
-            loss += torch.mean(q * (M * va + 10 * (1 - M) * vr))
+            loss += torch.mean(q * (M * va + self.repulsion_scaling * (1 - M) * vr))
         return loss
 
-    def forward(self, w, beta, x, y, particle_id):
+    def forward(self, w: T, beta: T, x: T, y: T, particle_id: T) -> T:
         return self.condensation_loss(beta, x, particle_id)
 
 
@@ -56,7 +61,7 @@ class BackgroundLoss(torch.nn.Module):
         self.q_min = q_min
         self.device = device
 
-    def background_loss(self, beta, x, particle_id, q_min=1, sb=10):
+    def background_loss(self, beta: T, x: T, particle_id: T, q_min=1, sb=10) -> T:
         loss = torch.tensor(0.0, dtype=torch.float).to(self.device)
         unique_pids = torch.unique(particle_id[particle_id > 0])
         beta_alphas = torch.zeros(len(unique_pids)).to(self.device)
