@@ -21,35 +21,26 @@ class PotentialLoss(torch.nn.Module):
         #: Scale up repulsive force by this factor
         self.repulsion_scaling = 10
 
-    @staticmethod
-    def _v_attractive(x: T, x_alpha: T, q_alpha: T) -> T:
-        norm_sq = torch.norm(x - x_alpha, dim=1) ** 2
-        return norm_sq * q_alpha
-
-    def _v_repulsive(self, x: T, x_alpha: T, q_alpha: T) -> T:
-        diffs = 1 - torch.norm(x - x_alpha, dim=1)
-        hinges = torch.maximum(torch.zeros(len(x)).to(self.device), diffs)
-        return hinges * q_alpha
-
     def condensation_loss(self, beta: T, x: T, particle_id: T) -> T:
-        loss = torch.tensor(0.0, dtype=torch.float).to(self.device)
         q = torch.arctanh(beta) ** 2 + self.q_min
         # todo: maybe add pt cut
         pids = torch.unique(particle_id)
         pids = pids[pids != 0]
-        for pid in pids:
-            p = pid.item()
-            M = (particle_id == p).squeeze(-1)  # type: ignore
-            q_pid = q[M]
-            x_pid = x[M]
-            M = M.long()
-            alpha = torch.argmax(q_pid)
-            q_alpha = q_pid[alpha]
-            x_alpha = x_pid[alpha]
-            va = self._v_attractive(x, x_alpha, q_alpha)
-            vr = self._v_repulsive(x, x_alpha, q_alpha)
-            loss += torch.mean(q * (M * va + self.repulsion_scaling * (1 - M) * vr))
-        return loss
+
+        masks = particle_id[:, None] == pids[None, :]  # type: ignore
+
+        alphas = torch.argmax(q[:, None] * masks, dim=0)
+        x_alphas = x[alphas].t().to(self.device)
+        q_alphas = q[alphas][None, None, :].to(self.device)
+
+        diff = x[:, :, None] - x_alphas[None, :, :]
+        norm_sq = torch.sum(diff**2, dim=1)
+        va = (norm_sq * q_alphas).squeeze(dim=0)
+        vr = (torch.nn.functional.relu(1 - torch.sqrt(norm_sq)) * q_alphas).squeeze(
+            dim=0
+        )
+        loss = q[:, None] * (masks * va + self.repulsion_scaling * (~masks) * vr)
+        return torch.sum(torch.mean(loss, dim=0))
 
     def forward(self, w: T, beta: T, x: T, y: T, particle_id: T) -> T:
         return self.condensation_loss(beta, x, particle_id)
