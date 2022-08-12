@@ -16,18 +16,19 @@ class PotentialLoss(torch.nn.Module):
         self.q_min = q_min
         self.device = device
 
-    def V_attractive(self, x, x_alpha, q_alpha):
+    def _v_attractive(self, x, x_alpha, q_alpha):
         norm_sq = torch.norm(x - x_alpha, dim=1) ** 2
         return norm_sq * q_alpha
 
-    def V_repulsive(self, x, x_alpha, q_alpha):
+    def _v_repulsive(self, x, x_alpha, q_alpha):
         diffs = 1 - torch.norm(x - x_alpha, dim=1)
         hinges = torch.maximum(torch.zeros(len(x)).to(self.device), diffs)
         return hinges * q_alpha
 
-    def condensation_loss(self, beta, x, particle_id, q_min=1):
+    def condensation_loss(self, beta, x, particle_id):
         loss = torch.tensor(0.0, dtype=torch.float).to(self.device)
-        q = torch.arctanh(beta) ** 2 + q_min
+        q = torch.arctanh(beta) ** 2 + self.q_min
+        # todo: maybe add pt cut
         for pid in torch.unique(particle_id):
             p = pid.item()
             if p == 0:
@@ -39,13 +40,13 @@ class PotentialLoss(torch.nn.Module):
             alpha = torch.argmax(q_pid)
             q_alpha = q_pid[alpha]
             x_alpha = x_pid[alpha]
-            va = V_attractive(x, x_alpha, q_alpha, device=self.device)
-            vr = V_repulsive(x, x_alpha, q_alpha, device=self.device)
+            va = self._v_attractive(x, x_alpha, q_alpha, device=self.device)
+            vr = self._v_repulsive(x, x_alpha, q_alpha, device=self.device)
             loss += torch.mean(q * (M * va + 10 * (1 - M) * vr))
         return loss
 
     def forward(self, w, beta, x, y, particle_id):
-        return self.condensation_loss(beta, x, particle_id, self.q_min)
+        return self.condensation_loss(beta, x, particle_id)
 
 
 class BackgroundLoss(torch.nn.Module):
