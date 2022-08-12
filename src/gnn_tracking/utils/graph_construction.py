@@ -400,7 +400,7 @@ def correct_truth_labels(hits, edges, y, particle_ids):
     return y, n_corrected
 
 
-def get_particle_properties(particle_id, df):
+def get_particle_properties(particle_id, df: pd.DataFrame):
     return df[df.particle_id == particle_id].squeeze()
 
 
