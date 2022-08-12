@@ -2,10 +2,10 @@ from __future__ import annotations
 
 import torch
 import torch.nn as nn
-
 from models.interaction_network import InteractionNetwork as IN
 from models.mlp import MLP
 from torch import Tensor
+
 
 class PointCloudTCN(nn.Module):
     def __init__(self, node_indim, edge_indim, hc_outdim, predict_track_params=False):

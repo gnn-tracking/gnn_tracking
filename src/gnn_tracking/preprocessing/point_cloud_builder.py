@@ -8,6 +8,7 @@ import torch
 from torch_geometric.data import Data
 from trackml.dataset import load_event
 
+
 class GraphSectors:
     def __init__(
             self,
