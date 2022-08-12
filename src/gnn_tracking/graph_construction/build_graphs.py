@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import argparse
 import logging
 import multiprocessing as mp
@@ -28,7 +30,6 @@ from gnn_tracking.utils.graph_construction import (
     select_hits,
     split_detector_sectors,
 )
-
 
 def parse_args(args):
     """Parse command line arguments."""
