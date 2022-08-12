@@ -21,7 +21,8 @@ class PotentialLoss(torch.nn.Module):
         #: Scale up repulsive force by this factor
         self.repulsion_scaling = 10
 
-    def _v_attractive(self, x: T, x_alpha: T, q_alpha: T) -> T:
+    @staticmethod
+    def _v_attractive(x: T, x_alpha: T, q_alpha: T) -> T:
         norm_sq = torch.norm(x - x_alpha, dim=1) ** 2
         return norm_sq * q_alpha
 
@@ -34,10 +35,10 @@ class PotentialLoss(torch.nn.Module):
         loss = torch.tensor(0.0, dtype=torch.float).to(self.device)
         q = torch.arctanh(beta) ** 2 + self.q_min
         # todo: maybe add pt cut
-        for pid in torch.unique(particle_id):
+        pids = torch.unique(particle_id)
+        pids = pids[pids != 0]
+        for pid in pids:
             p = pid.item()
-            if p == 0:
-                continue
             M = (particle_id == p).squeeze(-1)  # type: ignore
             q_pid = q[M]
             x_pid = x[M]
