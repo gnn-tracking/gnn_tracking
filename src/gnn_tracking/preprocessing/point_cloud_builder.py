@@ -95,7 +95,7 @@ class PointCloudBuilder:
         
         # optionally add noise
         if not self.remove_noise:
-            truth = truth.append(truth_noise)
+            truth = pd.concat([truth, truth_noise])
 
         hits["r"] = np.sqrt(hits.x**2 + hits.y**2)
         hits["phi"] = np.arctan2(hits.y, hits.x)
@@ -110,10 +110,10 @@ class PointCloudBuilder:
     def sector_hits(self, hits, s):
         if (self.n_sectors==1): return hits
         # build sectors in each 2*np.pi/self.n_sectors window
-        theta = s*2*np.pi/self.n_sectors
+        theta = np.pi/self.n_sectors
         slope = np.arctan(theta)
-        hits['ur'] = hits['u']*np.cos(theta) - hits['v']*np.sin(theta)
-        hits['vr'] = hits['u']*np.sin(theta) + hits['v']*np.cos(theta)
+        hits['ur'] = hits['u']*np.cos(2*s*theta) - hits['v']*np.sin(2*s*theta)
+        hits['vr'] = hits['u']*np.sin(2*s*theta) + hits['v']*np.cos(2*s*theta)
 
         lower_bound = -self.sector_ds * slope * hits.ur - self.sector_di
         upper_bound = self.sector_ds * slope * hits.ur + self.sector_di
@@ -125,12 +125,14 @@ class PointCloudBuilder:
         if self.measurement_mode:
             sector = hits[((hits.vr > -slope*hits.ur) &
                            (hits.vr < slope*hits.ur) &
-                           (hits.ur >= 0))]
-            sector_high_pt = sector[sector.pt>self.thld]
-            sector_low_pt = sector[sector.pt<=self.thld]
+                           (hits.ur > 0))]
             measurements['sector_size'] = len(sector)
             measurements['extended_sector_size'] = len(extended_sector)
-            measurements['sector_size_ratio'] = len(extended_sector)/len(sector)
+            if len(sector)>0:
+                measurements['sector_size_ratio'] = len(extended_sector)/len(sector)
+            else: 
+                measurements['sector_size_ratio'] = 0
+            measurements['unique_pids'] = len(np.unique(extended_sector.particle_id.values))
         return extended_sector, measurements
             
     def to_pyg_data(self, hits):
@@ -150,13 +152,15 @@ class PointCloudBuilder:
             hits, particles, truth = load_event(
                 f, parts=["hits", "particles", "truth"]
             )
-
+            
             if self.pixel_only:
                 hits = self.restrict_to_pixel(hits)
-            n_hits = len(hits)
             hits = self.append_features(hits, particles, truth)
+            n_particles = len(np.unique(hits.particle_id.values))
+            n_hits = len(hits)
             n_noise = len(hits[hits.particle_id==0])
-            n_sector_hits = 0
+            n_sector_hits = 0 # total quantities appearing in sectored graph
+            n_sector_particles = 0
             for s in range(self.n_sectors):
                 name = f"data{evtid}_s{s}.pt"
                 if self.exists[evtid] and not self.redo:
@@ -165,13 +169,20 @@ class PointCloudBuilder:
                 else:
                     sector, measurements = self.sector_hits(hits, s)
                     n_sector_hits += len(sector)
+                    n_sector_particles += len(np.unique(sector.particle_id.values))
                     sector = self.to_pyg_data(sector)
                     outfile = join(self.outdir, name)
-                    if verbose: print(f'...writing {outfile}')
+                    if verbose: 
+                        print(measurements)
+                        print(f'...writing {outfile}')
                     torch.save(sector, outfile)
                     self.data_list.append(sector)
             
             self.stats[evtid] = {'n_hits': n_hits,
+                                 'n_particles': n_particles,
                                  'n_noise': n_noise,
-                                 'n_sector_hits': n_sector_hits}
+                                 'n_sector_hits': n_sector_hits,
+                                 'n_sector_particles': n_sector_particles
+            }
+            
             print('Output statistics:', self.stats[evtid])

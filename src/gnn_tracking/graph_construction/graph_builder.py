@@ -5,7 +5,7 @@ import pandas as pd
 import torch
 
 class GraphBuilder:
-    def __init__(self, indir, outdir, pixel_only=True,
+    def __init__(self, indir, outdir, pixel_only=True, redo=True,
                  phi_slope_max=0.005, z0_max=200, 
                  dR_max=1.7, uv_approach_max=0.0015,
                  feature_names=["r", "phi", "z", "eta_rz", "u", "v", "layer"],
@@ -13,12 +13,15 @@ class GraphBuilder:
         self.indir=indir
         self.outdir=outdir
         self.pixel_only = pixel_only
+        self.redo=redo
         self.phi_slope_max=phi_slope_max
         self.z0_max=z0_max
         self.dR_max=dR_max
         self.uv_approach_max=uv_approach_max
         self.feature_names=feature_names
         self.feature_scale=feature_scale
+        self.data_list=[]
+        self.outfiles = os.listdir(outdir)
         
     def calc_dphi(self, phi1: np.ndarray, phi2: np.ndarray) -> np.ndarray:
         """Computes phi2-phi1 given in range [-pi,pi]"""
@@ -122,7 +125,6 @@ class GraphBuilder:
             except KeyError as e:
                 continue
             
-            print(layer1, layer2)
             edges_layer_pair = self.select_edges(
                 hits1,
                 hits2,
@@ -146,15 +148,25 @@ class GraphBuilder:
         edge_index = np.stack((edge_start, edge_end))
         return edge_index, edge_attr
         
-    def process(self, n=10**6):
+    def process(self, n=10**6, verbose=False):
         infiles = os.listdir(self.indir)
         for f in infiles:
-            evtid = f.split('.')[0][5:]
-            print(f'Processing {f}')
-            f = join(self.indir, f)
-            evt = torch.load(f)
-            df = self.get_dataframe(evt, evtid)
-            edge_index, edge_attr = self.build_edges(df)
-            evt.edge_index = edge_index
-            evt.edge_attr = edge_attr
-            print(evt)
+            name = f.split('/')[-1]
+            if f in self.outfiles and not self.redo:
+                graph = torch.load(join(self.outdir, name))
+                self.data_list.append(graph)
+            else:
+                evtid = f.split('.')[0][5:]
+                if verbose: print(f'Processing {f}')
+                f = join(self.indir, f)
+                graph = torch.load(f)
+                df = self.get_dataframe(graph, evtid)
+                edge_index, edge_attr = self.build_edges(df)
+                graph.edge_index = edge_index
+                graph.edge_attr = edge_attr
+                if verbose: print(graph)
+                outfile = join(self.outdir, name)
+                if verbose: print(f'Writing {outfile}')
+                torch.save(graph, outfile)
+                self.data_list.append(graph)
+            
