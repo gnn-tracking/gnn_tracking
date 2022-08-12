@@ -12,10 +12,6 @@ import numpy as np
 import pandas as pd
 import trackml.dataset
 from scipy import optimize
-from utils.data_utils import *
-from utils.graph_building_utils import *
-from utils.hit_processing_utils import *
-
 
 def parse_args(args):
     """Parse command line arguments."""

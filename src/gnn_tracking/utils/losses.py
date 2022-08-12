@@ -7,6 +7,7 @@ class EdgeWeightLoss(torch.nn.Module):
         bce_loss = binary_cross_entropy(w, y, reduction="mean")
         return bce_loss
 
+
 class PotentialLoss(torch.nn.Module):
     def __init__(self, q_min=0.01, device="cpu"):
         super(PotentialLoss, self).__init__()
@@ -36,8 +37,8 @@ class PotentialLoss(torch.nn.Module):
             alpha = torch.argmax(q_pid)
             q_alpha = q_pid[alpha]
             x_alpha = x_pid[alpha]
-            va = V_attractive(x, x_alpha, q_alpha, device=self.device)
-            vr = V_repulsive(x, x_alpha, q_alpha, device=self.device)
+            va = self.V_attractive(x, x_alpha, q_alpha, device=self.device)
+            vr = self.V_repulsive(x, x_alpha, q_alpha, device=self.device)
             loss += torch.mean(q * (M * va + 10 * (1 - M) * vr))
         return loss
 

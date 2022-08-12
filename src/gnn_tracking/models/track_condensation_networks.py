@@ -1,14 +1,15 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+import torch_geometric
+from models.interaction_network import InteractionNetwork as IN
+from models.mlp import MLP
 from torch import Tensor
 from torch.nn import Linear, ReLU
 from torch.nn import Sequential as Seq
 from torch.nn import Sigmoid
-import torch_geometric
 from torch_geometric.nn import MessagePassing
-from models.mlp import MLP
-from models.interaction_network import InteractionNetwork as IN
+
 
 class PointCloudTCN(nn.Module):
     def __init__(self, node_indim, edge_indim, hc_outdim, predict_track_params=False):
@@ -82,6 +83,7 @@ class PointCloudTCN(nn.Module):
             return edge_weights, hc, beta, p3
 
         return edge_weights, hc, beta
+
 
 class GraphTCN(nn.Module):
     def __init__(self, node_indim, edge_indim, hc_outdim, predict_track_params=False):
