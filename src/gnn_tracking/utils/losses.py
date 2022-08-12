@@ -53,8 +53,7 @@ class BackgroundLoss(torch.nn.Module):
         self.q_min = q_min
         self.device = device
 
-    def background_loss(self, beta: T, x: T, particle_id: T, q_min=1, sb=10) -> T:
-        loss = torch.tensor(0.0, dtype=torch.float).to(self.device)
+    def background_loss(self, beta: T, particle_id: T) -> T:
         unique_pids = torch.unique(particle_id[particle_id > 0])
         beta_alphas = torch.zeros(len(unique_pids)).to(self.device)
         for i, pid in enumerate(unique_pids):
@@ -71,10 +70,10 @@ class BackgroundLoss(torch.nn.Module):
         nb = torch.sum(n)
         if nb == 0:
             return torch.tensor(0, dtype=float)
-        return torch.mean(1 - beta_alphas) + sb * torch.sum(n * beta) / nb
+        return torch.mean(1 - beta_alphas) + self.sb * torch.sum(n * beta) / nb
 
     def forward(self, w, beta, x, y, particle_id):
-        return self.background_loss(beta, x, particle_id, self.q_min, self.sb)
+        return self.background_loss(beta, particle_id)
 
 
 class ObjectLoss(torch.nn.Module):
