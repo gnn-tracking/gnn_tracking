@@ -1,17 +1,6 @@
-from __future__ import annotations
-
-import os
-import sys
-
-sys.path.append("../")
-
-import matplotlib.colors as mcolors
 import mplhep as hep
 import numpy as np
 from matplotlib import pyplot as plt
-from mpl_toolkits import mplot3d
-from torch_geometric.data import Data, Dataset
-from torch_geometric.loader import DataLoader
 
 plt.style.use(hep.style.CMS)
 

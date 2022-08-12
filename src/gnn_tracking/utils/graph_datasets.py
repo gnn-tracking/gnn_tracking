@@ -1,15 +1,10 @@
-from __future__ import annotations
-
+import logging
 import os
 import sys
-
-sys.path.append("../")
-import logging
 from os.path import join
 
 import numpy as np
 import torch
-import torch_geometric
 from torch_geometric.data import Data, Dataset
 from torch_geometric.loader import DataLoader
 

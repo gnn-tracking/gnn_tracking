@@ -2,15 +2,9 @@ from __future__ import annotations
 
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
-import torch_geometric
 from models.interaction_network import InteractionNetwork as IN
 from models.mlp import MLP
 from torch import Tensor
-from torch.nn import Linear, ReLU
-from torch.nn import Sequential as Seq
-from torch.nn import Sigmoid
-from torch_geometric.nn import MessagePassing
 
 
 class PointCloudTCN(nn.Module):
