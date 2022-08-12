@@ -20,6 +20,7 @@ import trackml.dataset
 from gnn_tracking.utils.graph_construction import (
     correct_truth_labels,
     empty_graph,
+    graph_summary,
     initialize_logger,
     select_edges,
     select_hits,
