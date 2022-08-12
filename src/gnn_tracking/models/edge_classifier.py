@@ -22,7 +22,7 @@ class EdgeClassifier(nn.Module):
         self.node_encoder = MLP(node_indim, node_latentdim, 64, L=1)
         self.edge_encoder = MLP(edge_indim, edge_latentdim, 64, L=1)
         gnn_layers = []
-        for l in range(L):
+        for _l in range(L):
             gnn_layers.append(
                 IN(
                     node_latentdim,
@@ -39,7 +39,7 @@ class EdgeClassifier(nn.Module):
     def forward(self, x: Tensor, edge_index: Tensor, edge_attr: Tensor) -> Tensor:
         node_latent = self.node_encoder(x)
         edge_latent = self.edge_encoder(edge_attr)
-        for l in self.gnn_layers:
-            node_latent, edge_latent = l(node_latent, edge_index, edge_latent)
+        for layer in self.gnn_layers:
+            node_latent, edge_latent = layer(node_latent, edge_index, edge_latent)
         edge_weights = torch.sigmoid(self.W(edge_latent))
         return edge_weights

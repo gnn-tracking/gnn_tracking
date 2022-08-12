@@ -9,6 +9,14 @@ from torch_geometric.data import Data
 from trackml.dataset import load_event
 
 
+class GraphSectors:
+    def __init__(
+            self,
+            n_sectors,
+            ds=None,
+            di=None
+    ):
+
 class PointCloudBuilder:
     def __init__(
         self,
