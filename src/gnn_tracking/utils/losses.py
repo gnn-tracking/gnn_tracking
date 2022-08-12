@@ -24,8 +24,7 @@ class PotentialLoss(torch.nn.Module):
     def condensation_loss(self, beta: T, x: T, particle_id: T) -> T:
         q = torch.arctanh(beta) ** 2 + self.q_min
         # todo: maybe add pt cut
-        pids = torch.unique(particle_id)
-        pids = pids[pids != 0]
+        pids = torch.unique(particle_id[particle_id > 0])
 
         masks = particle_id[:, None] == pids[None, :]  # type: ignore
 
@@ -54,9 +53,9 @@ class BackgroundLoss(torch.nn.Module):
         self.device = device
 
     def background_loss(self, beta: T, particle_id: T) -> T:
-        unique_pids = torch.unique(particle_id[particle_id > 0])
-        beta_alphas = torch.zeros(len(unique_pids)).to(self.device)
-        for i, pid in enumerate(unique_pids):
+        pids = torch.unique(particle_id[particle_id > 0])
+        beta_alphas = torch.zeros(len(pids)).to(self.device)
+        for i, pid in enumerate(pids):
             p = pid.item()
             if p == 0:
                 continue
@@ -96,10 +95,9 @@ class ObjectLoss(torch.nn.Module):
         loss = torch.tensor(0.0, dtype=torch.float).to(self.device)
         K = torch.tensor(0.0, dtype=torch.float).to(self.device)
         M = torch.tensor(0.0, dtype=torch.long).to(self.device)
-        for pid in torch.unique(particle_id):
+        pids = torch.unique(particle_id[particle_id > 0])
+        for pid in pids:
             p = pid.item()
-            if p == 0:
-                continue
             M = (particle_id == p).squeeze(-1)
             xi_p = M * p
             weight = 1.0 / (torch.sum(xi_p))
