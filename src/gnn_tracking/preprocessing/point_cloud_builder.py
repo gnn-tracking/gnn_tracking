@@ -9,15 +9,6 @@ import torch
 from torch_geometric.data import Data
 from trackml.dataset import load_event
 
-# class GraphSectors:
-#    def __init__(
-#            self,
-#            n_sectors,
-#            ds=None,
-#            di=None
-#    ):
-
-
 class PointCloudBuilder:
     def __init__(
         self,
@@ -47,6 +38,8 @@ class PointCloudBuilder:
         self.thld = thld
         self.stats = {}
         self.remove_noise = remove_noise
+        self.particle_id_counts = None
+        self.measurements = []
 
         suffix = "-hits.csv.gz"
         self.prefixes, self.exists = [], {}
@@ -55,10 +48,9 @@ class PointCloudBuilder:
             if str(p).endswith(suffix):
                 prefix = str(p).replace(suffix, "")
                 evtid = int(prefix[-9:])
-                if f"data{evtid}_s0.pt" in outfiles:
-                    self.exists[evtid] = True
-                else:
-                    self.exists[evtid] = False
+                for s in range(self.n_sectors):
+                    key = f"data{evtid}_s{s}.pt"
+                    self.exists[key] = (key in outfiles)
                 self.prefixes.append(join(indir, prefix))
 
         self.data_list = []
@@ -156,10 +148,31 @@ class PointCloudBuilder:
                 measurements["sector_size_ratio"] = len(extended_sector) / len(sector)
             else:
                 measurements["sector_size_ratio"] = 0
+            
             measurements["unique_pids"] = len(
                 np.unique(extended_sector.particle_id.values)
             )
-        return extended_sector, measurements
+            
+            majority_contained = []
+            for pid in np.unique(extended_sector.particle_id.values):
+                if (pid==0): continue
+                group = hits[hits.particle_id==pid]
+                in_sector = ((group.vr < slope*group.ur) & 
+                             (group.vr > -slope*group.ur) & 
+                             (group.pt >= self.thld))
+                n_total = self.particle_id_counts[pid]
+                if sum(in_sector)/n_total < 0.5: continue
+                in_ext_sector = ((group.vr < (self.sector_ds * slope * group.ur 
+                                              + self.sector_di)) &
+                                 (group.vr > (-self.sector_ds * slope * group.ur 
+                                              - self.sector_di)) &
+                                 (group.pt > self.thld))
+                majority_contained.append(sum(in_ext_sector) == n_total)
+                efficiency = sum(majority_contained)/len(majority_contained)
+                measurements[f"majority_contained_{self.thld}GeV"] = efficiency
+                self.measurements.append(measurements)
+
+        return extended_sector
 
     def to_pyg_data(self, hits):
         data = Data(
@@ -181,6 +194,12 @@ class PointCloudBuilder:
             if self.pixel_only:
                 hits = self.restrict_to_pixel(hits)
             hits = self.append_features(hits, particles, truth)
+            hits_by_pid = hits.groupby('particle_id')
+
+            if self.measurement_mode:
+                self.particle_id_counts = {pid: len(hit_group) 
+                                           for pid, hit_group in hits_by_pid}
+
             n_particles = len(np.unique(hits.particle_id.values))
             n_hits = len(hits)
             n_noise = len(hits[hits.particle_id == 0])
@@ -188,20 +207,19 @@ class PointCloudBuilder:
             n_sector_particles = 0
             for s in range(self.n_sectors):
                 name = f"data{evtid}_s{s}.pt"
-                if self.exists[evtid] and not self.redo:
+                if self.exists[name] and not self.redo:
                     data = torch.load(join(self.outdir, name))
                     self.data_list.append(data)
+                    if(verbose): print('skipping {name}')
                 else:
-                    sector, measurements = self.sector_hits(hits, s)
+                    sector = self.sector_hits(hits, s)
                     n_sector_hits += len(sector)
                     n_sector_particles += len(np.unique(sector.particle_id.values))
                     sector = self.to_pyg_data(sector)
                     outfile = join(self.outdir, name)
-                    if verbose:
-                        print(measurements)
-                        print(f"...writing {outfile}")
                     torch.save(sector, outfile)
                     self.data_list.append(sector)
+                    if(verbose): print(f'wrote {outfile}')
 
             self.stats[evtid] = {
                 "n_hits": n_hits,
@@ -211,4 +229,11 @@ class PointCloudBuilder:
                 "n_sector_particles": n_sector_particles,
             }
 
-            print("Output statistics:", self.stats[evtid])
+        print("Output statistics:", self.stats[evtid])
+        if self.measurement_mode:
+            measurements = pd.DataFrame(self.measurements)
+            means = measurements.mean()
+            stds = measurements.std()
+            for var in stds.index:
+                print(f'{var}: {means[var]:.4f}+/-{stds[var]:.4f}')
+                
