@@ -54,20 +54,14 @@ class BackgroundLoss(torch.nn.Module):
 
     def background_loss(self, beta: T, particle_id: T) -> T:
         pids = torch.unique(particle_id[particle_id > 0])
-        beta_alphas = torch.zeros(len(pids)).to(self.device)
-        for i, pid in enumerate(pids):
-            p = pid.item()
-            M = (particle_id == p).squeeze(-1)
-            beta_pid = beta[M]
-            alpha = torch.argmax(beta_pid)
-            beta_alpha = beta_pid[alpha]
-            beta_alphas[i] = beta_alpha
+        masks = particle_id[:, None] == pids[None, :]
+        alphas = torch.argmax(masks * beta[:, None], dim=0)
+        beta_alphas = beta[alphas]
 
-        n = (particle_id == 0).long()
-        nb = torch.sum(n)
-        if nb == 0:
+        n = particle_id == 0
+        if not n.any():
             return torch.tensor(0, dtype=float)
-        return torch.mean(1 - beta_alphas) + self.sb * torch.sum(n * beta) / nb
+        return torch.mean(1 - beta_alphas) + self.sb * torch.mean(beta[n])
 
     def forward(self, w, beta, x, y, particle_id):
         return self.background_loss(beta, particle_id)

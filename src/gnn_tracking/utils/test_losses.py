@@ -4,7 +4,7 @@ from dataclasses import dataclass
 
 import numpy as np
 import torch
-from utils.losses import PotentialLoss
+from utils.losses import BackgroundLoss, PotentialLoss
 
 T = torch.tensor
 
@@ -32,8 +32,21 @@ def get_condensation_loss(td: TestData) -> float:
     return PotentialLoss().condensation_loss(td.beta, td.x, td.particle_id).item()
 
 
+def get_background_loss(td: TestData) -> float:
+    return BackgroundLoss().background_loss(td.beta, td.particle_id)
+
+
 def test_potential_loss():
     td = generate_test_data(10, n_particles=3, rng=np.random.default_rng(seed=0))
     assert np.isclose(get_condensation_loss(td), 7.7166)
     td = generate_test_data(20, n_particles=3, rng=np.random.default_rng(seed=0))
     assert np.isclose(get_condensation_loss(td), 7.1898)
+
+
+def test_background_loss():
+    td = generate_test_data(10, n_particles=3, rng=np.random.default_rng(seed=0))
+    assert np.isclose(
+        get_background_loss(td).item(), 0.12870374134954846
+    ), get_background_loss(td).item()
+    td = generate_test_data(20, n_particles=3, rng=np.random.default_rng(seed=0))
+    assert np.isclose(get_background_loss(td).item(), 0.16493608241281874)
