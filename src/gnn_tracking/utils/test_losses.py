@@ -28,12 +28,12 @@ def generate_test_data(
     )
 
 
-def get_loss(td: TestData) -> float:
+def get_condensation_loss(td: TestData) -> float:
     return PotentialLoss().condensation_loss(td.beta, td.x, td.particle_id).item()
 
 
 def test_potential_loss():
     td = generate_test_data(10, n_particles=3, rng=np.random.default_rng(seed=0))
-    assert np.isclose(get_loss(td), 7.7166)
+    assert np.isclose(get_condensation_loss(td), 7.7166)
     td = generate_test_data(20, n_particles=3, rng=np.random.default_rng(seed=0))
-    assert np.isclose(get_loss(td), 7.1898)
+    assert np.isclose(get_condensation_loss(td), 7.1898)

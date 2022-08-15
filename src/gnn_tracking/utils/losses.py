@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import torch
-from torch.nn.functional import binary_cross_entropy, mse_loss
+from torch.nn.functional import binary_cross_entropy, mse_loss, relu
 
 
 class EdgeWeightLoss(torch.nn.Module):
@@ -20,10 +20,10 @@ class PotentialLoss(torch.nn.Module):
         self.device = device
         #: Scale up repulsive force by this factor
         self.repulsion_scaling = 10
+        self.radius_threshold = 1.0
 
     def condensation_loss(self, beta: T, x: T, particle_id: T) -> T:
         q = torch.arctanh(beta) ** 2 + self.q_min
-        # todo: maybe add pt cut
         pids = torch.unique(particle_id[particle_id > 0])
 
         masks = particle_id[:, None] == pids[None, :]  # type: ignore
@@ -35,7 +35,7 @@ class PotentialLoss(torch.nn.Module):
         diff = x[:, :, None] - x_alphas[None, :, :]
         norm_sq = torch.sum(diff**2, dim=1)
         va = (norm_sq * q_alphas).squeeze(dim=0)
-        vr = (torch.nn.functional.relu(1 - torch.sqrt(norm_sq)) * q_alphas).squeeze(
+        vr = (relu(self.radius_threshold - torch.sqrt(norm_sq)) * q_alphas).squeeze(
             dim=0
         )
         loss = q[:, None] * (masks * va + self.repulsion_scaling * (~masks) * vr)
@@ -57,8 +57,6 @@ class BackgroundLoss(torch.nn.Module):
         beta_alphas = torch.zeros(len(pids)).to(self.device)
         for i, pid in enumerate(pids):
             p = pid.item()
-            if p == 0:
-                continue
             M = (particle_id == p).squeeze(-1)
             beta_pid = beta[M]
             alpha = torch.argmax(beta_pid)
