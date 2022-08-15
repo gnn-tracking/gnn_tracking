@@ -33,24 +33,25 @@ def parse_args(args):
     return parser.parse_args(args)
 
 
-def calc_radii(xc, yc, x=[], y=[]):
+def calc_radii(xc: float, yc: float, x: np.ndarray, y: np.ndarray) -> np.ndarray:
     return np.sqrt((x - xc) ** 2 + (y - yc) ** 2)
 
 
-def radii_diffs(c, x=[], y=[]):
+def radii_diffs(c: tuple[float, float], x: np.ndarray, y: np.ndarray) -> np.ndarray:
     radii = calc_radii(*c, x=x, y=y)
     return radii - np.mean(radii)
 
 
-def calc_circle_pt(R):
+def calc_circle_pt(R: float) -> float:
+    # todo: Name magic constant
     return 0.0003 * 2 * R
 
 
-def calc_circle_d0(xc, yc, R):
+def calc_circle_d0(xc: float, yc: float, R: float) -> float:
     return R - np.sqrt(xc**2 + yc**2)
 
 
-def radius_error(x, y, xc, yc, R):
+def radius_error(x: np.ndarray, y: np.ndarray, xc: float, yc: float, R: float) -> float:
     angles = np.arctan2(y - yc, x - xc)
     cx = xc + R * np.cos(angles)
     cy = yc + R * np.sin(angles)
@@ -58,7 +59,9 @@ def radius_error(x, y, xc, yc, R):
     return np.sqrt(np.sum(sum2_errs))
 
 
-def rotate(u, v, theta):
+def rotate(
+    u: np.ndarray, v: np.ndarray, theta: np.ndarray
+) -> tuple[np.ndarray, np.ndarray]:
     rot_mat = np.array(
         [[np.cos(theta), np.sin(theta)], [-np.sin(theta), np.cos(theta)]]
     )
