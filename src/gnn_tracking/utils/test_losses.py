@@ -44,8 +44,8 @@ def get_background_loss(td: TestData) -> float:
     return BackgroundLoss().background_loss(td.beta, td.particle_id)
 
 
-def get_object_loss(td: TestData) -> float:
-    return ObjectLoss().object_loss(
+def get_object_loss(td: TestData, **kwargs) -> float:
+    return ObjectLoss(**kwargs).object_loss(
         beta=td.beta, particle_id=td.particle_id, pred=td.pred, truth=td.truth
     )
 
@@ -60,6 +60,11 @@ def test_background_loss():
     assert np.isclose(get_background_loss(td2).item(), 0.16493608241281874)
 
 
-def test_object_loss():
+def test_object_loss_efficiency():
     assert np.isclose(get_object_loss(td1).item(), 26.666667938232422)
     assert np.isclose(get_object_loss(td2).item(), 62.222225189208984)
+
+
+def test_object_loss_purity():
+    assert np.isclose(get_object_loss(td1, mode="purity").item(), 3.6432214679013644)
+    assert np.isclose(get_object_loss(td2, mode="purity").item(), 3.8949206999806045)
