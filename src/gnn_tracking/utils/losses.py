@@ -83,7 +83,7 @@ class ObjectLoss(torch.nn.Module):
     def MSE(self, p, t):
         return torch.sum(mse_loss(p, t, reduction="none"), dim=1)
 
-    def object_loss(self, pred, beta, truth, particle_id):
+    def object_loss(self, *, pred, beta, truth, particle_id):
         noise_mask = particle_id == 0
         xi = (~noise_mask) * torch.arctanh(beta) ** 2
         mse = self.MSE(pred, truth)
@@ -104,5 +104,8 @@ class ObjectLoss(torch.nn.Module):
     def forward(self, W, beta, H, pred, Y, particle_id, track_params, reconstructable):
         mask = reconstructable > 0
         return self.object_loss(
-            pred[mask], beta[mask], track_params[mask], particle_id[mask]
+            pred=pred[mask],
+            beta=beta[mask],
+            truth=track_params[mask],
+            particle_id=particle_id[mask],
         )
