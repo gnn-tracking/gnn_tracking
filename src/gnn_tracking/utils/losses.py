@@ -6,6 +6,7 @@ from torch.nn.functional import binary_cross_entropy, mse_loss, relu
 
 class EdgeWeightLoss(torch.nn.Module):
     @staticmethod
+    # noinspection PyUnusedVariable
     def forward(w, beta, x, y, particle_id):
         bce_loss = binary_cross_entropy(w, y, reduction="mean")
         return bce_loss
@@ -47,6 +48,7 @@ class PotentialLoss(torch.nn.Module):
         )
         return torch.sum(torch.mean(loss, dim=0))
 
+    # noinspection PyUnusedVariable
     def forward(self, w: T, beta: T, x: T, y: T, particle_id: T) -> T:
         return self.condensation_loss(beta, x, particle_id)
 
@@ -112,7 +114,8 @@ class ObjectLoss(torch.nn.Module):
         else:
             raise ValueError("Unknown mode: {mode}")
 
-    def forward(self, W, beta, H, pred, Y, particle_id, track_params, reconstructable):
+    # noinspection PyUnusedVariable
+    def forward(self, w, beta, h, pred, y, particle_id, track_params, reconstructable):
         mask = reconstructable > 0
         return self.object_loss(
             pred=pred[mask],
