@@ -5,7 +5,8 @@ from torch.nn.functional import binary_cross_entropy, mse_loss, relu
 
 
 class EdgeWeightLoss(torch.nn.Module):
-    def forward(self, w, beta, x, y, particle_id):
+    @staticmethod
+    def forward(w, beta, x, y, particle_id):
         bce_loss = binary_cross_entropy(w, y, reduction="mean")
         return bce_loss
 
