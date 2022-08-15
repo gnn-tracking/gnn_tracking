@@ -13,16 +13,16 @@ class InteractionNetwork(MessagePassing):
         edge_indim,
         node_outdim=3,
         edge_outdim=4,
-        relational_hidden_size=80,
-        object_hidden_size=80,
+        node_hidden_dim=40,
+        edge_hidden_dim=40,
         aggr="add",
     ):
         super(InteractionNetwork, self).__init__(aggr=aggr, flow="source_to_target")
         self.relational_model = MLP(
-            2 * node_indim + edge_indim, edge_outdim, relational_hidden_size
+            2 * node_indim + edge_indim, edge_outdim, edge_hidden_dim,
         )
         self.object_model = MLP(
-            node_indim + edge_outdim, node_outdim, object_hidden_size
+            node_indim + edge_outdim, node_outdim, node_hidden_dim,
         )
 
     def forward(self, x: Tensor, edge_index: Tensor, edge_attr: Tensor) -> Tensor:
