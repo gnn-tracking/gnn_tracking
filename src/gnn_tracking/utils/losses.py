@@ -95,7 +95,7 @@ class ObjectLoss(torch.nn.Module):
         masks = particle_id[:, None] == pids[None, :]
         for i in range(len(pids)):
             M = masks[:, i]
-            xi_p = M * pids[i]
+            xi_p = M * torch.arctanh(beta) ** 2
             weight = 1.0 / (torch.sum(xi_p))
             loss += weight * torch.sum(mse * xi_p)
             K += 1.0

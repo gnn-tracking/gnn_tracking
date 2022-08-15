@@ -62,8 +62,8 @@ def test_background_loss():
 
 
 def test_object_loss_efficiency():
-    assert get_object_loss(td1).item() == approx(26.666667938232422)
-    assert get_object_loss(td2).item() == approx(62.222225189208984)
+    assert get_object_loss(td1).item() == approx(29.833900451660156)
+    assert get_object_loss(td2).item() == approx(77.24552154541016)
 
 
 def test_object_loss_purity():
