@@ -32,6 +32,10 @@ def generate_test_data(
     )
 
 
+td1 = generate_test_data(10, n_particles=3, rng=np.random.default_rng(seed=0))
+td2 = generate_test_data(20, n_particles=3, rng=np.random.default_rng(seed=0))
+
+
 def get_condensation_loss(td: TestData) -> float:
     return PotentialLoss().condensation_loss(td.beta, td.x, td.particle_id).item()
 
@@ -47,23 +51,15 @@ def get_object_loss(td: TestData) -> float:
 
 
 def test_potential_loss():
-    td = generate_test_data(10, n_particles=3, rng=np.random.default_rng(seed=0))
-    assert np.isclose(get_condensation_loss(td), 7.7166)
-    td = generate_test_data(20, n_particles=3, rng=np.random.default_rng(seed=0))
-    assert np.isclose(get_condensation_loss(td), 7.1898)
+    assert np.isclose(get_condensation_loss(td1), 7.7166)
+    assert np.isclose(get_condensation_loss(td2), 7.1898)
 
 
 def test_background_loss():
-    td = generate_test_data(10, n_particles=3, rng=np.random.default_rng(seed=0))
-    assert np.isclose(
-        get_background_loss(td).item(), 0.12870374134954846
-    ), get_background_loss(td).item()
-    td = generate_test_data(20, n_particles=3, rng=np.random.default_rng(seed=0))
-    assert np.isclose(get_background_loss(td).item(), 0.16493608241281874)
+    assert np.isclose(get_background_loss(td1).item(), 0.12870374134954846)
+    assert np.isclose(get_background_loss(td2).item(), 0.16493608241281874)
 
 
 def test_object_loss():
-    td = generate_test_data(10, n_particles=3, rng=np.random.default_rng(seed=0))
-    assert np.isclose(get_object_loss(td).item(), 26.666667938232422)
-    td = generate_test_data(20, n_particles=3, rng=np.random.default_rng(seed=0))
-    assert np.isclose(get_object_loss(td).item(), 62.222225189208984)
+    assert np.isclose(get_object_loss(td1).item(), 26.666667938232422)
+    assert np.isclose(get_object_loss(td2).item(), 62.222225189208984)
