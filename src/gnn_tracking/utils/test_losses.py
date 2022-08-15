@@ -4,6 +4,7 @@ from dataclasses import dataclass
 
 import numpy as np
 import torch
+from pytest import approx
 from utils.losses import BackgroundLoss, ObjectLoss, PotentialLoss
 
 T = torch.tensor
@@ -51,20 +52,20 @@ def get_object_loss(td: TestData, **kwargs) -> float:
 
 
 def test_potential_loss():
-    assert np.isclose(get_condensation_loss(td1), 7.7166)
-    assert np.isclose(get_condensation_loss(td2), 7.1898)
+    assert get_condensation_loss(td1) == approx(7.716561306915411)
+    assert get_condensation_loss(td2) == approx(7.189839086949652)
 
 
 def test_background_loss():
-    assert np.isclose(get_background_loss(td1).item(), 0.12870374134954846)
-    assert np.isclose(get_background_loss(td2).item(), 0.16493608241281874)
+    assert get_background_loss(td1).item() == approx(0.12870374134954846)
+    assert get_background_loss(td2).item() == approx(0.16493608241281874)
 
 
 def test_object_loss_efficiency():
-    assert np.isclose(get_object_loss(td1).item(), 26.666667938232422)
-    assert np.isclose(get_object_loss(td2).item(), 62.222225189208984)
+    assert get_object_loss(td1).item() == approx(26.666667938232422)
+    assert get_object_loss(td2).item() == approx(62.222225189208984)
 
 
 def test_object_loss_purity():
-    assert np.isclose(get_object_loss(td1, mode="purity").item(), 3.6432214679013644)
-    assert np.isclose(get_object_loss(td2, mode="purity").item(), 3.8949206999806045)
+    assert get_object_loss(td1, mode="purity").item() == approx(3.6432214679013644)
+    assert get_object_loss(td2, mode="purity").item() == approx(3.8949206999806045)
