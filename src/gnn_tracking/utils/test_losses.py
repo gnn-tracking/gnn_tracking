@@ -11,7 +11,7 @@ T = torch.tensor
 
 
 @dataclass
-class TestData:
+class MockData:
     beta: T
     x: T
     particle_id: T
@@ -21,10 +21,10 @@ class TestData:
 
 def generate_test_data(
     n_nodes=1000, n_particles=250, n_x_features=3, rng=None
-) -> TestData:
+) -> MockData:
     if rng is None:
         rng = np.random.default_rng()
-    return TestData(
+    return MockData(
         beta=torch.from_numpy(rng.random(n_nodes)),
         x=torch.from_numpy(rng.random((n_nodes, n_x_features))),
         particle_id=torch.from_numpy(rng.choice(np.arange(n_particles), size=n_nodes)),
@@ -37,15 +37,15 @@ td1 = generate_test_data(10, n_particles=3, rng=np.random.default_rng(seed=0))
 td2 = generate_test_data(20, n_particles=3, rng=np.random.default_rng(seed=0))
 
 
-def get_condensation_loss(td: TestData) -> float:
+def get_condensation_loss(td: MockData) -> float:
     return PotentialLoss().condensation_loss(td.beta, td.x, td.particle_id).item()
 
 
-def get_background_loss(td: TestData) -> float:
+def get_background_loss(td: MockData) -> float:
     return BackgroundLoss().background_loss(td.beta, td.particle_id)
 
 
-def get_object_loss(td: TestData, **kwargs) -> float:
+def get_object_loss(td: MockData, **kwargs) -> float:
     return ObjectLoss(**kwargs).object_loss(
         beta=td.beta, particle_id=td.particle_id, pred=td.pred, truth=td.truth
     )
