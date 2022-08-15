@@ -85,21 +85,24 @@ class ObjectLoss(torch.nn.Module):
 
     def object_loss(self, *, pred, beta, truth, particle_id):
         noise_mask = particle_id == 0
+        # shape: n_nodes
         xi = (~noise_mask) * torch.arctanh(beta) ** 2
+        # shape: n_nodes
         mse = self.MSE(pred, truth)
         if self.mode == "purity":
             return self.scale / torch.sum(xi) * torch.mean(xi * mse)
-        loss = torch.tensor(0.0, dtype=torch.float).to(self.device)
-        K = torch.tensor(0.0, dtype=torch.float).to(self.device)
+        # shape: n_particles
         pids = torch.unique(particle_id[particle_id > 0])
+        # PID masks (n_nodes x n_particles)
         masks = particle_id[:, None] == pids[None, :]
-        for i in range(len(pids)):
-            M = masks[:, i]
-            xi_p = M * torch.arctanh(beta) ** 2
-            weight = 1.0 / (torch.sum(xi_p))
-            loss += weight * torch.sum(mse * xi_p)
-            K += 1.0
-        return self.scale * loss / K
+        # shape: (n_nodes x n_particles)
+        xi_ps = masks * (torch.arctanh(beta) ** 2)[:, None]
+        # shape: n_nodes
+        weights = 1.0 / (torch.sum(xi_ps, dim=0))
+        # shape: n_nodes
+        facs = torch.sum(mse[:, None] * xi_ps, dim=0)
+        loss = torch.mean(weights * facs)
+        return self.scale * loss
 
     def forward(self, W, beta, H, pred, Y, particle_id, track_params, reconstructable):
         mask = reconstructable > 0
