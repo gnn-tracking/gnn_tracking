@@ -91,18 +91,21 @@ class ObjectLoss(torch.nn.Module):
         mse = self.MSE(pred, truth)
         if self.mode == "purity":
             return self.scale / torch.sum(xi) * torch.mean(xi * mse)
-        # shape: n_particles
-        pids = torch.unique(particle_id[particle_id > 0])
-        # PID masks (n_nodes x n_particles)
-        masks = particle_id[:, None] == pids[None, :]
-        # shape: (n_nodes x n_particles)
-        xi_ps = masks * (torch.arctanh(beta) ** 2)[:, None]
-        # shape: n_nodes
-        weights = 1.0 / (torch.sum(xi_ps, dim=0))
-        # shape: n_nodes
-        facs = torch.sum(mse[:, None] * xi_ps, dim=0)
-        loss = torch.mean(weights * facs)
-        return self.scale * loss
+        elif self.mode == "efficiency":
+            # shape: n_particles
+            pids = torch.unique(particle_id[particle_id > 0])
+            # PID masks (n_nodes x n_particles)
+            masks = particle_id[:, None] == pids[None, :]
+            # shape: (n_nodes x n_particles)
+            xi_ps = masks * (torch.arctanh(beta) ** 2)[:, None]
+            # shape: n_nodes
+            weights = 1.0 / (torch.sum(xi_ps, dim=0))
+            # shape: n_nodes
+            facs = torch.sum(mse[:, None] * xi_ps, dim=0)
+            loss = torch.mean(weights * facs)
+            return self.scale * loss
+        else:
+            raise ValueError("Unknown mode: {mode}")
 
     def forward(self, W, beta, H, pred, Y, particle_id, track_params, reconstructable):
         mask = reconstructable > 0
