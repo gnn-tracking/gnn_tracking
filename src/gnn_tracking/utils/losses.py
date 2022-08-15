@@ -48,6 +48,7 @@ class PotentialLoss(torch.nn.Module):
 class BackgroundLoss(torch.nn.Module):
     def __init__(self, q_min=0.01, sb=0.1, device="cpu"):
         super().__init__()
+        #: Strength of noise suppression
         self.sb = sb
         self.q_min = q_min
         self.device = device
@@ -71,6 +72,7 @@ class BackgroundLoss(torch.nn.Module):
 class ObjectLoss(torch.nn.Module):
     def __init__(self, q_min=0.01, sb=0.1, device="cpu", mode="efficiency"):
         super().__init__()
+        #: Strength of noise suppression
         self.sb = sb
         self.q_min = q_min
         self.device = device
@@ -80,14 +82,13 @@ class ObjectLoss(torch.nn.Module):
         return torch.sum(mse_loss(p, t, reduction="none"), dim=1)
 
     def object_loss(self, pred, beta, truth, particle_id):
-        n = (particle_id == 0).long()
-        xi = (1 - n) * (torch.arctanh(beta)) ** 2
+        noise_mask = particle_id == 0
+        xi = (~noise_mask) * (torch.arctanh(beta)) ** 2
         mse = self.MSE(pred, truth)
         if self.mode == "purity":
             return 100 / torch.sum(xi) * torch.mean(xi * mse)
         loss = torch.tensor(0.0, dtype=torch.float).to(self.device)
         K = torch.tensor(0.0, dtype=torch.float).to(self.device)
-        M = torch.tensor(0.0, dtype=torch.long).to(self.device)
         pids = torch.unique(particle_id[particle_id > 0])
         for pid in pids:
             p = pid.item()
