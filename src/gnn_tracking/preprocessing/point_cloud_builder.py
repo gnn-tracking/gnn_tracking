@@ -20,8 +20,8 @@ class PointCloudBuilder:
         pixel_only=False,
         sector_di=0.0001,
         sector_ds=1.1,
-        feature_names=["r", "phi", "z", "eta_rz", "u", "v", "layer"],
-        feature_scale=np.array([1, 1, 1, 1, 1, 1, 1]),
+        feature_names=["r", "phi", "z", "eta_rz", "u", "v"],
+        feature_scale=np.array([1, 1, 1, 1, 1, 1]),
         measurement_mode=False,
         thld=0.5,
         remove_noise=False,
@@ -189,6 +189,7 @@ class PointCloudBuilder:
     def to_pyg_data(self, hits):
         data = Data(
             x=hits[self.feature_names].values / self.feature_scale,
+            layer=hits.layer.values,
             particle_id=hits["particle_id"].values,
             pt=hits["pt"].values,
             reconstructable=hits["reconstructable"].values,

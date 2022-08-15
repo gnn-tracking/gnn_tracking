@@ -95,25 +95,39 @@ from models.interaction_network import InteractionNetwork as IN
 from models.mlp import MLP
 
 class GraphTCN(nn.Module):
-    def __init__(self, node_indim, edge_indim, h_dim=5, h_outdim=2, 
-                 hidden_dim=40, predict_track_params=False, L=8, C=3):
+    def __init__(self, node_indim, edge_indim, e_dim=4, h_dim=5, h_outdim=2, 
+                 hidden_dim=40, predict_track_params=False, L=3, C=3):
         super(GraphTCN, self).__init__()
         self.h_dim = h_dim
-        self.encoder = MLP(node_indim, self.h_dim, 
-                           hidden_size=40, L=2)
-        
-        # define interaction network layers
+        self.e_dim = e_dim
+        self.node_encoder = MLP(node_indim, self.h_dim, 
+                                hidden_dim=hidden_dim, L=1)
+        self.edge_encoder = MLP(edge_indim, self.e_dim,
+                                hidden_dim=hidden_dim, L=1)
+
+        # define edge classifier layers
         ec_layers = []
         for l in range(1, L-1):
-            ec_layers.append(IN(self.h_dim, edge_indim, 
-                                node_outdim=h_dim,
-                                edge_outdim=edge_indim,
+            ec_layers.append(IN(self.h_dim, self.e_dim,
+                                node_outdim=self.h_dim,
+                                edge_outdim=self.e_dim,
                                 node_hidden_dim=hidden_dim,
                                 edge_hidden_dim=hidden_dim))
         self.ec_layers = nn.ModuleList(ec_layers)
+
+        # define the condensation layers    
+        hc_layers = []
+        for l in range(1, C-1):
+            hc_layers.append(IN(self.h_dim, self.e_dim+1,
+                                node_outdim=self.h_dim,
+                                edge_outdim=self.e_dim+1,
+                                node_hidden_dim=hidden_dim,
+                                edge_hidden_dim=hidden_dim))
+        self.hc_layers = nn.ModuleList(hc_layers)
+
         self.relu = nn.ReLU()
-        self.W = MLP(edge_indim, 1, 40)
-        self.B = MLP(self.h_dim, 1, 40)
+        self.W = MLP(self.e_dim, 1, 40, L=3)
+        self.B = MLP(self.h_dim, 1, 40, L=3)
         self.X = MLP(self.h_dim, h_outdim, 40)
 
         if predict_track_params:
@@ -124,12 +138,23 @@ class GraphTCN(nn.Module):
         self.predict_track_params = predict_track_params
 
     def forward(self, x: Tensor, edge_index: Tensor, edge_attr: Tensor) -> Tensor:
+
         # re-embed the graph L times with add aggregation
-        h = self.encoder(x)
+        h = self.node_encoder(x)
+        edge_attr = self.edge_encoder(edge_attr)
         for layer in self.ec_layers:
+            delta_h, delta_edge_attr = layer(h, edge_index, edge_attr)
+            h += delta_h
+            edge_attr += delta_edge_attr
+
+        # append edge weights as new edge features
+        edge_weights = torch.sigmoid(self.W(edge_attr))
+        edge_attr = torch.cat((edge_weights, edge_attr), dim=1)
+
+        for layer in self.hc_layers:
             delta_h, edge_attr = layer(h, edge_index, edge_attr)
             h += delta_h
-        edge_weights = torch.sigmoid(self.W(edge_attr))
+
         beta = torch.sigmoid(self.B(h))
         h = self.X(h)
         return edge_weights, h, beta

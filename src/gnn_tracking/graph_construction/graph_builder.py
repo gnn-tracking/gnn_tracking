@@ -19,8 +19,9 @@ class GraphBuilder:
         z0_max=200,
         dR_max=1.7,
         uv_approach_max=0.0015,
-        feature_names=["r", "phi", "z", "eta_rz", "u", "v", "layer"],
+        feature_names=["r", "phi", "z", "eta_rz", "u", "v"],
         feature_scale=np.array([1000.0, np.pi, 1000.0, 1, 1 / 1000.0, 1 / 1000.0]),
+        directed=False
     ):
         self.indir = indir
         self.outdir = outdir
@@ -34,6 +35,7 @@ class GraphBuilder:
         self.feature_scale = feature_scale
         self.data_list = []
         self.outfiles = os.listdir(outdir)
+        self.directed = directed
 
     def calc_dphi(self, phi1: np.ndarray, phi2: np.ndarray) -> np.ndarray:
         """Computes phi2-phi1 given in range [-pi,pi]"""
@@ -53,6 +55,7 @@ class GraphBuilder:
         to_df = {"evtid": evtid}
         for i, n in enumerate(self.feature_names):
             to_df[n] = evt.x[:, i]
+        to_df["layer"] = evt.layer
         to_df["pt"] = evt.pt
         to_df["particle_id"] = evt.particle_id
         return pd.DataFrame(to_df)
@@ -258,17 +261,36 @@ class GraphBuilder:
         return edge_index, edge_attr, y
 
     def to_pyg_data(self, graph, edge_index, edge_attr, y, evtid=-1, s=-1):
-        data = Data(x=torch.tensor(graph.x).float(),
-                    edge_index=torch.tensor(edge_index).long(),
-                    edge_attr=torch.tensor(edge_attr).T.float(),
-                    pt=torch.tensor(graph.pt).float(),
-                    particle_id=torch.tensor(graph.particle_id).long(),
-                    y=torch.tensor(y).float(),
-                    reconstructable=torch.tensor(graph.reconstructable).long(), 
-                    sector=torch.tensor(graph.sector).long(),
-                    evtid=torch.tensor(evtid).long(), # event label
-                    s=torch.tensor(s).long() # sector label
+        x=torch.from_numpy(graph.x/self.feature_scale).float()
+        edge_index=torch.tensor(edge_index).long()
+        edge_attr=torch.from_numpy(edge_attr).float()
+        pt=torch.from_numpy(graph.pt).float()
+        particle_id=torch.from_numpy(graph.particle_id).long()
+        y=torch.from_numpy(y).float()
+        reconstructable=torch.from_numpy(graph.reconstructable).long()
+        sector=torch.from_numpy(graph.sector).long()
+        evtid=torch.tensor([evtid]).long() # event label
+        s=torch.tensor([s]).long() # sector label
+        
+        if not self.directed:
+            row, col = edge_index[0], edge_index[1]
+            edge_index = torch.stack([torch.cat([row, col]), torch.cat([col, row])], dim=0)
+            negate = torch.tensor([[-1], [-1], [-1], [1]]).float()
+            edge_attr = torch.cat([edge_attr, negate*edge_attr], dim=1)
+            y = torch.cat([y,y])
+            
+        data = Data(x=x,
+                    edge_index=edge_index,
+                    edge_attr=edge_attr,
+                    pt=pt,
+                    particle_id=particle_id,
+                    y=y,
+                    reconstructable=reconstructable,
+                    sector=sector,
+                    evtid=evtid,
+                    s=s,
                 )
+        data.edge_attr = data.edge_attr.T
         return data
 
     def process(self, n=10**6, verbose=False):
