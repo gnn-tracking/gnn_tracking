@@ -77,27 +77,29 @@ class ObjectLoss(torch.nn.Module):
         self.q_min = q_min
         self.device = device
         self.mode = mode
+        #: Scale up loss value by this factor
+        self.scale = 100
 
     def MSE(self, p, t):
         return torch.sum(mse_loss(p, t, reduction="none"), dim=1)
 
     def object_loss(self, pred, beta, truth, particle_id):
         noise_mask = particle_id == 0
-        xi = (~noise_mask) * (torch.arctanh(beta)) ** 2
+        xi = (~noise_mask) * torch.arctanh(beta) ** 2
         mse = self.MSE(pred, truth)
         if self.mode == "purity":
-            return 100 / torch.sum(xi) * torch.mean(xi * mse)
+            return self.scale / torch.sum(xi) * torch.mean(xi * mse)
         loss = torch.tensor(0.0, dtype=torch.float).to(self.device)
         K = torch.tensor(0.0, dtype=torch.float).to(self.device)
         pids = torch.unique(particle_id[particle_id > 0])
-        for pid in pids:
-            p = pid.item()
-            M = (particle_id == p).squeeze(-1)
-            xi_p = M * p
+        masks = particle_id[:, None] == pids[None, :]
+        for i in range(len(pids)):
+            M = masks[:, i]
+            xi_p = M * pids[i]
             weight = 1.0 / (torch.sum(xi_p))
             loss += weight * torch.sum(mse * xi_p)
             K += 1.0
-        return 100 * loss / K
+        return self.scale * loss / K
 
     def forward(self, W, beta, H, pred, Y, particle_id, track_params, reconstructable):
         mask = reconstructable > 0
