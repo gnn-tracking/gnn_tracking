@@ -6,7 +6,7 @@ from os.path import join as join
 import numpy as np
 import pandas as pd
 import torch
-
+from torch_geometric.data import Data
 
 class GraphBuilder:
     def __init__(
@@ -32,7 +32,7 @@ class GraphBuilder:
         self.uv_approach_max = uv_approach_max
         self.feature_names = feature_names
         self.feature_scale = feature_scale
-        self.data_list = {}
+        self.data_list = []
         self.outfiles = os.listdir(outdir)
 
     def calc_dphi(self, phi1: np.ndarray, phi2: np.ndarray) -> np.ndarray:
@@ -257,28 +257,43 @@ class GraphBuilder:
 
         return edge_index, edge_attr, y
 
+    def to_pyg_data(self, graph, edge_index, edge_attr, y, evtid=-1, s=-1):
+        data = Data(x=torch.tensor(graph.x).float(),
+                    edge_index=torch.tensor(edge_index).long(),
+                    edge_attr=torch.tensor(edge_attr).T.float(),
+                    pt=torch.tensor(graph.pt).float(),
+                    particle_id=torch.tensor(graph.particle_id).long(),
+                    y=torch.tensor(y).float(),
+                    reconstructable=torch.tensor(graph.reconstructable).long(), 
+                    sector=torch.tensor(graph.sector).long(),
+                    evtid=torch.tensor(evtid).long(), # event label
+                    s=torch.tensor(s).long() # sector label
+                )
+        return data
+
     def process(self, n=10**6, verbose=False):
         infiles = os.listdir(self.indir)
         for f in infiles:
             name = f.split("/")[-1]
             if f in self.outfiles and not self.redo:
                 graph = torch.load(join(self.outdir, name))
-                self.data_list[name] = graph
+                self.data_list.append(graph)
             else:
-                evtid = f.split(".")[0][5:]
+                evtid_s = name.split(".")[0][4:]
+                evtid = int(evtid_s[:5])
+                s = int(evtid_s.split('_s')[-1])
                 if verbose:
                     print(f"Processing {f}")
                 f = join(self.indir, f)
                 graph = torch.load(f)
                 df = self.get_dataframe(graph, evtid)
                 edge_index, edge_attr, y = self.build_edges(df)
-                graph.edge_index = edge_index
-                graph.edge_attr = edge_attr
-                graph.y = y
+                graph = self.to_pyg_data(graph, edge_index, edge_attr, y,
+                                         evtid=evtid, s=s)
                 if verbose:
                     print(graph)
                 outfile = join(self.outdir, name)
                 if verbose:
                     print(f"Writing {outfile}")
                 torch.save(graph, outfile)
-                self.data_list[name] = graph
+                self.data_list.append(graph)

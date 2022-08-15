@@ -8,6 +8,7 @@ import pandas as pd
 import torch
 from torch_geometric.data import Data
 from trackml.dataset import load_event
+pd.options.mode.chained_assignment = None  # default='warn'
 
 class PointCloudBuilder:
     def __init__(
@@ -126,22 +127,33 @@ class PointCloudBuilder:
         hits["vr"] = hits["u"] * np.sin(2 * s * theta) + hits["v"] * np.cos(
             2 * s * theta
         )
+        
+        sector = hits[
+            (
+                (hits.vr > -slope * hits.ur)
+                & (hits.vr < slope * hits.ur)
+                & (hits.ur > 0)
+            )
+        ]
 
+        # assign when the majority of the particle's hits are in a sector
+        for pid in np.unique(sector.particle_id.values):
+            if pid==0: continue
+            hits_in_sector = len(sector[sector.particle_id==pid])
+            hits_for_pid = self.particle_id_counts[pid]
+            if (hits_in_sector/hits_for_pid) > 0.5:
+                self.particle_id_sectors[pid] = s
+        
         lower_bound = -self.sector_ds * slope * hits.ur - self.sector_di
         upper_bound = self.sector_ds * slope * hits.ur + self.sector_di
         extended_sector = hits[
             ((hits.vr > lower_bound) & (hits.vr < upper_bound) & (hits.ur > 0))
         ]
+        extended_sector['sector'] = extended_sector['particle_id'].map(self.particle_id_sectors)
+
 
         measurements = {}
         if self.measurement_mode:
-            sector = hits[
-                (
-                    (hits.vr > -slope * hits.ur)
-                    & (hits.vr < slope * hits.ur)
-                    & (hits.ur > 0)
-                )
-            ]
             measurements["sector_size"] = len(sector)
             measurements["extended_sector_size"] = len(extended_sector)
             if len(sector) > 0:
@@ -179,6 +191,8 @@ class PointCloudBuilder:
             x=hits[self.feature_names].values / self.feature_scale,
             particle_id=hits["particle_id"].values,
             pt=hits["pt"].values,
+            reconstructable=hits["reconstructable"].values,
+            sector=hits["sector"].values
         )
         return data
 
@@ -195,10 +209,15 @@ class PointCloudBuilder:
                 hits = self.restrict_to_pixel(hits)
             hits = self.append_features(hits, particles, truth)
             hits_by_pid = hits.groupby('particle_id')
-
-            if self.measurement_mode:
-                self.particle_id_counts = {pid: len(hit_group) 
-                                           for pid, hit_group in hits_by_pid}
+            
+            self.particle_id_counts = {pid: len(hit_group) 
+                                       for pid, hit_group in hits_by_pid}
+            pid_layers_hit = {pid: len(np.unique(hit_group.layer))
+                              for pid, hit_group in hits_by_pid}
+            self.reconstructable = {pid: ((counts>=3) and (pid>0))
+                                    for pid, counts in pid_layers_hit.items()}
+            hits['reconstructable'] = hits.particle_id.map(self.reconstructable)
+            self.particle_id_sectors = {pid: -1 for pid in self.particle_id_counts.keys()}
 
             n_particles = len(np.unique(hits.particle_id.values))
             n_hits = len(hits)

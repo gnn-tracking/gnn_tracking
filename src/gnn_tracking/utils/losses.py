@@ -39,8 +39,8 @@ class PotentialLoss(torch.nn.Module):
             alpha = torch.argmax(q_pid)
             q_alpha = q_pid[alpha]
             x_alpha = x_pid[alpha]
-            va = self.V_attractive(x, x_alpha, q_alpha, device=self.device)
-            vr = self.V_repulsive(x, x_alpha, q_alpha, device=self.device)
+            va = self.V_attractive(x, x_alpha, q_alpha)
+            vr = self.V_repulsive(x, x_alpha, q_alpha)
             loss += torch.mean(q * (M * va + 10 * (1 - M) * vr))
         return loss
 

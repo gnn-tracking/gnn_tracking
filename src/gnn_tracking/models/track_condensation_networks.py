@@ -8,8 +8,9 @@ from torch import Tensor
 
 
 class PointCloudTCN(nn.Module):
-    def __init__(self, node_indim, edge_indim, hc_outdim, predict_track_params=False):
-        super(TCN1, self).__init__()
+    def __init__(self, node_indim, edge_indim, hc_outdim, hidden_dim,
+                 predict_track_params=False):
+        super(PointCloudTCN, self).__init__()
         self.h_dim = 7
         self.encoder = nn.Linear(node_indim, self.h_dim)
         self.in_w1 = IN(
@@ -17,22 +18,28 @@ class PointCloudTCN(nn.Module):
             edge_indim,
             node_outdim=self.h_dim,
             edge_outdim=4,
-            hidden_size=40,
+            node_hidden_dim=hidden_dim, 
+            edge_hidden_dim=hidden_dim,
         )
         self.in_w2 = IN(
-            self.h_dim, 4, node_outdim=self.h_dim, edge_outdim=4, hidden_size=40
+            self.h_dim, 4, node_outdim=self.h_dim, edge_outdim=4, 
+            node_hidden_dim=hidden_dim, edge_hidden_dim=hidden_dim,
         )
         self.in_w3 = IN(
-            self.h_dim, 4, node_outdim=self.h_dim, edge_outdim=4, hidden_size=40
+            self.h_dim, 4, node_outdim=self.h_dim, edge_outdim=4, 
+            node_hidden_dim=hidden_dim, edge_hidden_dim=hidden_dim,
         )
         self.in_c1 = IN(
-            self.h_dim, 17, node_outdim=self.h_dim, edge_outdim=8, hidden_size=40
+            self.h_dim, 17, node_outdim=self.h_dim, edge_outdim=8, 
+            node_hidden_dim=hidden_dim, edge_hidden_dim=hidden_dim,
         )
         self.in_c2 = IN(
-            self.h_dim, 8, node_outdim=self.h_dim, edge_outdim=8, hidden_size=40
+            self.h_dim, 8, node_outdim=self.h_dim, edge_outdim=8, 
+            node_hidden_dim=hidden_dim, edge_hidden_dim=hidden_dim,
         )
         self.in_c3 = IN(
-            self.h_dim, 8, node_outdim=self.h_dim, edge_outdim=8, hidden_size=40
+            self.h_dim, 8, node_outdim=self.h_dim, edge_outdim=8, 
+            node_hidden_dim=hidden_dim, edge_hidden_dim=hidden_dim,
         )
 
         self.W = MLP(16, 1, 40)
@@ -81,66 +88,49 @@ class PointCloudTCN(nn.Module):
         return edge_weights, hc, beta
 
 
-class GraphTCN(nn.Module):
-    def __init__(self, node_indim, edge_indim, hc_outdim, predict_track_params=False):
-        super(TCN1, self).__init__()
-        self.h_dim = 7
-        self.encoder = nn.Linear(node_indim, self.h_dim)
-        self.in_w1 = IN(
-            self.h_dim,
-            edge_indim,
-            node_outdim=self.h_dim,
-            edge_outdim=4,
-            hidden_size=40,
-        )
-        self.in_w2 = IN(
-            self.h_dim, 4, node_outdim=self.h_dim, edge_outdim=4, hidden_size=40
-        )
-        self.in_w3 = IN(
-            self.h_dim, 4, node_outdim=self.h_dim, edge_outdim=4, hidden_size=40
-        )
-        self.in_c1 = IN(
-            self.h_dim, 17, node_outdim=self.h_dim, edge_outdim=8, hidden_size=40
-        )
-        self.in_c2 = IN(
-            self.h_dim, 8, node_outdim=self.h_dim, edge_outdim=8, hidden_size=40
-        )
-        self.in_c3 = IN(
-            self.h_dim, 8, node_outdim=self.h_dim, edge_outdim=8, hidden_size=40
-        )
+import torch
+import torch.nn as nn
+from torch import Tensor
+from models.interaction_network import InteractionNetwork as IN
+from models.mlp import MLP
 
-        self.W = MLP(16, 1, 40)
-        self.B = MLP(self.h_dim, 1, 60)
-        self.X = MLP(self.h_dim, hc_outdim, 80)
+class GraphTCN(nn.Module):
+    def __init__(self, node_indim, edge_indim, h_dim=5, h_outdim=2, 
+                 hidden_dim=40, predict_track_params=False, L=8, C=3):
+        super(GraphTCN, self).__init__()
+        self.h_dim = h_dim
+        self.encoder = MLP(node_indim, self.h_dim, 
+                           hidden_size=40, L=2)
+        
+        # define interaction network layers
+        ec_layers = []
+        for l in range(1, L-1):
+            ec_layers.append(IN(self.h_dim, edge_indim, 
+                                node_outdim=h_dim,
+                                edge_outdim=edge_indim,
+                                node_hidden_dim=hidden_dim,
+                                edge_hidden_dim=hidden_dim))
+        self.ec_layers = nn.ModuleList(ec_layers)
+        self.relu = nn.ReLU()
+        self.W = MLP(edge_indim, 1, 40)
+        self.B = MLP(self.h_dim, 1, 40)
+        self.X = MLP(self.h_dim, h_outdim, 40)
 
         if predict_track_params:
-            self.p1 = IN(self.h_dim, 8, node_outdim=3, edge_outdim=3, hidden_size=40)
+            self.p1 = IN(self.h_dim, 8, node_outdim=3, edge_outdim=3,
+                         node_hidden_dim=hidden_dim, edge_hidden_dim=hidden_dim)
             self.p2 = IN(3, 3, 3, 3, hidden_size=40)
             self.p3 = IN(3, 3, 3, 3, hidden_size=40)
-            # self.P = MLP(self.h_dim, 2, 80)
-            # self.Q = MLP(self.h_dim, 1, 20)
         self.predict_track_params = predict_track_params
 
     def forward(self, x: Tensor, edge_index: Tensor, edge_attr: Tensor) -> Tensor:
-
-        # re-embed the graph twice with add aggregation
+        # re-embed the graph L times with add aggregation
         h = self.encoder(x)
-        h1, edge_attr_1 = self.in_w1(h, edge_index, edge_attr)
-        h2, edge_attr_2 = self.in_w2(h + h1, edge_index, edge_attr_1)
-        h3, edge_attr_3 = self.in_w3(h + h2, edge_index, edge_attr_2)
+        for layer in self.ec_layers:
+            delta_h, edge_attr = layer(h, edge_index, edge_attr)
+            h += delta_h
+        edge_weights = torch.sigmoid(self.W(edge_attr))
+        beta = torch.sigmoid(self.B(h))
+        h = self.X(h)
+        return edge_weights, h, beta
 
-        # combine all edge features, use to predict edge weights
-        initial_edge_attr = torch.cat(
-            [edge_attr, edge_attr_1, edge_attr_2, edge_attr_3], dim=1
-        )
-        edge_weights = torch.sigmoid(self.W(initial_edge_attr))
-
-        # combine edge weights with original edge features
-        edge_attr_w = torch.cat([edge_weights, initial_edge_attr], dim=1)
-
-        hc1, edge_attr_c1 = self.in_c1(h + h3, edge_index, edge_attr_w)
-        hc2, edge_attr_c2 = self.in_c2(h + hc1, edge_index, edge_attr_c1)
-        hc3, edge_attr_c3 = self.in_c3(h + hc2, edge_index, edge_attr_c2)
-        hc3 = hc3 + h
-        beta = torch.sigmoid(self.B(hc3))
-        hc = self.X(hc3)
