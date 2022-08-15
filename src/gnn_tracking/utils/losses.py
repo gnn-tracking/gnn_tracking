@@ -23,22 +23,27 @@ class PotentialLoss(torch.nn.Module):
         self.radius_threshold = 1.0
 
     def condensation_loss(self, beta: T, x: T, particle_id: T) -> T:
-        q = torch.arctanh(beta) ** 2 + self.q_min
         pids = torch.unique(particle_id[particle_id > 0])
+        # n_nodes x n_pids
+        pid_masks = particle_id[:, None] == pids[None, :]  # type: ignore
 
-        masks = particle_id[:, None] == pids[None, :]  # type: ignore
-
-        alphas = torch.argmax(q[:, None] * masks, dim=0)
+        q = torch.arctanh(beta) ** 2 + self.q_min
+        alphas = torch.argmax(q[:, None] * pid_masks, dim=0)
         x_alphas = x[alphas].t().to(self.device)
         q_alphas = q[alphas][None, None, :].to(self.device)
 
         diff = x[:, :, None] - x_alphas[None, :, :]
         norm_sq = torch.sum(diff**2, dim=1)
+
+        # Attractive potential
         va = (norm_sq * q_alphas).squeeze(dim=0)
+        # Repulsive potential
         vr = (relu(self.radius_threshold - torch.sqrt(norm_sq)) * q_alphas).squeeze(
             dim=0
         )
-        loss = q[:, None] * (masks * va + self.repulsion_scaling * (~masks) * vr)
+        loss = q[:, None] * (
+            pid_masks * va + self.repulsion_scaling * (~pid_masks) * vr
+        )
         return torch.sum(torch.mean(loss, dim=0))
 
     def forward(self, w: T, beta: T, x: T, y: T, particle_id: T) -> T:
@@ -55,10 +60,9 @@ class BackgroundLoss(torch.nn.Module):
 
     def background_loss(self, beta: T, particle_id: T) -> T:
         pids = torch.unique(particle_id[particle_id > 0])
-        masks = particle_id[:, None] == pids[None, :]
-        alphas = torch.argmax(masks * beta[:, None], dim=0)
+        pid_masks = particle_id[:, None] == pids[None, :]
+        alphas = torch.argmax(pid_masks * beta[:, None], dim=0)
         beta_alphas = beta[alphas]
-
         loss = torch.mean(1 - beta_alphas)
         noise_mask = particle_id == 0
         if noise_mask.any():
@@ -84,25 +88,25 @@ class ObjectLoss(torch.nn.Module):
         return torch.sum(mse_loss(p, t, reduction="none"), dim=1)
 
     def object_loss(self, *, pred, beta, truth, particle_id):
-        noise_mask = particle_id == 0
-        # shape: n_nodes
-        xi = (~noise_mask) * torch.arctanh(beta) ** 2
         # shape: n_nodes
         mse = self.MSE(pred, truth)
         if self.mode == "purity":
+            noise_mask = particle_id == 0
+            # shape: n_nodes
+            xi = (~noise_mask) * torch.arctanh(beta) ** 2
             return self.scale / torch.sum(xi) * torch.mean(xi * mse)
         elif self.mode == "efficiency":
-            # shape: n_particles
+            # shape: n_pids
             pids = torch.unique(particle_id[particle_id > 0])
-            # PID masks (n_nodes x n_particles)
-            masks = particle_id[:, None] == pids[None, :]
-            # shape: (n_nodes x n_particles)
-            xi_ps = masks * (torch.arctanh(beta) ** 2)[:, None]
-            # shape: n_nodes
-            weights = 1.0 / (torch.sum(xi_ps, dim=0))
-            # shape: n_nodes
-            facs = torch.sum(mse[:, None] * xi_ps, dim=0)
-            loss = torch.mean(weights * facs)
+            # PID masks (n_nodes x n_pids)
+            pid_masks = particle_id[:, None] == pids[None, :]
+            # shape: (n_nodes x n_pids)
+            xi_p = pid_masks * (torch.arctanh(beta) ** 2)[:, None]
+            # shape: n_pids
+            xi_p_norm = torch.sum(xi_p, dim=0)
+            # shape: n_pids
+            terms = torch.sum(mse[:, None] * xi_p, dim=0)
+            loss = torch.mean(terms / xi_p_norm)
             return self.scale * loss
         else:
             raise ValueError("Unknown mode: {mode}")
