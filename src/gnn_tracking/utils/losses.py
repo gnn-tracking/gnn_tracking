@@ -58,10 +58,11 @@ class BackgroundLoss(torch.nn.Module):
         alphas = torch.argmax(masks * beta[:, None], dim=0)
         beta_alphas = beta[alphas]
 
-        n = particle_id == 0
-        if not n.any():
-            return torch.tensor(0, dtype=float)
-        return torch.mean(1 - beta_alphas) + self.sb * torch.mean(beta[n])
+        loss = torch.mean(1 - beta_alphas)
+        noise_mask = particle_id == 0
+        if noise_mask.any():
+            loss += self.sb * torch.mean(beta[noise_mask])
+        return loss
 
     def forward(self, w, beta, x, y, particle_id):
         return self.background_loss(beta, particle_id)
