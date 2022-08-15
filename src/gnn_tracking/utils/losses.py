@@ -15,7 +15,7 @@ T = torch.tensor
 
 class PotentialLoss(torch.nn.Module):
     def __init__(self, q_min=0.01, device="cpu"):
-        super(PotentialLoss, self).__init__()
+        super().__init__()
         self.q_min = q_min
         self.device = device
         #: Scale up repulsive force by this factor
@@ -47,7 +47,7 @@ class PotentialLoss(torch.nn.Module):
 
 class BackgroundLoss(torch.nn.Module):
     def __init__(self, q_min=0.01, sb=0.1, device="cpu"):
-        super(BackgroundLoss, self).__init__()
+        super().__init__()
         self.sb = sb
         self.q_min = q_min
         self.device = device
@@ -70,7 +70,7 @@ class BackgroundLoss(torch.nn.Module):
 
 class ObjectLoss(torch.nn.Module):
     def __init__(self, q_min=0.01, sb=0.1, device="cpu", mode="efficiency"):
-        super(ObjectLoss, self).__init__()
+        super().__init__()
         self.sb = sb
         self.q_min = q_min
         self.device = device
