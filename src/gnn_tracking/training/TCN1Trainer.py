@@ -4,6 +4,7 @@ import argparse
 import logging
 import os
 import sys
+from functools import partial
 
 import mdmm
 import numpy as np
@@ -127,8 +128,14 @@ class TCNTrainer:
             lr=args.learning_rate,
         )
         logging.info("Parameter groups:", self.optimizer.param_groups)
-        lambda1 = lambda epoch: 1 / (2 ** ((epoch + 11) // 10))
-        lambda2 = lambda epoch: 1
+
+        def lambda1(epoch):
+            return 1 / (2 ** ((epoch + 11) // 10))
+
+        # noinspection PyUnusedVariable
+        def lambda2(epoch):
+            return 1
+
         self.scheduler = optim.lr_scheduler.LambdaLR(
             self.optimizer, lr_lambda=[lambda1, lambda2]
         )
@@ -142,8 +149,8 @@ class TCNTrainer:
 
     def build_constrained_optimizer(self):
         args = self.args
-        loss_W = lambda: self.edge_weight_loss(self.W, self.B, self.H, self.Y, self.L)
-        loss_B = lambda: self.background_loss(self.W, self.B, self.H, self.Y, self.L)
+        loss_W = partial(self.edge_weight_loss, self.W, self.B, self.H, self.Y, self.L)
+        loss_B = partial(self.background_loss, self.W, self.B, self.H, self.Y, self.L)
         constrain_W = mdmm.MaxConstraint(loss_W, 0.2)
         constrain_B = mdmm.MaxConstraint(loss_B, 0.97)
         mdmm_module = mdmm.MDMM([constrain_W, constrain_B])
