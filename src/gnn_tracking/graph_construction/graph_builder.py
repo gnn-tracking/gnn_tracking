@@ -8,6 +8,7 @@ import pandas as pd
 import torch
 from torch_geometric.data import Data
 
+
 class GraphBuilder:
     def __init__(
         self,
@@ -21,7 +22,7 @@ class GraphBuilder:
         uv_approach_max=0.0015,
         feature_names=["r", "phi", "z", "eta_rz", "u", "v"],
         feature_scale=np.array([1000.0, np.pi, 1000.0, 1, 1 / 1000.0, 1 / 1000.0]),
-        directed=False
+        directed=False,
     ):
         self.indir = indir
         self.outdir = outdir
@@ -156,37 +157,39 @@ class GraphBuilder:
         hits_by_particle = hits.groupby("particle_id")
         layers_1 = hits.layer.loc[edges.index_1].values
         layers_2 = hits.layer.loc[edges.index_2].values
-        
+
         # loop over particle_id, particle_hits,
         # count extra transition edges as n_incorrect
         n_corrected = 0
         for p, particle_hits in hits_by_particle:
             if p == 0:
                 continue
-            particle_hit_ids = np.arange(len(hits))#= particle_hits["hit_id"].values
+            particle_hit_ids = np.arange(len(hits))  # = particle_hits["hit_id"].values
 
             # grab true segment indices for particle p
             relevant_indices = (particle_ids == p) & (y == 1)
-            
+
             # get layers connected by particle's edges
             particle_l1 = layers_1[relevant_indices]
             particle_l2 = layers_2[relevant_indices]
             layer_pairs = set(zip(particle_l1, particle_l2))
-            
+
             # count the number of transition edges between barrel/endcaps
             transition_edges = layer_pairs.intersection(barrel_to_endcaps)
             if len(transition_edges) > 1:
                 transition_edges = list(transition_edges)
                 edge_precedence = np.array([precedence[e] for e in transition_edges])
                 max_precedence = np.amax(edge_precedence)
-                to_relabel = np.array(transition_edges)[(edge_precedence < max_precedence)]
+                to_relabel = np.array(transition_edges)[
+                    (edge_precedence < max_precedence)
+                ]
                 for l1, l2 in to_relabel:
                     relabel = (layers_1 == l1) & (layers_2 == l2) & relevant_indices
                     relabel_idx = np.where(relabel == True)[0]
                     y[relabel_idx] = 0
                     n_corrected += len(relabel_idx)
 
-        if n_corrected>0: 
+        if n_corrected > 0:
             print(f"Relabeled {n_corrected} edges crossing from barrel to endcaps.")
             print(f"Updated y has {int(np.sum(y))}/{len(y)} true edges.")
         return y, n_corrected
@@ -254,42 +257,46 @@ class GraphBuilder:
         pid1 = hits.particle_id.loc[edges.index_1].values
         pid2 = hits.particle_id.loc[edges.index_2].values
         y = np.zeros(len(pid1))
-        y[:] = ((pid1 == pid2) & (pid1>0) & (pid2>0))
-        y, n_corrected = self.correct_truth_labels(hits, edges[['index_1', 'index_2']],
-                                              y, pid1)
+        y[:] = (pid1 == pid2) & (pid1 > 0) & (pid2 > 0)
+        y, n_corrected = self.correct_truth_labels(
+            hits, edges[["index_1", "index_2"]], y, pid1
+        )
 
         return edge_index, edge_attr, y
 
     def to_pyg_data(self, graph, edge_index, edge_attr, y, evtid=-1, s=-1):
-        x=torch.from_numpy(graph.x/self.feature_scale).float()
-        edge_index=torch.tensor(edge_index).long()
-        edge_attr=torch.from_numpy(edge_attr).float()
-        pt=torch.from_numpy(graph.pt).float()
-        particle_id=torch.from_numpy(graph.particle_id).long()
-        y=torch.from_numpy(y).float()
-        reconstructable=torch.from_numpy(graph.reconstructable).long()
-        sector=torch.from_numpy(graph.sector).long()
-        evtid=torch.tensor([evtid]).long() # event label
-        s=torch.tensor([s]).long() # sector label
-        
+        x = torch.from_numpy(graph.x / self.feature_scale).float()
+        edge_index = torch.tensor(edge_index).long()
+        edge_attr = torch.from_numpy(edge_attr).float()
+        pt = torch.from_numpy(graph.pt).float()
+        particle_id = torch.from_numpy(graph.particle_id).long()
+        y = torch.from_numpy(y).float()
+        reconstructable = torch.from_numpy(graph.reconstructable).long()
+        sector = torch.from_numpy(graph.sector).long()
+        evtid = torch.tensor([evtid]).long()  # event label
+        s = torch.tensor([s]).long()  # sector label
+
         if not self.directed:
             row, col = edge_index[0], edge_index[1]
-            edge_index = torch.stack([torch.cat([row, col]), torch.cat([col, row])], dim=0)
+            edge_index = torch.stack(
+                [torch.cat([row, col]), torch.cat([col, row])], dim=0
+            )
             negate = torch.tensor([[-1], [-1], [-1], [1]]).float()
-            edge_attr = torch.cat([edge_attr, negate*edge_attr], dim=1)
-            y = torch.cat([y,y])
-            
-        data = Data(x=x,
-                    edge_index=edge_index,
-                    edge_attr=edge_attr,
-                    pt=pt,
-                    particle_id=particle_id,
-                    y=y,
-                    reconstructable=reconstructable,
-                    sector=sector,
-                    evtid=evtid,
-                    s=s,
-                )
+            edge_attr = torch.cat([edge_attr, negate * edge_attr], dim=1)
+            y = torch.cat([y, y])
+
+        data = Data(
+            x=x,
+            edge_index=edge_index,
+            edge_attr=edge_attr,
+            pt=pt,
+            particle_id=particle_id,
+            y=y,
+            reconstructable=reconstructable,
+            sector=sector,
+            evtid=evtid,
+            s=s,
+        )
         data.edge_attr = data.edge_attr.T
         return data
 
@@ -303,15 +310,16 @@ class GraphBuilder:
             else:
                 evtid_s = name.split(".")[0][4:]
                 evtid = int(evtid_s[:5])
-                s = int(evtid_s.split('_s')[-1])
+                s = int(evtid_s.split("_s")[-1])
                 if verbose:
                     print(f"Processing {f}")
                 f = join(self.indir, f)
                 graph = torch.load(f)
                 df = self.get_dataframe(graph, evtid)
                 edge_index, edge_attr, y = self.build_edges(df)
-                graph = self.to_pyg_data(graph, edge_index, edge_attr, y,
-                                         evtid=evtid, s=s)
+                graph = self.to_pyg_data(
+                    graph, edge_index, edge_attr, y, evtid=evtid, s=s
+                )
                 if verbose:
                     print(graph)
                 outfile = join(self.outdir, name)
