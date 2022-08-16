@@ -58,7 +58,7 @@ def relabel_pids(hits, particles):
 
 def calc_eta(r, z):
     theta = np.arctan2(r, z)
-    eta = -1.0 * np.log(np.tan(theta / 2.0))
+    return -1.0 * np.log(np.tan(theta / 2.0))
 
 
 def append_features(hits, particles, truth):

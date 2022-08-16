@@ -372,7 +372,6 @@ def correct_truth_labels(hits, edges, y, particle_ids):
     for p, particle_hits in hits_by_particle:
         if p == 0:
             continue
-        particle_hit_ids = particle_hits["hit_id"].values
 
         # grab true segment indices for particle p
         relevant_indices = (particle_ids == p) & (y == 1)
@@ -469,7 +468,6 @@ def graph_summary(
 
     # loop over graph sectors and compile statistics
     sector_stats = {}
-    total_possible_per_s = 0
     all_edges, all_truth = [], []
     for i, sector in enumerate(sectors):
 

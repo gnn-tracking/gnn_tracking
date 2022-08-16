@@ -201,7 +201,6 @@ def plot_rz(X, idxs, y, save_fig=False, filename="rz.png"):
     feats_o = X[idxs[0, :]]
     feats_i = X[idxs[1, :]]
 
-    fig = plt.figure(dpi=200)
     for i in range(len(X)):
         plt.scatter(X[i][2], X[i][0], c="silver", linewidths=0, marker="s", s=15)
 
@@ -253,7 +252,6 @@ def plot_3d(X, idxs, y, save_fig=False, filename="rz.png"):
     # feats_o = X[idxs[0,:]]
     # feats_i = X[idxs[1,:]]
 
-    fig = plt.figure(figsize=(12, 12), dpi=200)
     ax = plt.axes(projection="3d")
     for i in range(len(X)):
         ax.scatter3D(x, y, z, c="silver", marker="s", s=15)

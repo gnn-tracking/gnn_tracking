@@ -164,7 +164,7 @@ class GraphBuilder:
         for p, particle_hits in hits_by_particle:
             if p == 0:
                 continue
-            particle_hit_ids = np.arange(len(hits))  # = particle_hits["hit_id"].values
+            # particle_hit_ids = np.arange(len(hits))  # = particle_hits["hit_id"].values
 
             # grab true segment indices for particle p
             relevant_indices = (particle_ids == p) & (y == 1)
@@ -229,7 +229,7 @@ class GraphBuilder:
             try:
                 hits1 = groups.get_group(layer1)
                 hits2 = groups.get_group(layer2)
-            except KeyError as e:
+            except KeyError:
                 continue
 
             edges_layer_pair = self.select_edges(
