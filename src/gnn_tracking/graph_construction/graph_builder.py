@@ -105,7 +105,7 @@ class GraphBuilder:
             & (z0.abs() < self.z0_max)  # geometric
             & (dR < self.dR_max)
             & (uv_approach < self.uv_approach_max)
-            & (intersected_layer == False)
+            & (~intersected_layer)
         )
 
         # store edges (in COO format) and geometric edge features
@@ -185,7 +185,7 @@ class GraphBuilder:
                 ]
                 for l1, l2 in to_relabel:
                     relabel = (layers_1 == l1) & (layers_2 == l2) & relevant_indices
-                    relabel_idx = np.where(relabel == True)[0]
+                    relabel_idx = np.where(relabel)[0]
                     y[relabel_idx] = 0
                     n_corrected += len(relabel_idx)
 
