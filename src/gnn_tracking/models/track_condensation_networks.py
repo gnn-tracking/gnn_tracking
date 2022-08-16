@@ -1,6 +1,10 @@
 from __future__ import annotations
 
+import torch
 import torch.nn as nn
+from models.interaction_network import InteractionNetwork as IN
+from models.mlp import MLP
+from torch import Tensor
 
 
 class PointCloudTCN(nn.Module):
@@ -103,13 +107,6 @@ class PointCloudTCN(nn.Module):
             return edge_weights, hc, beta, p3
 
         return edge_weights, hc, beta
-
-
-import torch
-import torch.nn as nn
-from models.interaction_network import InteractionNetwork as IN
-from models.mlp import MLP
-from torch import Tensor
 
 
 class GraphTCN(nn.Module):
