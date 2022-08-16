@@ -19,10 +19,14 @@ class InteractionNetwork(MessagePassing):
     ):
         super(InteractionNetwork, self).__init__(aggr=aggr, flow="source_to_target")
         self.relational_model = MLP(
-            2 * node_indim + edge_indim, edge_outdim, edge_hidden_dim,
+            2 * node_indim + edge_indim,
+            edge_outdim,
+            edge_hidden_dim,
         )
         self.object_model = MLP(
-            node_indim + edge_outdim, node_outdim, node_hidden_dim,
+            node_indim + edge_outdim,
+            node_outdim,
+            node_hidden_dim,
         )
 
     def forward(self, x: Tensor, edge_index: Tensor, edge_attr: Tensor) -> Tensor:
