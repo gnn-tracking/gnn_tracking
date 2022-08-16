@@ -1,1 +1,4 @@
-[tool.black]
+[tool.pytest.ini_options]
+minversion = "6.0"
+addopts = ["--cov=gnntrack", " -ra", "--showlocals", "--strict-markers", "--strict-config"]
+xfail_strict = true
