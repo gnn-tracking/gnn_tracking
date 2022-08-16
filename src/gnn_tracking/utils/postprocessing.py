@@ -1,16 +1,14 @@
 from __future__ import annotations
 
 import os
-import sys
 from collections import Counter
 
 import numpy as np
 import torch
-from models.condensation_loss import *
-from models.track_condensation_network import TCN
+from models.track_condensation_networks import PointCloudTCN
 from sklearn.cluster import DBSCAN
 from torch_geometric.loader import DataLoader
-from utils.data_utils import GraphDataset
+from utils.graph_datasets import GraphDataset
 
 
 def div(a, b):
@@ -24,7 +22,7 @@ model_indir = "../hyperparameter_scans/scan_train1_ptmin0p0"
 model = os.path.join(model_indir, "job_12_epoch14.pt")
 
 device = "cpu"
-gnn = TCN(5, 4, 2, predict_track_params=True).to(device)
+gnn = PointCloudTCN(5, 4, 2, predict_track_params=True).to(device)
 gnn.load_state_dict(torch.load(model))
 
 n_sectors = 36

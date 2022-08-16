@@ -1,27 +1,17 @@
 from __future__ import annotations
 
-import argparse
 import itertools
-import logging
 import multiprocessing as mp
 import os
-import sys
 from functools import partial
-
-sys.path.append("../")
-sys.path.append("../../")
-
-import pickle
-import time
 
 import numpy as np
 import pandas as pd
-import yaml
-from build_graphs import *
-from utils.graph_building_utils import *
-from utils.hit_processing_utils import *
 
 # grab job ID
+from utils.graph_construction import initialize_logger
+from utils.preprocessing import map_pt
+
 idx = int(os.environ["SLURM_ARRAY_TASK_ID"])
 print(f"job {idx}")
 

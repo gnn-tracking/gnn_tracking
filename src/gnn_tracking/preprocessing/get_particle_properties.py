@@ -11,11 +11,8 @@ from os.path import join
 import numpy as np
 import pandas as pd
 import trackml.dataset
+from matplotlib import pyplot as plt
 from scipy import optimize
-
-# from gnn_tracking.utils.data_utils import *
-# from gnn_tracking.utils.graph_construction import
-# from gnn_tracking.utils.hit_processing import *
 from utils.graph_construction import initialize_logger, select_hits
 
 

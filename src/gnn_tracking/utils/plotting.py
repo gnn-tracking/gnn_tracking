@@ -7,6 +7,7 @@ import mplhep as hep
 import numpy as np
 import torch
 from matplotlib import pyplot as plt
+from matplotlib import rcParams
 from matplotlib.pyplot import cm
 from torch_geometric.data import Data
 from trackml.dataset import load_event

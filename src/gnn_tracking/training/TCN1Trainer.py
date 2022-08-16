@@ -1,39 +1,26 @@
-# system
 from __future__ import annotations
 
 import argparse
 import logging
-import math
-import multiprocessing as mp
 import os
 import sys
-from collections import Counter
-from functools import partial
 from time import time
 
 import mdmm
 import numpy as np
 import pandas as pd
 import torch
-import torch.nn.functional as F
+from models.track_condensation_networks import PointCloudTCN
+from torch import nn, optim
 
-# externals
-import yaml
-from models.condensation_loss import (
+from gnn_tracking.utils.graph_datasets import get_dataloaders, initialize_logger
+from gnn_tracking.utils.losses import (
     BackgroundLoss,
     EdgeWeightLoss,
     ObjectLoss,
     PotentialLoss,
 )
-from models.track_condensation_network import TCN
-from torch import Tensor, nn, optim, tensor
-from torch.optim.lr_scheduler import StepLR
-from torch_geometric.data import Data, Dataset
-from torch_geometric.loader import DataLoader
-
-# custom modules
-from utils.data_utils import *
-from utils.inference_utils import *
+from gnn_tracking.utils.training import binary_classification_stats
 
 initialize_logger(verbose=False)
 
@@ -367,7 +354,7 @@ def main(args):
     # instantiate instance of the track condensation network
     if args.predict_track_params is not None:
         predict_track_params = True
-    model = TCN(5, 4, 5, predict_track_params=predict_track_params).to(device)
+    model = PointCloudTCN(5, 4, 5, predict_track_params=predict_track_params).to(device)
     total_trainable_params = sum(p.numel() for p in model.parameters())
     logging.info(f"Total Trainable Params: {total_trainable_params}")
 

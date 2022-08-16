@@ -23,6 +23,7 @@ class EdgeClassifier(nn.Module):
         self.edge_encoder = MLP(edge_indim, edge_latentdim, 64, L=1)
         gnn_layers = []
         for _l in range(L):
+            # fixme: Wrong parameters?
             gnn_layers.append(
                 IN(
                     node_latentdim,

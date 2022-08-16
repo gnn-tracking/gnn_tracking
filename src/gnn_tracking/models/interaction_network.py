@@ -6,6 +6,7 @@ from torch import Tensor
 from torch_geometric.nn import MessagePassing
 
 
+# fixme: Missing abstract methods!
 class InteractionNetwork(MessagePassing):
     def __init__(
         self,
