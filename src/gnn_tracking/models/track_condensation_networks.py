@@ -2,9 +2,10 @@ from __future__ import annotations
 
 import torch
 import torch.nn as nn
-from models.interaction_network import InteractionNetwork as IN
-from models.mlp import MLP
 from torch import Tensor
+
+from gnn_tracking.models.interaction_network import InteractionNetwork as IN
+from gnn_tracking.models.mlp import MLP
 
 
 class PointCloudTCN(nn.Module):

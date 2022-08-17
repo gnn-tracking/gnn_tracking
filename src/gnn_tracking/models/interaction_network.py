@@ -1,9 +1,10 @@
 from __future__ import annotations
 
 import torch
-from models.mlp import MLP
 from torch import Tensor
 from torch_geometric.nn import MessagePassing
+
+from gnn_tracking.models.mlp import MLP
 
 
 # fixme: Missing abstract methods!

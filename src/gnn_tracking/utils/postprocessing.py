@@ -5,10 +5,11 @@ from collections import Counter
 
 import numpy as np
 import torch
-from models.track_condensation_networks import PointCloudTCN
 from sklearn.cluster import DBSCAN
 from torch_geometric.loader import DataLoader
-from utils.graph_datasets import GraphDataset
+
+from gnn_tracking.models.track_condensation_networks import PointCloudTCN
+from gnn_tracking.utils.graph_datasets import GraphDataset
 
 
 def div(a, b):

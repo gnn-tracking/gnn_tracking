@@ -13,7 +13,8 @@ import pandas as pd
 import trackml.dataset
 from matplotlib import pyplot as plt
 from scipy import optimize
-from utils.graph_construction import initialize_logger, select_hits
+
+from gnn_tracking.utils.graph_construction import initialize_logger, select_hits
 
 
 def parse_args(args):
