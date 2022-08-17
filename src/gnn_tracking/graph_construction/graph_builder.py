@@ -21,7 +21,8 @@ class GraphBuilder:
         uv_approach_max=0.0015,
         feature_names=["r", "phi", "z", "eta_rz", "u", "v"],
         feature_scale=np.array([1000.0, np.pi, 1000.0, 1, 1 / 1000.0, 1 / 1000.0]),
-        directed=False
+        directed=False,
+        measurement_mode=False,
     ):
         self.indir = indir
         self.outdir = outdir
@@ -36,6 +37,7 @@ class GraphBuilder:
         self.data_list = []
         self.outfiles = os.listdir(outdir)
         self.directed = directed
+        self.measurement_mode = measurement_mode
 
     def calc_dphi(self, phi1: np.ndarray, phi2: np.ndarray) -> np.ndarray:
         """Computes phi2-phi1 given in range [-pi,pi]"""
@@ -292,6 +294,12 @@ class GraphBuilder:
                 )
         data.edge_attr = data.edge_attr.T
         return data
+
+    def get_hits_per_particle(self, graph):
+        sector, particle_id = graph.sector, graph.particle_id
+        layer = graph.layer
+        in_sector = ((particle_id>0) & (sector>0))
+        
 
     def process(self, n=10**6, verbose=False):
         infiles = os.listdir(self.indir)
