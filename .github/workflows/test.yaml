@@ -4,6 +4,10 @@ on: [push]
 
 jobs:
   build:
+    # See https://stackoverflow.com/questions/72703363
+    defaults:
+      run:
+        shell: bash -l {0}
     runs-on: ubuntu-latest
     strategy:
       matrix:
