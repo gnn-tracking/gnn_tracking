@@ -23,6 +23,7 @@ class GraphBuilder:
         feature_names=["r", "phi", "z", "eta_rz", "u", "v"],
         feature_scale=np.array([1000.0, np.pi, 1000.0, 1, 1 / 1000.0, 1 / 1000.0]),
         directed=False,
+        measurement_mode=False,
     ):
         self.indir = indir
         self.outdir = outdir
@@ -37,6 +38,7 @@ class GraphBuilder:
         self.data_list = []
         self.outfiles = os.listdir(outdir)
         self.directed = directed
+        self.measurement_mode = measurement_mode
 
     def calc_dphi(self, phi1: np.ndarray, phi2: np.ndarray) -> np.ndarray:
         """Computes phi2-phi1 given in range [-pi,pi]"""
@@ -261,8 +263,8 @@ class GraphBuilder:
         y, n_corrected = self.correct_truth_labels(
             hits, edges[["index_1", "index_2"]], y, pid1
         )
-
-        return edge_index, edge_attr, y
+        edge_pt = hits.pt.loc[edges.index_1].values
+        return edge_index, edge_attr, y, edge_pt
 
     def to_pyg_data(self, graph, edge_index, edge_attr, y, evtid=-1, s=-1):
         x = torch.from_numpy(graph.x / self.feature_scale).float()
@@ -300,8 +302,29 @@ class GraphBuilder:
         data.edge_attr = data.edge_attr.T
         return data
 
+    def get_hits_per_particle(self, graph):
+        sector, particle_id = graph.sector, graph.particle_id
+        layer = graph.layer
+        in_sector = (particle_id > 0) & (sector > 0)
+
+    def get_n_truth_edges(self, df):
+        grouped = df[["particle_id", "layer", "pt"]].groupby("particle_id")
+        n_truth_edges = {0: 0, 0.1: 0, 0.5: 0, 0.9: 0, 1.0: 0}
+        for pid, group in grouped:
+            if pid == 0:
+                continue
+            layer = group.layer.values
+            unique, counts = np.unique(layer, return_counts=True)
+            n_segs = sum(counts[1:] * counts[:-1])
+            for pt_thld in n_truth_edges.keys():
+                if group.pt.values[0] > pt_thld:
+                    n_truth_edges[pt_thld] += n_segs
+        return n_truth_edges
+
     def process(self, n=10**6, verbose=False):
         infiles = os.listdir(self.indir)
+        self.edge_purities = []
+        self.edge_efficiencies = {0: [], 0.1: [], 0.5: [], 0.9: [], 1.0: []}
         for f in infiles:
             name = f.split("/")[-1]
             if f in self.outfiles and not self.redo:
@@ -316,14 +339,33 @@ class GraphBuilder:
                 f = join(self.indir, f)
                 graph = torch.load(f)
                 df = self.get_dataframe(graph, evtid)
-                edge_index, edge_attr, y = self.build_edges(df)
+                edge_index, edge_attr, y, edge_pt = self.build_edges(df)
+
+                if self.measurement_mode:
+                    n_truth_edges = self.get_n_truth_edges(df)
+                    edge_purity = sum(y) / len(y)
+                    self.edge_purities.append(edge_purity)
+                    for pt, denominator in n_truth_edges.items():
+                        numerator = sum(y[edge_pt > pt])
+                        self.edge_efficiencies[pt].append(numerator / denominator)
+
                 graph = self.to_pyg_data(
                     graph, edge_index, edge_attr, y, evtid=evtid, s=s
                 )
-                if verbose:
-                    print(graph)
                 outfile = join(self.outdir, name)
                 if verbose:
                     print(f"Writing {outfile}")
                 torch.save(graph, outfile)
                 self.data_list.append(graph)
+
+        print("Summary Statistics:")
+        print(
+            f" - Edge Purity: {np.mean(self.edge_purities)} "
+            + f"+/- {np.std(self.edge_purities)}"
+        )
+        for pt, eff in self.edge_efficiencies.items():
+            print(
+                f" - Edge Efficiency (pt > {pt} GeV): "
+                + f"{np.mean(self.edge_efficiencies[pt])} +/- "
+                + f"{np.std(self.edge_efficiencies[pt])}"
+            )

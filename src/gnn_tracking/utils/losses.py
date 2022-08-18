@@ -31,7 +31,7 @@ class PotentialLoss(torch.nn.Module):
 
         q = torch.arctanh(beta) ** 2 + self.q_min
         alphas = torch.argmax(q[:, None] * pid_masks, dim=0)
-        x_alphas = x[alphas].t().to(self.device)
+        x_alphas = x[alphas].transpose(0, 1).to(self.device)
         q_alphas = q[alphas][None, None, :].to(self.device)
 
         diff = x[:, :, None] - x_alphas[None, :, :]

@@ -180,8 +180,8 @@ class GraphTCN(nn.Module):
     def forward(self, x: Tensor, edge_index: Tensor, edge_attr: Tensor) -> Tensor:
 
         # re-embed the graph L times with add aggregation
-        h = self.node_encoder(x)
-        edge_attr = self.edge_encoder(edge_attr)
+        h = self.relu(self.node_encoder(x))
+        edge_attr = self.relu(self.edge_encoder(edge_attr))
         for layer in self.ec_layers:
             delta_h, delta_edge_attr = layer(h, edge_index, edge_attr)
             h += delta_h
