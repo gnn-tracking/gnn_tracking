@@ -1,39 +1,26 @@
-# system
 from __future__ import annotations
 
 import argparse
 import logging
-import math
-import multiprocessing as mp
 import os
 import sys
-from collections import Counter
 from functools import partial
-from time import time
 
 import mdmm
 import numpy as np
 import pandas as pd
 import torch
-import torch.nn.functional as F
+from models.track_condensation_networks import PointCloudTCN
+from torch import nn, optim
 
-# externals
-import yaml
-from models.condensation_loss import (
+from gnn_tracking.utils.graph_datasets import get_dataloaders, initialize_logger
+from gnn_tracking.utils.losses import (
     BackgroundLoss,
     EdgeWeightLoss,
     ObjectLoss,
     PotentialLoss,
 )
-from models.track_condensation_network import TCN
-from torch import Tensor, nn, optim, tensor
-from torch.optim.lr_scheduler import StepLR
-from torch_geometric.data import Data, Dataset
-from torch_geometric.loader import DataLoader
-
-# custom modules
-from utils.data_utils import *
-from utils.inference_utils import *
+from gnn_tracking.utils.training import binary_classification_stats
 
 initialize_logger(verbose=False)
 
@@ -141,8 +128,14 @@ class TCNTrainer:
             lr=args.learning_rate,
         )
         logging.info("Parameter groups:", self.optimizer.param_groups)
-        lambda1 = lambda epoch: 1 / (2 ** ((epoch + 11) // 10))
-        lambda2 = lambda epoch: 1
+
+        def lambda1(epoch):
+            return 1 / (2 ** ((epoch + 11) // 10))
+
+        # noinspection PyUnusedVariable
+        def lambda2(epoch):
+            return 1
+
         self.scheduler = optim.lr_scheduler.LambdaLR(
             self.optimizer, lr_lambda=[lambda1, lambda2]
         )
@@ -156,8 +149,8 @@ class TCNTrainer:
 
     def build_constrained_optimizer(self):
         args = self.args
-        loss_W = lambda: self.edge_weight_loss(self.W, self.B, self.H, self.Y, self.L)
-        loss_B = lambda: self.background_loss(self.W, self.B, self.H, self.Y, self.L)
+        loss_W = partial(self.edge_weight_loss, self.W, self.B, self.H, self.Y, self.L)
+        loss_B = partial(self.background_loss, self.W, self.B, self.H, self.Y, self.L)
         constrain_W = mdmm.MaxConstraint(loss_W, 0.2)
         constrain_B = mdmm.MaxConstraint(loss_B, 0.97)
         mdmm_module = mdmm.MDMM([constrain_W, constrain_B])
@@ -185,9 +178,7 @@ class TCNTrainer:
                 )
             self.Y, self.W = data.y, self.W.squeeze(1)
             self.L = data.particle_id
-            loss = self.edge_weight_loss(self.W, self.B, self.H, self.Y, self.L)
             diff, opt_thld, opt_acc = 100, 0, 0
-            best_tpr, best_tnr = 0, 0
             for thld in np.arange(0.01, 0.5, 0.001):
                 acc, TPR, TNR = binary_classification_stats(self.W, self.Y, thld)
                 delta = abs(TPR - TNR)
@@ -226,9 +217,6 @@ class TCNTrainer:
                 loss_B = self.background_loss(
                     self.W, self.B, self.H, self.Y, self.L
                 ).item()
-                loss_P = self.object_loss(
-                    self.W, self.B, self.H, self.P, self.Y, self.L, self.T, self.R
-                ).item()
                 acc, TPR, TNR = binary_classification_stats(self.W, self.Y, thld)
 
                 losses["total"].append(loss_W + loss_V + loss_B)
@@ -248,7 +236,6 @@ class TCNTrainer:
     def train(self, epoch):
         args = self.args
         self.model.train()
-        epoch_t0 = time()
         losses = {
             "total": [],
             "W": [],
@@ -260,10 +247,6 @@ class TCNTrainer:
             "Br": [],
             "Pr": [],
         }
-        mu_W, mu_Wr, MWr = 0, 0, 0
-        mu_V, mu_Vr, MVr = 0, 0, 0
-        mu_B, mu_Br, MBr = 0, 0, 0
-        mu_P, mu_Pr, MPr = 0, 0, 0
         for batch_idx, (data, f) in enumerate(self.train_loader):
             data = data.to(self.device)
             if args.predict_track_params:
@@ -316,7 +299,6 @@ class TCNTrainer:
         for epoch in range(1, args.n_epochs + 1):
             logging.info(f"---- Epoch {epoch} ----")
             self.train(epoch)
-            thld = self.validate()
             self.test(epoch)
             self.scheduler.step()
             if args.save_models:
@@ -349,7 +331,7 @@ def main(args):
     args = parse_args(args)
     logging.info(f"Using arguments {args}")
     initialize_logger(args.verbose)
-    job_name = f"TCN_mdmm_pt{args.pt_min}"
+    # job_name = f"TCN_mdmm_pt{args.pt_min}"
 
     # import dataloaders
     params = {"batch_size": 1, "shuffle": True, "num_workers": 4}
@@ -367,7 +349,7 @@ def main(args):
     # instantiate instance of the track condensation network
     if args.predict_track_params is not None:
         predict_track_params = True
-    model = TCN(5, 4, 5, predict_track_params=predict_track_params).to(device)
+    model = PointCloudTCN(5, 4, 5, predict_track_params=predict_track_params).to(device)
     total_trainable_params = sum(p.numel() for p in model.parameters())
     logging.info(f"Total Trainable Params: {total_trainable_params}")
 

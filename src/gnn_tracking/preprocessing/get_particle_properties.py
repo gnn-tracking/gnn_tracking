@@ -11,12 +11,10 @@ from os.path import join
 import numpy as np
 import pandas as pd
 import trackml.dataset
+from matplotlib import pyplot as plt
 from scipy import optimize
 
-# from gnn_tracking.utils.data_utils import *
-# from gnn_tracking.utils.graph_construction import
-# from gnn_tracking.utils.hit_processing import *
-from utils.graph_construction import initialize_logger, select_hits
+from gnn_tracking.utils.graph_construction import initialize_logger, select_hits
 
 
 def parse_args(args):
@@ -283,7 +281,7 @@ def make_df(
         xc_est = -fit[1] * yc_est
         est = rotate([xc_est], [yc_est], -theta)
         xc_est, yc_est = est[0][0], est[1][0]
-        R_est = true_pt / (2 * 0.0003)
+        # R_est = true_pt / (2 * 0.0003)
         (xc, yc), ier = optimize.leastsq(radii_diffs, (xc_est, yc_est), args=(x, y))
         R = np.mean(calc_radii(xc, yc, x=x[:cutoff], y=y[:cutoff]))
         circle_pt = calc_circle_pt(R)
@@ -325,7 +323,7 @@ def main(args):
     initialize_logger(verbose=args.verbose)
     input_dir = args.input_dir
     output_dir = args.output_dir
-    train_idx = int(input_dir.split("train_")[-1][0])
+    # train_idx = int(input_dir.split("train_")[-1][0])
     logging.info(f"Running on data from {input_dir}.")
     file_prefixes = get_file_prefixes(
         input_dir, n_tasks=args.n_tasks, task=args.task, evtid_min=0, evtid_max=100000
@@ -333,7 +331,7 @@ def main(args):
 
     with mp.Pool(processes=args.n_workers) as pool:
         process_func = partial(make_df, output_dir=output_dir)
-        output = pool.map(process_func, file_prefixes)
+        pool.map(process_func, file_prefixes)
 
     logging.info("All done!")
 

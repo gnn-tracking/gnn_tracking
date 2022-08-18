@@ -5,7 +5,8 @@ from dataclasses import dataclass
 import numpy as np
 import torch
 from pytest import approx
-from utils.losses import BackgroundLoss, ObjectLoss, PotentialLoss
+
+from gnn_tracking.utils.losses import BackgroundLoss, ObjectLoss, PotentialLoss
 
 T = torch.tensor
 

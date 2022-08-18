@@ -139,7 +139,7 @@ def split_detector_sectors(
                 "eta_overlap": eta_overlap,
                 "phi_overlap": phi_overlap,
             }
-            #'nhits': len(sec_hits)}
+            # 'nhits': len(sec_hits)}
 
             if verbose:
                 logging.info(
@@ -309,7 +309,7 @@ def select_edges(
         & (z0.abs() < z0_max)  # geometric
         & (dR < dR_max)
         & (uv_approach < uv_approach_max)
-        & (intersected_layer == False)
+        & (~intersected_layer)
         & (in_module_map)
     )  # data-driven
 
@@ -372,7 +372,6 @@ def correct_truth_labels(hits, edges, y, particle_ids):
     for p, particle_hits in hits_by_particle:
         if p == 0:
             continue
-        particle_hit_ids = particle_hits["hit_id"].values
 
         # grab true segment indices for particle p
         relevant_indices = (particle_ids == p) & (y == 1)
@@ -391,7 +390,7 @@ def correct_truth_labels(hits, edges, y, particle_ids):
             to_relabel = np.array(transition_edges)[(edge_precedence < max_precedence)]
             for l1, l2 in to_relabel:
                 relabel = (layers_1 == l1) & (layers_2 == l2) & relevant_indices
-                relabel_idx = np.where(relabel == True)[0]
+                relabel_idx = np.where(relabel)[0]
                 y[relabel_idx] = 0
                 n_corrected += len(relabel_idx)
 
@@ -469,7 +468,6 @@ def graph_summary(
 
     # loop over graph sectors and compile statistics
     sector_stats = {}
-    total_possible_per_s = 0
     all_edges, all_truth = [], []
     for i, sector in enumerate(sectors):
 

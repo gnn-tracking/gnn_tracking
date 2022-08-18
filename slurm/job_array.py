@@ -1,9 +1,6 @@
 from __future__ import annotations
 
 import os
-import sys
-
-sys.path.append("../")
 
 import itertools
 
@@ -24,7 +21,7 @@ args = [
     "--indir",
     "../graphs/train1_ptmin1",
     "--outdir",
-    f"../trained_models",
+    "../trained_models",
     "--stat-outfile",
     f"train_stats/train1_ptmin1_{idx}.csv",
     "--n-train",

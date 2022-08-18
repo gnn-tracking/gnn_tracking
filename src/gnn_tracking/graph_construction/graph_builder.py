@@ -107,7 +107,7 @@ class GraphBuilder:
             & (z0.abs() < self.z0_max)  # geometric
             & (dR < self.dR_max)
             & (uv_approach < self.uv_approach_max)
-            & (intersected_layer == False)
+            & (~intersected_layer)
         )
 
         # store edges (in COO format) and geometric edge features
@@ -166,7 +166,7 @@ class GraphBuilder:
         for p, particle_hits in hits_by_particle:
             if p == 0:
                 continue
-            particle_hit_ids = np.arange(len(hits))  # = particle_hits["hit_id"].values
+            # particle_hit_ids = np.arange(len(hits))  # = particle_hits["hit_id"].values
 
             # grab true segment indices for particle p
             relevant_indices = (particle_ids == p) & (y == 1)
@@ -187,7 +187,7 @@ class GraphBuilder:
                 ]
                 for l1, l2 in to_relabel:
                     relabel = (layers_1 == l1) & (layers_2 == l2) & relevant_indices
-                    relabel_idx = np.where(relabel == True)[0]
+                    relabel_idx = np.where(relabel)[0]
                     y[relabel_idx] = 0
                     n_corrected += len(relabel_idx)
 
@@ -231,7 +231,7 @@ class GraphBuilder:
             try:
                 hits1 = groups.get_group(layer1)
                 hits2 = groups.get_group(layer2)
-            except KeyError as e:
+            except KeyError:
                 continue
 
             edges_layer_pair = self.select_edges(
@@ -305,16 +305,17 @@ class GraphBuilder:
     def get_hits_per_particle(self, graph):
         sector, particle_id = graph.sector, graph.particle_id
         layer = graph.layer
-        in_sector = ((particle_id>0) & (sector>0))
-        
+        in_sector = (particle_id > 0) & (sector > 0)
+
     def get_n_truth_edges(self, df):
-        grouped = df[['particle_id', 'layer', 'pt']].groupby('particle_id')
+        grouped = df[["particle_id", "layer", "pt"]].groupby("particle_id")
         n_truth_edges = {0: 0, 0.1: 0, 0.5: 0, 0.9: 0, 1.0: 0}
         for pid, group in grouped:
-            if (pid==0): continue
+            if pid == 0:
+                continue
             layer = group.layer.values
             unique, counts = np.unique(layer, return_counts=True)
-            n_segs = sum(counts[1:]*counts[:-1])
+            n_segs = sum(counts[1:] * counts[:-1])
             for pt_thld in n_truth_edges.keys():
                 if group.pt.values[0] > pt_thld:
                     n_truth_edges[pt_thld] += n_segs
@@ -339,15 +340,15 @@ class GraphBuilder:
                 graph = torch.load(f)
                 df = self.get_dataframe(graph, evtid)
                 edge_index, edge_attr, y, edge_pt = self.build_edges(df)
-                
+
                 if self.measurement_mode:
                     n_truth_edges = self.get_n_truth_edges(df)
-                    edge_purity = sum(y)/len(y)
+                    edge_purity = sum(y) / len(y)
                     self.edge_purities.append(edge_purity)
                     for pt, denominator in n_truth_edges.items():
-                        numerator = sum(y[edge_pt>pt])
-                        self.edge_efficiencies[pt].append(numerator/denominator)
-                          
+                        numerator = sum(y[edge_pt > pt])
+                        self.edge_efficiencies[pt].append(numerator / denominator)
+
                 graph = self.to_pyg_data(
                     graph, edge_index, edge_attr, y, evtid=evtid, s=s
                 )
@@ -357,12 +358,14 @@ class GraphBuilder:
                 torch.save(graph, outfile)
                 self.data_list.append(graph)
 
-        print('Summary Statistics:')
-        print(f' - Edge Purity: {np.mean(self.edge_purities)} ' + 
-              f'+/- {np.std(self.edge_purities)}')
+        print("Summary Statistics:")
+        print(
+            f" - Edge Purity: {np.mean(self.edge_purities)} "
+            + f"+/- {np.std(self.edge_purities)}"
+        )
         for pt, eff in self.edge_efficiencies.items():
-            print(f' - Edge Efficiency (pt > {pt} GeV): ' +
-                  f'{np.mean(self.edge_efficiencies[pt])} +/- ' +
-                  f'{np.std(self.edge_efficiencies[pt])}')
-            
-            
+            print(
+                f" - Edge Efficiency (pt > {pt} GeV): "
+                + f"{np.mean(self.edge_efficiencies[pt])} +/- "
+                + f"{np.std(self.edge_efficiencies[pt])}"
+            )

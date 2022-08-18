@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import logging
 import os
-import sys
 from os.path import join
 
 import numpy as np
@@ -148,7 +147,7 @@ class GraphDataset(Dataset):
                 reconstructable = torch.tensor([], dtype=torch.float)
 
             # make graph undirected
-            if self.bidirected == True:
+            if self.bidirected:
                 row_0, col_0 = edge_index
                 row = torch.cat([row_0, col_0], dim=0)
                 col = torch.cat([col_0, row_0], dim=0)

@@ -2,9 +2,10 @@ from __future__ import annotations
 
 import torch
 import torch.nn as nn
-from models.interaction_network import InteractionNetwork as IN
-from models.mlp import MLP
 from torch import Tensor
+
+from gnn_tracking.models.interaction_network import InteractionNetwork as IN
+from gnn_tracking.models.mlp import MLP
 
 
 class EdgeClassifier(nn.Module):
@@ -23,6 +24,7 @@ class EdgeClassifier(nn.Module):
         self.edge_encoder = MLP(edge_indim, edge_latentdim, 64, L=1)
         gnn_layers = []
         for _l in range(L):
+            # fixme: Wrong parameters?
             gnn_layers.append(
                 IN(
                     node_latentdim,
