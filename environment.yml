@@ -1,0 +1,10 @@
+name: gnn_tracking
+channels:
+  - pytorch
+  - pyg
+  - ostrokach-forge
+dependencies:
+  - pytorch==1.11
+  - pyg
+  - torch-sparse
+  - pytorch-scatter
