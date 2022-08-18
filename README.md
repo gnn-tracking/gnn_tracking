@@ -3,7 +3,6 @@
 [![pre-commit.ci status](https://results.pre-commit.ci/badge/github/GageDeZoort/gnn_tracking/main.svg)](https://results.pre-commit.ci/latest/github/GageDeZoort/gnn_tracking/main)
 [![gh actions](https://github.com/GageDeZoort/gnn_tracking/actions/workflows/test.yaml/badge.svg)](https://github.com/GageDeZoort/gnn_tracking/actions)
 
-
 ## Development setup
 
 Install the pre-commit hooks with
@@ -15,6 +14,7 @@ pre-commit install
 ```
 
 ## Organization (to-do)
+
 - /src/gnn_tracking
   - preprocessing
     - build_point_clouds
