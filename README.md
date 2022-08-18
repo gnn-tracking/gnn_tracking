@@ -3,6 +3,8 @@
 [![pre-commit.ci status](https://results.pre-commit.ci/badge/github/GageDeZoort/gnn_tracking/main.svg)](https://results.pre-commit.ci/latest/github/GageDeZoort/gnn_tracking/main)
 [![gh actions](https://github.com/GageDeZoort/gnn_tracking/actions/workflows/test.yaml/badge.svg)](https://github.com/GageDeZoort/gnn_tracking/actions)
 
+![](readme_assets/banner.jpg)
+
 ## Development setup
 
 Install the pre-commit hooks with
