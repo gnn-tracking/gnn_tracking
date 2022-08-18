@@ -30,10 +30,10 @@ class PotentialLoss(torch.nn.Module):
         pid_masks = particle_id[:, None] == pids[None, :]  # type: ignore
 
         q = torch.arctanh(beta) ** 2 + self.q_min
-        alphas = torch.argmax(q[:, None] * pid_masks, dim=0)
-        x_alphas = x[alphas].t().to(self.device)
+        alphas = torch.argmax(q[:,None] * pid_masks, dim=0)
+        x_alphas = x[alphas].transpose(0,1).to(self.device)
         q_alphas = q[alphas][None, None, :].to(self.device)
-
+        
         diff = x[:, :, None] - x_alphas[None, :, :]
         norm_sq = torch.sum(diff**2, dim=1)
 
