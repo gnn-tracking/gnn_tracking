@@ -137,7 +137,7 @@ class GraphTCN(nn.Module):
 
         # define edge classifier layers
         ec_layers = []
-        for l in range(1, L - 1):
+        for l in range(L):
             ec_layers.append(
                 IN(
                     self.h_dim,
@@ -152,7 +152,7 @@ class GraphTCN(nn.Module):
 
         # define the condensation layers
         hc_layers = []
-        for l in range(1, C - 1):
+        for l in range(C):
             hc_layers.append(
                 IN(
                     self.h_dim,
