@@ -190,8 +190,8 @@ class GraphTCN(nn.Module):
         edge_attr = self.relu(self.edge_encoder(edge_attr))
         for layer in self.ec_layers:
             delta_h, delta_edge_attr = layer(h, edge_index, edge_attr)
-            h += delta_h
-            edge_attr += delta_edge_attr
+            h = h + delta_h
+            edge_attr = edge_attr + delta_edge_attr
 
         # append edge weights as new edge features
         edge_weights = torch.sigmoid(self.W(edge_attr))
@@ -199,7 +199,7 @@ class GraphTCN(nn.Module):
 
         for layer in self.hc_layers:
             delta_h, edge_attr = layer(h, edge_index, edge_attr)
-            h += delta_h
+            h = h + delta_h
 
         beta = torch.sigmoid(self.B(h))
         h = self.X(h)

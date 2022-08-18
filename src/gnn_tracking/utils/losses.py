@@ -69,7 +69,7 @@ class BackgroundLoss(torch.nn.Module):
         loss = torch.mean(1 - beta_alphas)
         noise_mask = particle_id == 0
         if noise_mask.any():
-            loss += self.sb * torch.mean(beta[noise_mask])
+            loss = loss + self.sb * torch.mean(beta[noise_mask])
         return loss
 
     def forward(self, w, beta, x, y, particle_id):
