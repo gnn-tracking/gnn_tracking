@@ -54,7 +54,7 @@ class EventPlotter:
         if evtid is None:
             evtid = 21000 + np.random.randint(999, size=1)[0]
         else:
-            evtid == str(evtid)
+            evtid = str(evtid)
         prefix = f"event0000{evtid}"
         path = join(self.indir, prefix)
         hits, particles, truth = load_event(path, parts=["hits", "particles", "truth"])
