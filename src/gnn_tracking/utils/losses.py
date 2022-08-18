@@ -40,9 +40,9 @@ class PotentialLoss(torch.nn.Module):
         # Attractive potential
         va = (norm_sq * q_alphas).squeeze(dim=0)
         # Repulsive potential
-        vr = (relu(self.radius_threshold - torch.sqrt(norm_sq+1e-8)) * q_alphas).squeeze(
-            dim=0
-        )
+        vr = (
+            relu(self.radius_threshold - torch.sqrt(norm_sq + 1e-8)) * q_alphas
+        ).squeeze(dim=0)
         loss = q[:, None] * (
             pid_masks * va + self.repulsion_scaling * (~pid_masks) * vr
         )
