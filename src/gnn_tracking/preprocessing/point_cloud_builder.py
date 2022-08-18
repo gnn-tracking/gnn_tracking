@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 from os.path import join
+from typing import Any
 
 import numpy as np
 import pandas as pd
@@ -41,7 +42,7 @@ class PointCloudBuilder:
             feature_names: Names of features that are passed on to pyg data
             feature_scale: Scaling of features given by ``feature_names``
             measurement_mode:
-            thld:
+            thld: pt threshold for reconstructable particles
             remove_noise:
         """
         if feature_names is None:
@@ -60,7 +61,7 @@ class PointCloudBuilder:
         self.stats = {}
         self.remove_noise = remove_noise
         self.particle_id_counts = None
-        self.measurements = []
+        self.measurements: list[dict[str, Any]] = []
 
         suffix = "-hits.csv.gz"
         self.prefixes: list[str] = []
