@@ -30,17 +30,17 @@ class PotentialLoss(torch.nn.Module):
         pid_masks = particle_id[:, None] == pids[None, :]  # type: ignore
 
         q = torch.arctanh(beta) ** 2 + self.q_min
-        alphas = torch.argmax(q[:,None] * pid_masks, dim=0)
-        x_alphas = x[alphas].transpose(0,1).to(self.device)
+        alphas = torch.argmax(q[:, None] * pid_masks, dim=0)
+        x_alphas = x[alphas].transpose(0, 1).to(self.device)
         q_alphas = q[alphas][None, None, :].to(self.device)
-        
+
         diff = x[:, :, None] - x_alphas[None, :, :]
         norm_sq = torch.sum(diff**2, dim=1)
 
         # Attractive potential
         va = (norm_sq * q_alphas).squeeze(dim=0)
         # Repulsive potential
-        vr = (relu(self.radius_threshold - torch.sqrt(norm_sq)) * q_alphas).squeeze(
+        vr = (relu(self.radius_threshold - torch.sqrt(norm_sq+1e-8)) * q_alphas).squeeze(
             dim=0
         )
         loss = q[:, None] * (
