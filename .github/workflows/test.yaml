@@ -17,6 +17,8 @@ jobs:
           environment-file: environment.yml
           python-version: ${{ matrix.python-version }}
           auto-activate-base: false
+      - name: Smoke test
+        run: python -c "import torch; print(torch.__version__)"
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
