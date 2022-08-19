@@ -24,7 +24,7 @@ class PointCloudBuilder:
         sector_di=0.0001,
         sector_ds=1.1,
         feature_names=None,
-        feature_scale=np.array([1, 1, 1, 1, 1, 1]),
+        feature_scale=None,
         measurement_mode=False,
         thld=0.5,
         remove_noise=False,
@@ -47,7 +47,13 @@ class PointCloudBuilder:
         """
         if feature_names is None:
             feature_names = (["r", "phi", "z", "eta_rz", "u", "v"],)
+
+        # create outdir if necessary
         self.outdir = outdir
+        is_folder = os.path.isdir(outdir)
+        if not is_folder:
+            os.makedirs(outdir)
+
         self.indir = indir
         self.n_sectors = n_sectors
         self.redo = redo
@@ -140,7 +146,9 @@ class PointCloudBuilder:
         ].merge(truth[["hit_id", "particle_id", "pt", "eta_pt"]], on="hit_id")
         return hits
 
-    def sector_hits(self, hits: pd.DataFrame, s, particle_id_counts: dict[int, int]) -> pd.DataFrame:
+    def sector_hits(
+        self, hits: pd.DataFrame, s, particle_id_counts: dict[int, int]
+    ) -> pd.DataFrame:
         if self.n_sectors == 1:
             return hits
         # build sectors in each 2*np.pi/self.n_sectors window
@@ -237,7 +245,7 @@ class PointCloudBuilder:
         Returns:
 
         """
-        for i, f in enumerate(self.prefixes[:n]):
+        for f in self.prefixes[:n]:
             print(f"Processing {f}")
 
             evtid = int(f[-9:])
