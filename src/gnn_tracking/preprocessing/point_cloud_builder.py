@@ -307,7 +307,7 @@ class PointCloudBuilder:
                 "n_sector_particles": n_sector_particles,
             }
 
-        if self.verbose:
+        if verbose:
             print("Output statistics:", self.stats[evtid])
             if self.measurement_mode:
                 measurements = pd.DataFrame(self.measurements)
