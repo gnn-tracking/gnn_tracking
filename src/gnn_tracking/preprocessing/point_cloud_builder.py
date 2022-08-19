@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import collections
 import os
 from os.path import join
 
@@ -59,7 +60,6 @@ class PointCloudBuilder:
         self.thld = thld
         self.stats = {}
         self.remove_noise = remove_noise
-        self.particle_id_counts = None
         self.measurements = []
 
         suffix = "-hits.csv.gz"
@@ -140,7 +140,7 @@ class PointCloudBuilder:
         ].merge(truth[["hit_id", "particle_id", "pt", "eta_pt"]], on="hit_id")
         return hits
 
-    def sector_hits(self, hits: pd.DataFrame, s) -> pd.DataFrame:
+    def sector_hits(self, hits: pd.DataFrame, s, particle_id_counts: dict[int, int]) -> pd.DataFrame:
         if self.n_sectors == 1:
             return hits
         # build sectors in each 2*np.pi/self.n_sectors window
@@ -158,13 +158,14 @@ class PointCloudBuilder:
         ]
 
         # assign when the majority of the particle's hits are in a sector
+        particle_id_sectors = collections.defaultdict(lambda: -1)
         for pid in np.unique(sector.particle_id.values):
             if pid == 0:
                 continue
             hits_in_sector = len(sector[sector.particle_id == pid])
-            hits_for_pid = self.particle_id_counts[pid]
+            hits_for_pid = particle_id_counts[pid]
             if (hits_in_sector / hits_for_pid) > 0.5:
-                self.particle_id_sectors[pid] = s
+                particle_id_sectors[pid] = s
 
         lower_bound = -self.sector_ds * slope * hits.ur - self.sector_di
         upper_bound = self.sector_ds * slope * hits.ur + self.sector_di
@@ -172,7 +173,7 @@ class PointCloudBuilder:
             ((hits.vr > lower_bound) & (hits.vr < upper_bound) & (hits.ur > 0))
         ]
         extended_sector["sector"] = extended_sector["particle_id"].map(
-            self.particle_id_sectors
+            particle_id_sectors
         )
 
         measurements = {}
@@ -198,7 +199,7 @@ class PointCloudBuilder:
                     & (group.vr > -slope * group.ur)
                     & (group.pt >= self.thld)
                 )
-                n_total = self.particle_id_counts[pid]
+                n_total = particle_id_counts[pid]
                 if sum(in_sector) / n_total < 0.5:
                     continue
                 in_ext_sector = (
@@ -247,9 +248,7 @@ class PointCloudBuilder:
             hits = self.append_features(hits, particles, truth)
             hits_by_pid = hits.groupby("particle_id")
 
-            self.particle_id_counts = {
-                pid: len(hit_group) for pid, hit_group in hits_by_pid
-            }
+            particle_id_counts = {pid: len(hit_group) for pid, hit_group in hits_by_pid}
             pid_layers_hit = {
                 pid: len(np.unique(hit_group.layer)) for pid, hit_group in hits_by_pid
             }
@@ -258,9 +257,6 @@ class PointCloudBuilder:
                 for pid, counts in pid_layers_hit.items()
             }
             hits["reconstructable"] = hits.particle_id.map(self.reconstructable)
-            self.particle_id_sectors = {
-                pid: -1 for pid in self.particle_id_counts.keys()
-            }
 
             n_particles = len(np.unique(hits.particle_id.values))
             n_hits = len(hits)
@@ -275,7 +271,9 @@ class PointCloudBuilder:
                     if verbose:
                         print("skipping {name}")
                 else:
-                    sector = self.sector_hits(hits, s)
+                    sector = self.sector_hits(
+                        hits, s, particle_id_counts=particle_id_counts
+                    )
                     n_sector_hits += len(sector)
                     n_sector_particles += len(np.unique(sector.particle_id.values))
                     sector = self.to_pyg_data(sector)
