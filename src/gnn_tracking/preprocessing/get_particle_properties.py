@@ -325,14 +325,6 @@ def main(args):
     output_dir = args.output_dir
     # train_idx = int(input_dir.split("train_")[-1][0])
     logging.info(f"Running on data from {input_dir}.")
-    file_prefixes = get_file_prefixes(
-        input_dir, n_tasks=args.n_tasks, task=args.task, evtid_min=0, evtid_max=100000
-    )
-
-    with mp.Pool(processes=args.n_workers) as pool:
-        process_func = partial(make_df, output_dir=output_dir)
-        pool.map(process_func, file_prefixes)
-
     logging.info("All done!")
 
 

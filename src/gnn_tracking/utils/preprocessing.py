@@ -5,7 +5,7 @@ import logging
 import numpy as np
 import pandas as pd
 import yaml
-
+from torch_geometric.data import Data
 
 def open_yaml(infile, task=0):
     with open(infile) as f:

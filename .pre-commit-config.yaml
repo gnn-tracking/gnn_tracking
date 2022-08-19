@@ -28,7 +28,7 @@ repos:
           ]
         exclude: "^slurm/.*"
   - repo: https://github.com/PyCQA/flake8
-    rev: "4.0.1"
+    rev: "5.0.4"
     hooks:
       - id: flake8
         additional_dependencies: ["flake8-bugbear"]
@@ -40,18 +40,18 @@ repos:
   #     hooks:
   #      -   id: mypy
   - repo: https://github.com/codespell-project/codespell
-    rev: "v2.1.0"
+    rev: "v2.2.1"
     hooks:
       - id: codespell
         args: ["-I", "codespell.txt"]
         exclude: '.*\.ipynb'
   - repo: https://github.com/asottile/pyupgrade
-    rev: v2.37.2
+    rev: v2.37.3
     hooks:
       - id: pyupgrade
 
   - repo: https://github.com/kynan/nbstripout
-    rev: 0.5.0
+    rev: 0.6.0
     hooks:
       - id: nbstripout
         args: ["--extra-keys", "cell.metadata.pycharm"]
