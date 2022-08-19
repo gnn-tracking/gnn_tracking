@@ -1,0 +1,15 @@
+name: gnn_tracking
+channels:
+  - pytorch
+  - pyg
+  - ostrokach-forge
+dependencies:
+  - python==3.9
+  - pytorch==1.12
+  - pip:
+      - -f https://data.pyg.org/whl/torch-1.12.0+cu116.html
+      - torch-sparse
+      - pytorch-scatter
+      - torch-cluster 
+      - torch-spline-conv 
+      - torch-geometric
