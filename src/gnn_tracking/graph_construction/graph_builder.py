@@ -20,7 +20,6 @@ class GraphBuilder:
         phi_slope_max=0.005,
         z0_max=200,
         dR_max=1.7,
-        uv_approach_max=0.0015,
         directed=False,
         measurement_mode=False,
     ):
@@ -31,7 +30,6 @@ class GraphBuilder:
         self.phi_slope_max = phi_slope_max
         self.z0_max = z0_max
         self.dR_max = dR_max
-        self.uv_approach_max = uv_approach_max
         self.feature_names = ["r", "phi", "z", "eta_rz", "u", "v"]
         self.feature_scale = np.array(
             [1000.0, np.pi, 1000.0, 1, 1 / 1000.0, 1 / 1000.0]
@@ -77,15 +75,6 @@ class GraphBuilder:
         eta_2 = self.calc_eta(hit_pairs.r_2, hit_pairs.z_2)
         deta = eta_2 - eta_1
         dR = np.sqrt(deta**2 + dphi**2)
-        du = hit_pairs.u_2 - hit_pairs.u_1
-        dv = hit_pairs.v_2 - hit_pairs.v_1
-        m = dv / du
-        b = hit_pairs.v_1 - m * hit_pairs.u_1
-        u_approach = -m * b / (1 + m**2)
-        v_approach = u_approach * m + b
-
-        # restrict the distance of closest approach in the uv plane
-        uv_approach = np.sqrt(u_approach**2 + v_approach**2)
 
         # restrict phi_slope and z0
         phi_slope = dphi / dr
@@ -107,7 +96,6 @@ class GraphBuilder:
             (phi_slope.abs() < self.phi_slope_max)
             & (z0.abs() < self.z0_max)  # geometric
             & (dR < self.dR_max)
-            & (uv_approach < self.uv_approach_max)
             & (~intersected_layer)
         )
 
