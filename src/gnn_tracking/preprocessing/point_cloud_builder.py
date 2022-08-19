@@ -214,7 +214,7 @@ class PointCloudBuilder:
                 )
                 majority_contained.append(sum(in_ext_sector) == n_total)
                 efficiency = sum(majority_contained) / len(majority_contained)
-                measurements[f"majority_contained_{self.thld}GeV"] = efficiency
+                measurements[f"majority_contained"] = efficiency
                 self.measurements.append(measurements)
 
         return extended_sector
