@@ -24,7 +24,7 @@ class PointCloudBuilder:
         sector_di=0.0001,
         sector_ds=1.1,
         feature_names=None,
-        feature_scale=np.array([1, 1, 1, 1, 1, 1]),
+        feature_scale=None,
         measurement_mode=False,
         thld=0.5,
         remove_noise=False,

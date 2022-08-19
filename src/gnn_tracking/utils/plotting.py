@@ -161,7 +161,7 @@ class GraphPlotter:
         self,
         graph: Data,
         name: str,
-        scale=np.array([1, 1, 1]),
+        scale=None,
         savefig=False,
         filename="",
     ):

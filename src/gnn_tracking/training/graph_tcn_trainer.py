@@ -58,7 +58,6 @@ class GraphTCNTrainer:
 
     def train_step(self, epoch):
         self.model.train()
-        epoch_t0 = time()
 
         losses = {"W": [], "V": [], "B": [], "P": [], "total": []}
         for batch_idx, data in enumerate(self.train_loader):
@@ -112,7 +111,7 @@ class GraphTCNTrainer:
         self.model.eval()
         losses = {"total": [], "W": [], "V": [], "B": [], "P": [], "acc": []}
         with torch.no_grad():
-            for batch_idx, data in enumerate(self.test_loader):
+            for _batch_idx, data in enumerate(self.test_loader):
                 data = data.to(self.device)
                 if self.predict_track_params:
                     self.W, self.H, self.B, self.P = self.model(
@@ -140,6 +139,7 @@ class GraphTCNTrainer:
                     loss_P = self.object_loss(
                         self.W, self.B, self.H, self.P, self.Y, self.L, self.T, self.R
                     ).item()
+                    losses["P"].append(loss_P)
                 acc, TPR, TNR = binary_classification_stats(self.W, self.Y, thld)
 
                 losses["total"].append(loss_W + loss_V + loss_B)
@@ -155,7 +155,7 @@ class GraphTCNTrainer:
     def validate(self):
         self.model.eval()
         opt_thlds, accs = [], []
-        for batch_idx, data in enumerate(self.val_loader):
+        for _batch_idx, data in enumerate(self.val_loader):
             data = data.to(self.device)
             if self.predict_track_params:
                 self.W, self.H, self.B, self.P = self.model(
@@ -168,9 +168,7 @@ class GraphTCNTrainer:
             self.Y, self.W = data.y, self.W.squeeze(1)
             self.L = data.particle_id
             self.B = self.B.squeeze()
-            loss = self.edge_weight_loss(self.W, self.B, self.H, self.Y, self.L)
             diff, opt_thld, opt_acc = 100, 0, 0
-            best_tpr, best_tnr = 0, 0
             for thld in np.arange(0.01, 0.5, 0.01):
                 acc, TPR, TNR = binary_classification_stats(self.W, self.Y, thld)
                 delta = abs(TPR - TNR)
