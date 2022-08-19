@@ -10,6 +10,6 @@ dependencies:
       - -f https://data.pyg.org/whl/torch-1.12.0+cu116.html
       - torch-sparse
       - pytorch-scatter
-      - torch-cluster 
-      - torch-spline-conv 
+      - torch-cluster
+      - torch-spline-conv
       - torch-geometric
