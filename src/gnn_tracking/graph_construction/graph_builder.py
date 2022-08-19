@@ -302,11 +302,6 @@ class GraphBuilder:
         data.edge_attr = data.edge_attr.T
         return data
 
-    def get_hits_per_particle(self, graph):
-        sector, particle_id = graph.sector, graph.particle_id
-        layer = graph.layer
-        in_sector = (particle_id > 0) & (sector > 0)
-
     def get_n_truth_edges(self, df):
         grouped = df[["particle_id", "layer", "pt"]].groupby("particle_id")
         n_truth_edges = {0: 0, 0.1: 0, 0.5: 0, 0.9: 0, 1.0: 0}
