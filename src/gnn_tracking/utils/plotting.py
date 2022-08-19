@@ -150,20 +150,138 @@ class PointCloudPlotter:
 
 
 class GraphPlotter:
-    def __init__(self, style="seaborn-paper"):
+    def __init__(self, indir="", n_sectors=64, style="seaborn-paper"):
+        self.indir = indir
         self.style = style
+        self.n_sectors = n_sectors
 
     def configure_plt(self):
         plt.style.use(self.style)
         rcParams.update({"figure.autolayout": True})
 
+    def plot_ep_rz_uv(
+        self,
+        graph: Data,
+        sector: int,
+        name: str,
+        savefig=False,
+        filename="",
+    ):
+        fig, axs = plt.subplots(nrows=1, ncols=3, dpi=200, figsize=(24, 8))
+        f = join(self.indir, f"{name}.pt")
+        graph = torch.load(f)
+        x, edge_index, y = graph.x, graph.edge_index, graph.y
+        phi, eta = x[:, 1], x[:, 3]
+        r, z = x[:, 0], x[:, 2]
+
+        # rotate u, v onto the u axis
+        u, v = x[:, 4], x[:, 5]
+        theta = np.pi / self.n_sectors
+        ur = u * np.cos(2 * sector * theta) - v * np.sin(2 * sector * theta)
+        vr = u * np.sin(2 * sector * theta) + v * np.cos(2 * sector * theta)
+
+        # plot
+        self.plot_2d(
+            np.stack((eta, phi * np.pi), axis=1),
+            y,
+            edge_index,
+            x1_label=r"$\eta$",
+            x2_label=r"$\phi$",
+            ax=axs[0],
+            savefig=False,
+        )
+        self.plot_2d(
+            np.stack((z * 1000.0, r * 1000.0), axis=1),
+            y,
+            edge_index,
+            x1_label=r"$z$ [mm]",
+            x2_label=r"$r$ [mm]",
+            ax=axs[1],
+            savefig=False,
+        )
+        self.plot_2d(
+            np.stack((ur / 1000.0, vr / 1000.0), axis=1),
+            y,
+            edge_index,
+            x1_label=r"$u$ [1/mm]",
+            x2_label="$v$ [1/mm]",
+            ax=axs[2],
+            savefig=False,
+        )
+        axs[1].set_title(name)
+        plt.tight_layout()
+        plt.show()
+
+    def plot_2d(
+        self,
+        X,
+        y,
+        edge_index,
+        name="",
+        savefig=False,
+        filename="",
+        ax=None,
+        sector=-1,
+        x1_label="",
+        x2_label="",
+    ):
+        true_x1_o = X[edge_index[0, :]][(y > 0.5)][:, 0]
+        false_x1_o = X[edge_index[0, :]][(y < 0.5)][:, 0]
+        true_x1_i = X[edge_index[1, :]][(y > 0.5)][:, 0]
+        false_x1_i = X[edge_index[1, :]][(y < 0.5)][:, 0]
+        true_x2_o = X[edge_index[0, :]][(y > 0.5)][:, 1]
+        false_x2_o = X[edge_index[0, :]][(y < 0.5)][:, 1]
+        true_x2_i = X[edge_index[1, :]][(y > 0.5)][:, 1]
+        false_x2_i = X[edge_index[1, :]][(y < 0.5)][:, 1]
+
+        show_plot = False
+        if ax is None:
+            show_plot = True
+            fig, ax = plt.subplots(dpi=200, figsize=(12, 12))
+        ax.plot(X[:, 0], X[:, 1], "b.", lw=0, ms=0.5)
+
+        # plot true edges
+        for i in range(len(true_x1_o)):
+            ax.plot(
+                (true_x1_o[i], true_x1_i[i]),
+                (true_x2_o[i], true_x2_i[i]),
+                marker="o",
+                ls="-",
+                color="blue",
+                lw=0.25,
+                ms=0.1,
+                alpha=1,
+            )
+
+        # plot false edges
+        for i in range(len(false_x1_o)):
+            ax.plot(
+                (false_x1_o[i], false_x1_i[i]),
+                (false_x2_o[i], false_x2_i[i]),
+                marker="o",
+                ls="-",
+                color="black",
+                lw=0.05,
+                ms=0.1,
+                alpha=0.2,
+            )
+
+        ax.set_xlabel(x1_label)
+        ax.set_ylabel(x2_label)
+
+        if show_plot:
+            plt.title(name)
+            plt.tight_layout()
+            plt.show()
+
     def plot_rz(
         self,
         graph: Data,
-        name: str,
+        name="",
         scale=None,
         savefig=False,
         filename="",
+        ax=None,
     ):
         x = graph.x[:, :3] / scale
         y = graph.y
@@ -175,7 +293,10 @@ class GraphPlotter:
         false_edges_o = feats_o[y < 0.5]
         false_edges_i = feats_i[y < 0.5]
 
-        fig, ax = plt.subplots(dpi=200, figsize=(12, 12))
+        show_plot = False
+        if ax is None:
+            show_plot = True
+            fig, ax = plt.subplots(dpi=200, figsize=(12, 12))
         for i in range(len(true_edges_o)):
             ax.plot(
                 (true_edges_o[i][2], true_edges_i[i][2]),
@@ -201,11 +322,12 @@ class GraphPlotter:
 
         ax.set_ylabel("r [m]")
         ax.set_xlabel("z [m]")
-        plt.title(name)
-        if savefig:
-            plt.savefig(filename, dpi=1200)
-        plt.tight_layout()
-        plt.show()
+        if show_plot:
+            plt.title(name)
+            if savefig:
+                plt.savefig(filename, dpi=1200)
+            plt.tight_layout()
+            plt.show()
 
 
 def plot_rz(X, idxs, y, save_fig=False, filename="rz.png"):

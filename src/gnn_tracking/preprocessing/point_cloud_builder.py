@@ -214,7 +214,7 @@ class PointCloudBuilder:
                 )
                 majority_contained.append(sum(in_ext_sector) == n_total)
                 efficiency = sum(majority_contained) / len(majority_contained)
-                measurements[f"majority_contained"] = efficiency
+                measurements["majority_contained"] = efficiency
                 self.measurements.append(measurements)
 
         return extended_sector
@@ -284,7 +284,7 @@ class PointCloudBuilder:
                     data = torch.load(join(self.outdir, name))
                     self.data_list.append(data)
                     if verbose:
-                        print("skipping {name}")
+                        print(f"skipping {name}")
                 else:
                     sector = self.sector_hits(
                         hits, s, particle_id_counts=particle_id_counts
