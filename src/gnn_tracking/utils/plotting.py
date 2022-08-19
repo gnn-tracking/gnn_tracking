@@ -171,6 +171,8 @@ class GraphPlotter:
         f = join(self.indir, f"{name}.pt")
         graph = torch.load(f)
         x, edge_index, y = graph.x, graph.edge_index, graph.y
+        particle_id = graph.particle_id
+        mask = (particle_id==np.random.choice(particle_id, size=None))
         phi, eta = x[:, 1], x[:, 3]
         r, z = x[:, 0], x[:, 2]
 
@@ -179,8 +181,13 @@ class GraphPlotter:
         theta = np.pi / self.n_sectors
         ur = u * np.cos(2 * sector * theta) - v * np.sin(2 * sector * theta)
         vr = u * np.sin(2 * sector * theta) + v * np.cos(2 * sector * theta)
+        
+        # plot a single particle
+        axs[0].plot(eta[mask], phi[mask]*np.pi, 'r.', ms=8)
+        axs[1].plot(z[mask]*1000., r[mask]*1000., 'r.', ms=8)
+        axs[2].plot(ur[mask]/1000., vr[mask]/1000., 'r.', ms=8)
 
-        # plot
+        # plot others
         self.plot_2d(
             np.stack((eta, phi * np.pi), axis=1),
             y,
@@ -224,6 +231,7 @@ class GraphPlotter:
         sector=-1,
         x1_label="",
         x2_label="",
+        single_particle=False
     ):
         true_x1_o = X[edge_index[0, :]][(y > 0.5)][:, 0]
         false_x1_o = X[edge_index[0, :]][(y < 0.5)][:, 0]
@@ -247,9 +255,9 @@ class GraphPlotter:
                 (true_x2_o[i], true_x2_i[i]),
                 marker="o",
                 ls="-",
-                color="blue",
-                lw=0.25,
-                ms=0.1,
+                color="blue" if not single_particle else 'green',
+                lw=0.25 if not single_particle else 1,
+                ms=0.1 if not single_particle else 0.5,
                 alpha=1,
             )
 
@@ -260,9 +268,9 @@ class GraphPlotter:
                 (false_x2_o[i], false_x2_i[i]),
                 marker="o",
                 ls="-",
-                color="black",
-                lw=0.05,
-                ms=0.1,
+                color="black" if not single_particle else 'red',
+                lw=0.05 if not single_particle else 0.5,
+                ms=0.1 if not single_particle else 0.5,
                 alpha=0.2,
             )
 
