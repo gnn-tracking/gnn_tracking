@@ -4,8 +4,14 @@ import numpy as np
 import pandas as pd
 import torch
 from torch.optim import Adam
-from utils.losses import BackgroundLoss, EdgeWeightLoss, ObjectLoss, PotentialLoss
-from utils.training import binary_classification_stats
+
+from gnn_tracking.utils.losses import (
+    BackgroundLoss,
+    EdgeWeightLoss,
+    ObjectLoss,
+    PotentialLoss,
+)
+from gnn_tracking.utils.training import binary_classification_stats
 
 
 class GraphTCNTrainer:

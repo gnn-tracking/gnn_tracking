@@ -90,7 +90,7 @@ class PointCloudPlotter:
         phi, eta = x[:, 1], x[:, 3]
         r, z = x[:, 0], x[:, 2]
         u, v = x[:, 4], x[:, 5]
-        kwargs = {"lw": 0, "ms": 0.1, "color": self.colors[i]}
+        kwargs = {"marker": ".", "lw": 0, "ms": 0.1, "color": self.colors[i]}
         axs[0].plot(eta, phi, **kwargs)
         axs[0].set_xlabel(r"$\eta$")
         axs[0].set_ylabel(r"$\phi$")
