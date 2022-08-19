@@ -23,12 +23,30 @@ class PointCloudBuilder:
         pixel_only=False,
         sector_di=0.0001,
         sector_ds=1.1,
-        feature_names=["r", "phi", "z", "eta_rz", "u", "v"],
+        feature_names=None,
         feature_scale=np.array([1, 1, 1, 1, 1, 1]),
         measurement_mode=False,
         thld=0.5,
         remove_noise=False,
     ):
+        """
+
+        Args:
+            outdir: Direectory for the output files
+            indir: Directory of input files
+            n_sectors:
+            redo:
+            pixel_only: Construct tracks only from pixel layers
+            sector_di:
+            sector_ds:
+            feature_names: Names of features that are passed on to pyg data
+            feature_scale: Scaling of features given by ``feature_names``
+            measurement_mode:
+            thld:
+            remove_noise:
+        """
+        if feature_names is None:
+            feature_names = (["r", "phi", "z", "eta_rz", "u", "v"],)
         self.outdir = outdir
         self.indir = indir
         self.n_sectors = n_sectors
@@ -45,7 +63,9 @@ class PointCloudBuilder:
         self.measurements = []
 
         suffix = "-hits.csv.gz"
-        self.prefixes, self.exists = [], {}
+        self.prefixes: list[str] = []
+        #: Does an output file for a given key exist?
+        self.exists: dict[str, bool] = {}
         outfiles = os.listdir(outdir)
         for p in os.listdir(self.indir):
             if str(p).endswith(suffix):
@@ -56,13 +76,13 @@ class PointCloudBuilder:
                     self.exists[key] = key in outfiles
                 self.prefixes.append(join(indir, prefix))
 
-        self.data_list = []
+        self.data_list: list[Data] = []
 
     def calc_eta(self, r, z):
         theta = np.arctan2(r, z)
         return -1.0 * np.log(np.tan(theta / 2.0))
 
-    def restrict_to_pixel(self, hits):
+    def restrict_to_pixel(self, hits: pd.DataFrame) -> pd.DataFrame:
         pixel_barrel = [(8, 2), (8, 4), (8, 6), (8, 8)]
         pixel_LEC = [(7, 14), (7, 12), (7, 10), (7, 8), (7, 6), (7, 4), (7, 2)]
         pixel_REC = [(9, 2), (9, 4), (9, 6), (9, 8), (9, 10), (9, 12), (9, 14)]
@@ -79,7 +99,10 @@ class PointCloudBuilder:
         )
         return hits
 
-    def append_features(self, hits, particles, truth):
+    def append_features(
+        self, hits: pd.DataFrame, particles: pd.DataFrame, truth: pd.DataFrame
+    ) -> pd.DataFrame:
+        """Add additional features to the hits dataframe and return it."""
         particles["pt"] = np.sqrt(particles.px**2 + particles.py**2)
         particles["eta_pt"] = self.calc_eta(particles.pt, particles.pz)
 
@@ -117,7 +140,7 @@ class PointCloudBuilder:
         ].merge(truth[["hit_id", "particle_id", "pt", "eta_pt"]], on="hit_id")
         return hits
 
-    def sector_hits(self, hits, s, particle_id_counts: dict[int, int]):
+    def sector_hits(self, hits: pd.DataFrame, s, particle_id_counts: dict[int, int]) -> pd.DataFrame:
         if self.n_sectors == 1:
             return hits
         # build sectors in each 2*np.pi/self.n_sectors window
@@ -191,7 +214,8 @@ class PointCloudBuilder:
 
         return extended_sector
 
-    def to_pyg_data(self, hits):
+    def to_pyg_data(self, hits: pd.DataFrame) -> Data:
+        """Build the output data structure"""
         data = Data(
             x=hits[self.feature_names].values / self.feature_scale,
             layer=hits.layer.values,
@@ -202,10 +226,18 @@ class PointCloudBuilder:
         )
         return data
 
-    def process(self, n=10**6, verbose=False):
-        for i, f in enumerate(self.prefixes):
-            if i >= n:
-                break
+    def process(self, n: int | None = None, verbose=False):
+        """Process input files from self.input_files and write output files to
+        self.output_files
+
+        Args:
+            n: Number of events to process
+            verbose:
+
+        Returns:
+
+        """
+        for i, f in enumerate(self.prefixes[:n]):
             print(f"Processing {f}")
 
             evtid = int(f[-9:])
