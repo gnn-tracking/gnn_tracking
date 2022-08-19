@@ -1,9 +1,12 @@
 from __future__ import annotations
 
+import collections
+
 import numpy as np
 import pandas as pd
 import torch
 from torch.optim import Adam
+from torch_geometric.loader import DataLoader
 
 from gnn_tracking.utils.losses import (
     BackgroundLoss,
@@ -18,7 +21,7 @@ class GraphTCNTrainer:
     def __init__(
         self,
         model,
-        loaders,
+        loaders: dict[str, DataLoader],
         device="cpu",
         lr=5 * 10**-4,
         q_min=0.01,
@@ -27,6 +30,19 @@ class GraphTCNTrainer:
         object_loss_mode="purity",
         predict_track_params=False,
     ):
+        """
+
+        Args:
+            model:
+            loaders:
+            device:
+            lr:
+            q_min:
+            sb:
+            epochs:
+            object_loss_mode:
+            predict_track_params:
+        """
         self.model = model.to(device)
         self.epochs = epochs
         self.train_loader = loaders["train"]
@@ -60,7 +76,7 @@ class GraphTCNTrainer:
         self.train_loss = []
         self.test_loss = []
 
-    def train_step(self, epoch):
+    def train_step(self, epoch: int):
         self.model.train()
 
         losses = {"W": [], "V": [], "B": [], "P": [], "total": []}
@@ -111,9 +127,9 @@ class GraphTCNTrainer:
         losses = {k: np.nanmean(v) for k, v in losses.items()}
         self.train_loss.append(pd.DataFrame(losses, index=[epoch]))
 
-    def test_step(self, epoch, thld=0.5):
+    def test_step(self, epoch: int, thld=0.5):
         self.model.eval()
-        losses = {"total": [], "W": [], "V": [], "B": [], "P": [], "acc": []}
+        losses = collections.defaultdict(list)
         with torch.no_grad():
             for _batch_idx, data in enumerate(self.test_loader):
                 data = data.to(self.device)
