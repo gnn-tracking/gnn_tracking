@@ -20,14 +20,13 @@ class PointCloudBuilder:
         indir: str,
         n_sectors: int,
         redo=True,
-        pixel_only=False,
+        pixel_only=True,
         sector_di=0.0001,
         sector_ds=1.1,
-        feature_names=None,
-        feature_scale=np.array([1, 1, 1, 1, 1, 1]),
         measurement_mode=False,
         thld=0.5,
         remove_noise=False,
+        write_output=True,
     ):
         """
 
@@ -45,22 +44,26 @@ class PointCloudBuilder:
             thld:
             remove_noise:
         """
-        if feature_names is None:
-            feature_names = (["r", "phi", "z", "eta_rz", "u", "v"],)
+        # create outdir if necessary
         self.outdir = outdir
+        is_folder = os.path.isdir(outdir)
+        if not is_folder:
+            os.makedirs(outdir)
+
         self.indir = indir
         self.n_sectors = n_sectors
         self.redo = redo
         self.pixel_only = pixel_only
         self.sector_di = sector_di
         self.sector_ds = sector_ds
-        self.feature_names = feature_names
-        self.feature_scale = feature_scale  # !! important
+        self.feature_names = ['r', 'phi', 'z', 'eta_rz', 'u', 'v']
+        self.feature_scale = np.array([1, 1, 1, 1, 1, 1])
         self.measurement_mode = measurement_mode
         self.thld = thld
         self.stats = {}
         self.remove_noise = remove_noise
         self.measurements = []
+        self.write_output = write_output
 
         suffix = "-hits.csv.gz"
         self.prefixes: list[str] = []
@@ -140,7 +143,9 @@ class PointCloudBuilder:
         ].merge(truth[["hit_id", "particle_id", "pt", "eta_pt"]], on="hit_id")
         return hits
 
-    def sector_hits(self, hits: pd.DataFrame, s, particle_id_counts: dict[int, int]) -> pd.DataFrame:
+    def sector_hits(
+        self, hits: pd.DataFrame, s, particle_id_counts: dict[int, int]
+    ) -> pd.DataFrame:
         if self.n_sectors == 1:
             return hits
         # build sectors in each 2*np.pi/self.n_sectors window
@@ -178,17 +183,17 @@ class PointCloudBuilder:
 
         measurements = {}
         if self.measurement_mode:
-            measurements["sector_size"] = len(sector)
-            measurements["extended_sector_size"] = len(extended_sector)
+            measurements["n_hits"] = len(sector)
+            measurements["n_hits_ext"] = len(extended_sector)
             if len(sector) > 0:
-                measurements["sector_size_ratio"] = len(extended_sector) / len(sector)
+                measurements["n_hits_ratio"] = len(extended_sector) / len(sector)
             else:
-                measurements["sector_size_ratio"] = 0
+                measurements["n_hits_ratio"] = 0
 
-            measurements["unique_pids"] = len(
+            measurements["n_unique_pids"] = len(
                 np.unique(extended_sector.particle_id.values)
             )
-
+            
             majority_contained = []
             for pid in np.unique(extended_sector.particle_id.values):
                 if pid == 0:
@@ -226,6 +231,16 @@ class PointCloudBuilder:
         )
         return data
 
+    def get_measurements(self):
+        measurements = pd.DataFrame(self.measurements)
+        means = measurements.mean()
+        stds = measurements.std()
+        output = {}
+        for var in means.index:
+            output[var] = means[var]
+            output[var+'_err'] = stds[var]
+        return output
+
     def process(self, n: int | None = None, verbose=False):
         """Process input files from self.input_files and write output files to
         self.output_files
@@ -237,7 +252,7 @@ class PointCloudBuilder:
         Returns:
 
         """
-        for i, f in enumerate(self.prefixes[:n]):
+        for f in self.prefixes[:n]:
             print(f"Processing {f}")
 
             evtid = int(f[-9:])
@@ -278,7 +293,8 @@ class PointCloudBuilder:
                     n_sector_particles += len(np.unique(sector.particle_id.values))
                     sector = self.to_pyg_data(sector)
                     outfile = join(self.outdir, name)
-                    torch.save(sector, outfile)
+                    if self.write_output:
+                        torch.save(sector, outfile)
                     self.data_list.append(sector)
                     if verbose:
                         print(f"wrote {outfile}")
@@ -291,10 +307,11 @@ class PointCloudBuilder:
                 "n_sector_particles": n_sector_particles,
             }
 
-        print("Output statistics:", self.stats[evtid])
-        if self.measurement_mode:
-            measurements = pd.DataFrame(self.measurements)
-            means = measurements.mean()
-            stds = measurements.std()
-            for var in stds.index:
-                print(f"{var}: {means[var]:.4f}+/-{stds[var]:.4f}")
+        if self.verbose:
+            print("Output statistics:", self.stats[evtid])
+            if self.measurement_mode:
+                measurements = pd.DataFrame(self.measurements)
+                means = measurements.mean()
+                stds = measurements.std()
+                for var in stds.index:
+                    print(f"{var}: {means[var]:.4f}+/-{stds[var]:.4f}")

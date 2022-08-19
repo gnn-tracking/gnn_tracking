@@ -21,8 +21,6 @@ class GraphBuilder:
         z0_max=200,
         dR_max=1.7,
         uv_approach_max=0.0015,
-        feature_names=["r", "phi", "z", "eta_rz", "u", "v"],
-        feature_scale=np.array([1000.0, np.pi, 1000.0, 1, 1 / 1000.0, 1 / 1000.0]),
         directed=False,
         measurement_mode=False,
     ):
@@ -34,8 +32,10 @@ class GraphBuilder:
         self.z0_max = z0_max
         self.dR_max = dR_max
         self.uv_approach_max = uv_approach_max
-        self.feature_names = feature_names
-        self.feature_scale = feature_scale
+        self.feature_names = ["r", "phi", "z", "eta_rz", "u", "v"]
+        self.feature_scale = np.array(
+            [1000.0, np.pi, 1000.0, 1, 1 / 1000.0, 1 / 1000.0]
+        )
         self.data_list = []
         self.outfiles = os.listdir(outdir)
         self.directed = directed
@@ -164,10 +164,9 @@ class GraphBuilder:
         # loop over particle_id, particle_hits,
         # count extra transition edges as n_incorrect
         n_corrected = 0
-        for p, particle_hits in hits_by_particle:
+        for p, _ in hits_by_particle:
             if p == 0:
                 continue
-            # particle_hit_ids = np.arange(len(hits))  # = particle_hits["hit_id"].values
 
             # grab true segment indices for particle p
             relevant_indices = (particle_ids == p) & (y == 1)
@@ -332,7 +331,7 @@ class GraphBuilder:
         infiles = os.listdir(self.indir)
         self.edge_purities = []
         self.edge_efficiencies = collections.defaultdict(list)
-        for f in infiles[:, n]:
+        for f in infiles[:n]:
             name = f.split("/")[-1]
             if f in self.outfiles and not self.redo:
                 graph = torch.load(join(self.outdir, name))
@@ -371,9 +370,8 @@ class GraphBuilder:
             f" - Edge Purity: {np.mean(self.edge_purities)} "
             + f"+/- {np.std(self.edge_purities)}"
         )
-        for pt, eff in self.edge_efficiencies.items():
+        for pt, effs in self.edge_efficiencies.items():
             print(
                 f" - Edge Efficiency (pt > {pt} GeV): "
-                + f"{np.mean(self.edge_efficiencies[pt])} +/- "
-                + f"{np.std(self.edge_efficiencies[pt])}"
+                + f"{np.mean(effs)} +/- {np.std(effs)}"
             )
