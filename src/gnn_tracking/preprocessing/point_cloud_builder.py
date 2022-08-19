@@ -33,22 +33,20 @@ class PointCloudBuilder:
         Args:
             outdir: Direectory for the output files
             indir: Directory of input files
-            n_sectors:
-            redo:
+            n_sectors: Total number of sectors
+            redo: Force recompute of point cloud building
             pixel_only: Construct tracks only from pixel layers
             sector_di:
             sector_ds:
             feature_names: Names of features that are passed on to pyg data
             feature_scale: Scaling of features given by ``feature_names``
             measurement_mode:
-            thld:
+            thld: pt threshold
             remove_noise:
         """
         # create outdir if necessary
+        os.makedirs(outdir, exist_ok=True)
         self.outdir = outdir
-        is_folder = os.path.isdir(outdir)
-        if not is_folder:
-            os.makedirs(outdir)
 
         self.indir = indir
         self.n_sectors = n_sectors
@@ -56,7 +54,7 @@ class PointCloudBuilder:
         self.pixel_only = pixel_only
         self.sector_di = sector_di
         self.sector_ds = sector_ds
-        self.feature_names = ['r', 'phi', 'z', 'eta_rz', 'u', 'v']
+        self.feature_names = ["r", "phi", "z", "eta_rz", "u", "v"]
         self.feature_scale = np.array([1, 1, 1, 1, 1, 1])
         self.measurement_mode = measurement_mode
         self.thld = thld
@@ -193,7 +191,7 @@ class PointCloudBuilder:
             measurements["n_unique_pids"] = len(
                 np.unique(extended_sector.particle_id.values)
             )
-            
+
             majority_contained = []
             for pid in np.unique(extended_sector.particle_id.values):
                 if pid == 0:
@@ -238,7 +236,7 @@ class PointCloudBuilder:
         output = {}
         for var in means.index:
             output[var] = means[var]
-            output[var+'_err'] = stds[var]
+            output[var + "_err"] = stds[var]
         return output
 
     def process(self, n: int | None = None, verbose=False):
