@@ -56,7 +56,7 @@ class PointCloudBuilder:
         self.pixel_only = pixel_only
         self.sector_di = sector_di
         self.sector_ds = sector_ds
-        self.feature_names = ['r', 'phi', 'z', 'eta_rz', 'u', 'v']
+        self.feature_names = ["r", "phi", "z", "eta_rz", "u", "v"]
         self.feature_scale = np.array([1, 1, 1, 1, 1, 1])
         self.measurement_mode = measurement_mode
         self.thld = thld
@@ -193,7 +193,7 @@ class PointCloudBuilder:
             measurements["n_unique_pids"] = len(
                 np.unique(extended_sector.particle_id.values)
             )
-            
+
             majority_contained = []
             for pid in np.unique(extended_sector.particle_id.values):
                 if pid == 0:
@@ -238,7 +238,7 @@ class PointCloudBuilder:
         output = {}
         for var in means.index:
             output[var] = means[var]
-            output[var+'_err'] = stds[var]
+            output[var + "_err"] = stds[var]
         return output
 
     def process(self, n: int | None = None, verbose=False):
@@ -307,7 +307,7 @@ class PointCloudBuilder:
                 "n_sector_particles": n_sector_particles,
             }
 
-        if self.verbose:
+        if verbose:
             print("Output statistics:", self.stats[evtid])
             if self.measurement_mode:
                 measurements = pd.DataFrame(self.measurements)
