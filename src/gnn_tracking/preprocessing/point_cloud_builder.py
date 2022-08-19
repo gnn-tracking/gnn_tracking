@@ -47,7 +47,13 @@ class PointCloudBuilder:
         """
         if feature_names is None:
             feature_names = (["r", "phi", "z", "eta_rz", "u", "v"],)
+
+        # create outdir if necessary
         self.outdir = outdir
+        is_folder = os.path.isdir(outdir)
+        if not is_folder:
+            os.makedirs(outdir)
+
         self.indir = indir
         self.n_sectors = n_sectors
         self.redo = redo
