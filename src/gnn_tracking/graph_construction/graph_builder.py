@@ -321,11 +321,20 @@ class GraphBuilder:
                     n_truth_edges[pt_thld] += n_segs
         return n_truth_edges
 
-    def process(self, n=10**6, verbose=False):
+    def process(self, n=None, verbose=False):
+        """Process a range of data files from input directory.
+
+        Args:
+            n: Number of files to process
+            verbose:
+
+        Returns:
+
+        """
         infiles = os.listdir(self.indir)
         self.edge_purities = []
         self.edge_efficiencies = {0: [], 0.1: [], 0.5: [], 0.9: [], 1.0: []}
-        for f in infiles:
+        for f in infiles[:, n]:
             name = f.split("/")[-1]
             if f in self.outfiles and not self.redo:
                 graph = torch.load(join(self.outdir, name))
