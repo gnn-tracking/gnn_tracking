@@ -157,7 +157,14 @@ class GraphPlotter:
         plt.style.use(self.style)
         rcParams.update({"figure.autolayout": True})
 
-    def plot_rz(self, graph: Data, name: str, scale=np.array([1, 1, 1]), savefig=False, filename=''):
+    def plot_rz(
+        self,
+        graph: Data,
+        name: str,
+        scale=np.array([1, 1, 1]),
+        savefig=False,
+        filename="",
+    ):
         x = graph.x[:, :3] / scale
         y = graph.y
         edge_index = graph.edge_index

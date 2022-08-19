@@ -140,7 +140,9 @@ class PointCloudBuilder:
         ].merge(truth[["hit_id", "particle_id", "pt", "eta_pt"]], on="hit_id")
         return hits
 
-    def sector_hits(self, hits: pd.DataFrame, s, particle_id_counts: dict[int, int]) -> pd.DataFrame:
+    def sector_hits(
+        self, hits: pd.DataFrame, s, particle_id_counts: dict[int, int]
+    ) -> pd.DataFrame:
         if self.n_sectors == 1:
             return hits
         # build sectors in each 2*np.pi/self.n_sectors window
