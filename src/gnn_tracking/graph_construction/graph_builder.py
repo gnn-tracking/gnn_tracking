@@ -316,16 +316,18 @@ class GraphBuilder:
                     n_truth_edges[pt_thld] += n_segs
         return n_truth_edges
 
-    def process(self, n=None, verbose=False):
-        """Process a range of data files from input directory.
-
-        Args:
-            n: Number of files to process
-            verbose:
-
-        Returns:
-
+    @staticmethod
+    def get_event_id_sector_from_str(name: str) -> tuple[int, int]:
         """
+        Returns:
+            Event id, sector Id
+        """
+        evtid_s = name.split(".")[0][4:]
+        evtid = int(evtid_s[:5])
+        s = int(evtid_s.split("_s")[-1])
+        return evtid, s
+
+    def process(self, n=10**6, verbose=False):
         infiles = os.listdir(self.indir)
         self.edge_purities = []
         self.edge_efficiencies = {0: [], 0.1: [], 0.5: [], 0.9: [], 1.0: []}
@@ -335,9 +337,10 @@ class GraphBuilder:
                 graph = torch.load(join(self.outdir, name))
                 self.data_list.append(graph)
             else:
-                evtid_s = name.split(".")[0][4:]
-                evtid = int(evtid_s[:5])
-                s = int(evtid_s.split("_s")[-1])
+                try:
+                    evtid, s = self.get_event_id_sector_from_str(name)
+                except (ValueError, KeyError) as e:
+                    raise ValueError(f"{name} is not a valid file name") from e
                 if verbose:
                     print(f"Processing {f}")
                 f = join(self.indir, f)
