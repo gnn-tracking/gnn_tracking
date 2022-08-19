@@ -265,7 +265,7 @@ def plot_3d(X, idxs, y, save_fig=False, filename="rz.png"):
     # feats_i = X[idxs[1,:]]
 
     ax = plt.axes(projection="3d")
-    for i in range(len(X)):
+    for _ in range(len(X)):
         ax.scatter3D(x, y, z, c="silver", marker="s", s=15)
         # plt.scatter(X[i][2], X[i][0], c='silver', linewidths=0, marker='s', s=8)
 

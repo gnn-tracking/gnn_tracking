@@ -239,7 +239,7 @@ class PointCloudBuilder:
         Returns:
 
         """
-        for i, f in enumerate(self.prefixes[:n]):
+        for f in self.prefixes[:n]:
             print(f"Processing {f}")
 
             evtid = int(f[-9:])
