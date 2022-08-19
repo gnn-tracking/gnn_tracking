@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import collections
 import os
 from os.path import join as join
 
@@ -324,7 +325,7 @@ class GraphBuilder:
     def process(self, n=10**6, verbose=False):
         infiles = os.listdir(self.indir)
         self.edge_purities = []
-        self.edge_efficiencies = {0: [], 0.1: [], 0.5: [], 0.9: [], 1.0: []}
+        self.edge_efficiencies = collections.defaultdict(list)
         for f in infiles:
             name = f.split("/")[-1]
             if f in self.outfiles and not self.redo:
