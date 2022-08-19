@@ -303,11 +303,6 @@ class GraphBuilder:
         data.edge_attr = data.edge_attr.T
         return data
 
-    def get_hits_per_particle(self, graph):
-        sector, particle_id = graph.sector, graph.particle_id
-        layer = graph.layer
-        in_sector = (particle_id > 0) & (sector > 0)
-
     def get_n_truth_edges(self, df):
         grouped = df[["particle_id", "layer", "pt"]].groupby("particle_id")
         n_truth_edges = {0: 0, 0.1: 0, 0.5: 0, 0.9: 0, 1.0: 0}
@@ -322,19 +317,31 @@ class GraphBuilder:
                     n_truth_edges[pt_thld] += n_segs
         return n_truth_edges
 
+    @staticmethod
+    def get_event_id_sector_from_str(name: str) -> tuple[int, int]:
+        """
+        Returns:
+            Event id, sector Id
+        """
+        evtid_s = name.split(".")[0][4:]
+        evtid = int(evtid_s[:5])
+        s = int(evtid_s.split("_s")[-1])
+        return evtid, s
+
     def process(self, n=10**6, verbose=False):
         infiles = os.listdir(self.indir)
         self.edge_purities = []
         self.edge_efficiencies = collections.defaultdict(list)
-        for f in infiles:
+        for f in infiles[:, n]:
             name = f.split("/")[-1]
             if f in self.outfiles and not self.redo:
                 graph = torch.load(join(self.outdir, name))
                 self.data_list.append(graph)
             else:
-                evtid_s = name.split(".")[0][4:]
-                evtid = int(evtid_s[:5])
-                s = int(evtid_s.split("_s")[-1])
+                try:
+                    evtid, s = self.get_event_id_sector_from_str(name)
+                except (ValueError, KeyError) as e:
+                    raise ValueError(f"{name} is not a valid file name") from e
                 if verbose:
                     print(f"Processing {f}")
                 f = join(self.indir, f)

@@ -2,9 +2,11 @@ from __future__ import annotations
 
 import os
 from os.path import join
+from typing import Sequence
 
 import mplhep as hep
 import numpy as np
+import pandas as pd
 import torch
 from matplotlib import pyplot as plt
 from matplotlib import rcParams
@@ -27,7 +29,9 @@ class EventPlotter:
         theta = np.arctan2(r, z)
         return -1.0 * np.log(np.tan(theta / 2.0))
 
-    def append_coordinates(self, hits, truth, particles):
+    def append_coordinates(
+        self, hits: pd.DataFrame, truth: pd.DataFrame, particles: pd.DataFrame
+    ) -> pd.DataFrame:
         particles["pt"] = np.sqrt(particles.px**2 + particles.py**2)
         particles["eta_pt"] = self.calc_eta(particles.pt, particles.pz)
         truth = truth[["hit_id", "particle_id"]].merge(
@@ -50,7 +54,7 @@ class EventPlotter:
         if evtid is None:
             evtid = 21000 + np.random.randint(999, size=1)[0]
         else:
-            evtid == str(evtid)
+            evtid = str(evtid)
         prefix = f"event0000{evtid}"
         path = join(self.indir, prefix)
         hits, particles, truth = load_event(path, parts=["hits", "particles", "truth"])
@@ -81,26 +85,27 @@ class PointCloudPlotter:
         self.n_sectors = n_sectors
         self.colors = cm.prism(np.linspace(0, 1, n_sectors))
 
-    def plot_ep_rv_uv(self, i, sector, axs, display=True):
+    def plot_ep_rv_uv(self, i: int, sector: str, axs: Sequence[plt.Axes], display=True):
         x = torch.load(sector).x
         phi, eta = x[:, 1], x[:, 3]
         r, z = x[:, 0], x[:, 2]
         u, v = x[:, 4], x[:, 5]
-        axs[0].plot(eta, phi, marker=".", color=self.colors[i], lw=0, ms=0.1)
+        kwargs = {"lw": 0, "ms": 0.1, "color": self.colors[i]}
+        axs[0].plot(eta, phi, **kwargs)
         axs[0].set_xlabel(r"$\eta$")
         axs[0].set_ylabel(r"$\phi$")
-        axs[1].plot(z, r, marker=".", color=self.colors[i], lw=0, ms=0.1)
+        axs[1].plot(z, r, **kwargs)
         axs[1].set_xlabel(r"$z$ [mm]")
         axs[1].set_ylabel(r"$r$ [mm]")
-        axs[1].set_xlim([-1550, 1550])
-        axs[2].plot(u, v, marker=".", color=self.colors[i], lw=0, ms=0.1)
+        axs[1].set_xlim(-1550, 1550)
+        axs[2].plot(u, v, **kwargs)
         axs[2].set_xlabel(r"u [1/mm]")
         axs[2].set_ylabel(r"v [1/mm]")
         if display:
             plt.tight_layout()
             plt.show()
 
-    def plot_ep_rv_uv_all_sectors(self, evtid):
+    def plot_ep_rv_uv_all_sectors(self, evtid: int):
         fig, axs = plt.subplots(nrows=1, ncols=3, dpi=200, figsize=(24, 8))
         sector_files = [join(self.indir, f) for f in self.infiles if str(evtid) in f]
         prefix = f"event{evtid}"
@@ -110,7 +115,7 @@ class PointCloudPlotter:
         plt.tight_layout()
         plt.show()
 
-    def plot_ep_rv_uv_with_boundary(self, evtid, sector, di, ds):
+    def plot_ep_rv_uv_with_boundary(self, evtid: int, sector: int, di, ds):
         fig, axs = plt.subplots(nrows=1, ncols=3, dpi=200, figsize=(24, 8))
         f = join(self.indir, f"data{evtid}_s{sector}.pt")
         x = torch.load(f).x
