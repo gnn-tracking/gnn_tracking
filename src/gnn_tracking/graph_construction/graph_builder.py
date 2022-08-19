@@ -302,11 +302,6 @@ class GraphBuilder:
         data.edge_attr = data.edge_attr.T
         return data
 
-    def get_hits_per_particle(self, graph):
-        sector, particle_id = graph.sector, graph.particle_id
-        layer = graph.layer
-        in_sector = (particle_id > 0) & (sector > 0)
-
     def get_n_truth_edges(self, df):
         grouped = df[["particle_id", "layer", "pt"]].groupby("particle_id")
         n_truth_edges = {0: 0, 0.1: 0, 0.5: 0, 0.9: 0, 1.0: 0}
@@ -336,7 +331,7 @@ class GraphBuilder:
         infiles = os.listdir(self.indir)
         self.edge_purities = []
         self.edge_efficiencies = {0: [], 0.1: [], 0.5: [], 0.9: [], 1.0: []}
-        for f in infiles:
+        for f in infiles[:, n]:
             name = f.split("/")[-1]
             if f in self.outfiles and not self.redo:
                 graph = torch.load(join(self.outdir, name))
