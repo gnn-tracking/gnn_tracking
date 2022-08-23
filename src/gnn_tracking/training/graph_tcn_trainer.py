@@ -17,6 +17,13 @@ from gnn_tracking.utils.losses import (
 from gnn_tracking.utils.training import binary_classification_stats
 
 
+# The following abbreviations are used throughout the code:
+# W: edge weights
+# B: condensation likelihoods
+# H: clustering coordinates
+# Y: edge truth labels
+# L: hit truth labels
+# P: Track parameters
 class GraphTCNTrainer:
     def __init__(
         self,
@@ -57,19 +64,6 @@ class GraphTCNTrainer:
         )
         self.predict_track_params = predict_track_params
 
-        # quantities to predict
-        # W = torch.empty(1, dtype=torch.float, device=device)  # edge weights
-        # B = torch.empty(
-        #     1, dtype=torch.float, device=device  # condensation likelihoods
-        # )
-        # H = torch.empty(
-        #     1, dtype=torch.float, device=device  # clustering coordinates
-        # )
-        # Y = torch.empty(1, dtype=torch.float, device=device)  # edge truth labels
-        # L = torch.empty(1, dtype=torch.float, device=device)  # hit truth labels
-        # P = torch.empty(1, dtype=torch.float, device=device)  # track parameters
-
-        # build a constrained optimizer
         self.optimizer = Adam(self.model.parameters(), lr=lr)
 
         # output quantities
