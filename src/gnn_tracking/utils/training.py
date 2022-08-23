@@ -9,7 +9,17 @@ def zero_divide(a, b):
     return a / b
 
 
-def binary_classification_stats(output, y, thld):
+def binary_classification_stats(output, y, thld) -> tuple[float, float, float]:
+    """
+
+    Args:
+        output:
+        y:
+        thld:
+
+    Returns:
+        accuracy, TPR, TNR
+    """
     TP = torch.sum((y == 1) & (output > thld))
     TN = torch.sum((y == 0) & (output < thld))
     FP = torch.sum((y == 0) & (output > thld))

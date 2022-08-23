@@ -172,10 +172,16 @@ class GraphTCNTrainer:
         print("test", losses)
         self.test_loss.append(pd.DataFrame(losses, index=[epoch]))
 
-    def validate(self):
+    def validate(self) -> float:
+        """
+
+        Returns:
+            Optimal threshold for binary classification.
+        """
         self.model.eval()
-        opt_thlds, accs = [], []
-        for _batch_idx, data in enumerate(self.val_loader):
+        # Optimal threshold for binary classification per batch
+        opt_thlds = []
+        for data in iter(self.val_loader):
             data = data.to(self.device)
             if self.predict_track_params:
                 self.W, self.H, self.B, self.P = self.model(
@@ -188,14 +194,13 @@ class GraphTCNTrainer:
             self.Y, self.W = data.y, self.W.squeeze(1)
             self.L = data.particle_id
             self.B = self.B.squeeze()
-            diff, opt_thld, opt_acc = 100, 0, 0
+            diff, opt_thld = 100, 0
             for thld in np.arange(0.01, 0.5, 0.01):
-                acc, TPR, TNR = binary_classification_stats(self.W, self.Y, thld)
+                _, TPR, TNR = binary_classification_stats(self.W, self.Y, thld)
                 delta = abs(TPR - TNR)
                 if delta < diff:
-                    diff, opt_thld, opt_acc = delta, thld, acc
+                    diff, opt_thld = delta, thld
             opt_thlds.append(opt_thld)
-            accs.append(opt_acc)
         return np.nanmean(opt_thlds).item()
 
     def train(self):
