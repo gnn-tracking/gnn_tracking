@@ -33,22 +33,20 @@ class PointCloudBuilder:
         Args:
             outdir: Direectory for the output files
             indir: Directory of input files
-            n_sectors:
-            redo:
+            n_sectors: Total number of sectors
+            redo: Force recompute of point cloud building
             pixel_only: Construct tracks only from pixel layers
             sector_di:
             sector_ds:
             feature_names: Names of features that are passed on to pyg data
             feature_scale: Scaling of features given by ``feature_names``
             measurement_mode:
-            thld:
+            thld: pt threshold
             remove_noise:
         """
         # create outdir if necessary
+        os.makedirs(outdir, exist_ok=True)
         self.outdir = outdir
-        is_folder = os.path.isdir(outdir)
-        if not is_folder:
-            os.makedirs(outdir)
 
         self.indir = indir
         self.n_sectors = n_sectors
