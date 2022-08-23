@@ -24,6 +24,7 @@ class GraphBuilder:
         measurement_mode=False,
     ):
         self.indir = indir
+        os.makedirs(outdir, exist_ok=True)
         self.outdir = outdir
         self.pixel_only = pixel_only
         self.redo = redo
