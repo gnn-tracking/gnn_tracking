@@ -196,7 +196,7 @@ class GraphTCNTrainer:
                     diff, opt_thld, opt_acc = delta, thld, acc
             opt_thlds.append(opt_thld)
             accs.append(opt_acc)
-        return np.nanmean(opt_thlds)
+        return np.nanmean(opt_thlds).item()
 
     def train(self):
         for epoch in range(1, self.epochs + 1):

@@ -31,7 +31,7 @@ class PointCloudBuilder:
         """
 
         Args:
-            outdir: Direectory for the output files
+            outdir: Directory for the output files
             indir: Directory of input files
             n_sectors:
             redo:
