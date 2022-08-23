@@ -79,7 +79,7 @@ class GraphTCNTrainer:
     def train_step(self, epoch: int):
         self.model.train()
 
-        losses = {"W": [], "V": [], "B": [], "P": [], "total": []}
+        losses = collections.defaultdict(list)
         for batch_idx, data in enumerate(self.train_loader):
             data = data.to(self.device)
             if self.predict_track_params:
