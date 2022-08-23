@@ -20,54 +20,18 @@ class PointCloudTCN(nn.Module):
         super().__init__()
         self.h_dim = 7
         self.encoder = nn.Linear(node_indim, self.h_dim)
-        self.in_w1 = IN(
-            self.h_dim,
-            edge_indim,
-            node_outdim=self.h_dim,
-            edge_outdim=4,
+        shared_kwargs = dict(
             node_hidden_dim=hidden_dim,
             edge_hidden_dim=hidden_dim,
-        )
-        self.in_w2 = IN(
-            self.h_dim,
-            4,
+            node_indim=self.h_dim,
             node_outdim=self.h_dim,
-            edge_outdim=4,
-            node_hidden_dim=hidden_dim,
-            edge_hidden_dim=hidden_dim,
         )
-        self.in_w3 = IN(
-            self.h_dim,
-            4,
-            node_outdim=self.h_dim,
-            edge_outdim=4,
-            node_hidden_dim=hidden_dim,
-            edge_hidden_dim=hidden_dim,
-        )
-        self.in_c1 = IN(
-            self.h_dim,
-            17,
-            node_outdim=self.h_dim,
-            edge_outdim=8,
-            node_hidden_dim=hidden_dim,
-            edge_hidden_dim=hidden_dim,
-        )
-        self.in_c2 = IN(
-            self.h_dim,
-            8,
-            node_outdim=self.h_dim,
-            edge_outdim=8,
-            node_hidden_dim=hidden_dim,
-            edge_hidden_dim=hidden_dim,
-        )
-        self.in_c3 = IN(
-            self.h_dim,
-            8,
-            node_outdim=self.h_dim,
-            edge_outdim=8,
-            node_hidden_dim=hidden_dim,
-            edge_hidden_dim=hidden_dim,
-        )
+        self.in_w1 = IN(edge_indim=edge_indim, edge_outdim=4, **shared_kwargs)
+        self.in_w2 = IN(edge_indim=4, edge_outdim=4, **shared_kwargs)
+        self.in_w3 = IN(edge_indim=4, edge_outdim=4, **shared_kwargs)
+        self.in_c1 = IN(edge_indim=17, edge_outdim=8, **shared_kwargs)
+        self.in_c2 = IN(edge_indim=8, edge_outdim=8, **shared_kwargs)
+        self.in_c3 = IN(edge_indim=8, edge_outdim=8, **shared_kwargs)
 
         self.W = MLP(16, 1, 40)
         self.B = MLP(self.h_dim, 1, 60)
@@ -82,7 +46,7 @@ class PointCloudTCN(nn.Module):
             # self.Q = MLP(self.h_dim, 1, 20)
         self.predict_track_params = predict_track_params
 
-    def forward(self, x: Tensor, edge_index: Tensor, edge_attr: Tensor) -> Tensor:
+    def forward(self, x: Tensor, edge_index: Tensor, edge_attr: Tensor):
 
         # re-embed the graph twice with add aggregation
         h = self.encoder(x)
