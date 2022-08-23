@@ -10,9 +10,14 @@ from gnn_tracking.models.mlp import MLP
 
 class PointCloudTCN(nn.Module):
     def __init__(
-        self, node_indim, edge_indim, hc_outdim, hidden_dim, predict_track_params=False
+        self,
+        node_indim: int,
+        edge_indim: int,
+        hc_outdim: int,
+        hidden_dim: int,
+        predict_track_params=False,
     ):
-        super(PointCloudTCN, self).__init__()
+        super().__init__()
         self.h_dim = 7
         self.encoder = nn.Linear(node_indim, self.h_dim)
         self.in_w1 = IN(
@@ -69,9 +74,10 @@ class PointCloudTCN(nn.Module):
         self.X = MLP(self.h_dim, hc_outdim, 80)
 
         if predict_track_params:
-            self.p1 = IN(self.h_dim, 8, node_outdim=3, edge_outdim=3, hidden_size=40)
-            self.p2 = IN(3, 3, 3, 3, hidden_size=40)
-            self.p3 = IN(3, 3, 3, 3, hidden_size=40)
+            hidden_dim_spec = dict(node_hidden_dim=40, edge_hidden_dim=40)
+            self.p1 = IN(self.h_dim, 8, node_outdim=3, edge_outdim=3, **hidden_dim_spec)
+            self.p2 = IN(3, 3, 3, 3, **hidden_dim_spec)
+            self.p3 = IN(3, 3, 3, 3, **hidden_dim_spec)
             # self.P = MLP(self.h_dim, 2, 80)
             # self.Q = MLP(self.h_dim, 1, 20)
         self.predict_track_params = predict_track_params
@@ -173,8 +179,9 @@ class GraphTCN(nn.Module):
                 node_hidden_dim=hidden_dim,
                 edge_hidden_dim=hidden_dim,
             )
-            self.p2 = IN(3, 3, 3, 3, hidden_size=40)
-            self.p3 = IN(3, 3, 3, 3, hidden_size=40)
+            hidden_dim_spec = dict(node_hidden_dim=40, edge_hidden_dim=40)
+            self.p2 = IN(3, 3, 3, 3, **hidden_dim_spec)
+            self.p3 = IN(3, 3, 3, 3, **hidden_dim_spec)
         self.predict_track_params = predict_track_params
 
     def forward(self, x: Tensor, edge_index: Tensor, edge_attr: Tensor) -> Tensor:
