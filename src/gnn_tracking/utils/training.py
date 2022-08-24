@@ -4,6 +4,8 @@ from functools import cached_property
 
 import torch
 
+from gnn_tracking.utils.types import assert_int
+
 
 def zero_divide(a: float, b: float) -> float:
     if b == 0:
@@ -25,6 +27,7 @@ class BinaryClassificationStats:
         Returns:
             accuracy, TPR, TNR
         """
+        assert_int(output, y)
         self._output = output
         self._y = y
         self._thld = thld
