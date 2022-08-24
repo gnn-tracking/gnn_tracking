@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from functools import cached_property
+
 import torch
 
 
@@ -9,24 +11,48 @@ def zero_divide(a: float, b: float) -> float:
     return a / b
 
 
-def binary_classification_stats(
-    output: torch.Tensor, y: torch.Tensor, thld: torch.Tensor | float
-) -> tuple[float, float, float]:
-    """
+class BinaryClassificationStats:
+    def __init__(
+        self, output: torch.Tensor, y: torch.Tensor, thld: torch.Tensor | float
+    ):
+        """
 
-    Args:
-        output:
-        y:
-        thld:
+        Args:
+            output:
+            y:
+            thld:
 
-    Returns:
-        accuracy, TPR, TNR
-    """
-    TP = torch.sum((y == 1) & (output > thld)).item()
-    TN = torch.sum((y == 0) & (output < thld)).item()
-    FP = torch.sum((y == 0) & (output > thld)).item()
-    FN = torch.sum((y == 1) & (output < thld)).item()
-    acc = zero_divide(TP + TN, TP + TN + FP + FN)
-    TPR = zero_divide(TP, TP + FN)
-    TNR = zero_divide(TN, TN + FP)
-    return acc, TPR, TNR
+        Returns:
+            accuracy, TPR, TNR
+        """
+        self._output = output
+        self._y = y
+        self._thld = thld
+
+    @cached_property
+    def TP(self) -> float:
+        return torch.sum((self._y == 1) & (self._output > self._thld)).item()
+
+    @cached_property
+    def TN(self) -> float:
+        return torch.sum((self._y == 0) & (self._output < self._thld)).item()
+
+    @cached_property
+    def FP(self) -> float:
+        return torch.sum((self._y == 0) & (self._output > self._thld)).item()
+
+    @cached_property
+    def FN(self) -> float:
+        return torch.sum((self._y == 1) & (self._output < self._thld)).item()
+
+    @cached_property
+    def acc(self) -> float:
+        return zero_divide(self.TP + self.TN, self.TP + self.TN + self.FP + self.FN)
+
+    @cached_property
+    def TPR(self) -> float:
+        return zero_divide(self.TP, self.TP + self.FN)
+
+    @cached_property
+    def TNR(self) -> float:
+        return zero_divide(self.TN, self.TN + self.FP)
