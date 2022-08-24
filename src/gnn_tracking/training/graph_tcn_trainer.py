@@ -166,7 +166,7 @@ class GraphTCNTrainer:
                 losses["W"].append(loss_W)
                 losses["V"].append(loss_V)
                 losses["B"].append(loss_B)
-                losses["acc"].append(acc.item())
+                losses["acc"].append(acc)
 
         losses = {k: np.nanmean(v) for k, v in losses.items()}
         print("test", losses)
