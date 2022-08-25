@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import collections
+from typing import Any, Callable
 
 import numpy as np
 import pandas as pd
@@ -23,12 +24,13 @@ class GraphTCNTrainer:
         model,
         loaders: dict[str, DataLoader],
         device="cpu",
-        lr=5 * 10**-4,
+        lr: Any = 5 * 10**-4,
         q_min=0.01,
         sb=1,
         epochs=1000,
         object_loss_mode="purity",
         predict_track_params=False,
+        lr_scheduler: None | Callable = None,
     ):
         """
 
@@ -36,12 +38,14 @@ class GraphTCNTrainer:
             model:
             loaders:
             device:
-            lr:
+            lr: Learning rate
             q_min:
             sb:
             epochs:
             object_loss_mode:
             predict_track_params:
+            lr_scheduler: Learning rate scheduler. If it needs parameters, apply
+                functools.partial first
         """
         self.model = model.to(device)
         self.epochs = epochs
@@ -71,6 +75,7 @@ class GraphTCNTrainer:
 
         # build a constrained optimizer
         self.optimizer = Adam(self.model.parameters(), lr=lr)
+        self._lr_scheduler = lr_scheduler(self.optimizer) if lr_scheduler else None
 
         # output quantities
         self.train_loss = []
@@ -204,4 +209,5 @@ class GraphTCNTrainer:
             self.train_step(epoch)
             thld = self.validate()
             self.test_step(epoch, thld=thld)
-            # self.scheduler.step()
+            if self._lr_scheduler:
+                self._lr_scheduler.step()
