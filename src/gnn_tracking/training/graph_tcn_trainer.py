@@ -51,10 +51,8 @@ class GraphTCNTrainer:
         self.device = device
         self.edge_weight_loss = EdgeWeightLoss().to(device)
         self.potential_loss = PotentialLoss(q_min=q_min, device=device)
-        self.background_loss = BackgroundLoss(q_min=q_min, device=device, sb=sb)
-        self.object_loss = ObjectLoss(
-            q_min=q_min, device=device, sb=sb, mode=object_loss_mode
-        )
+        self.background_loss = BackgroundLoss(device=device, sb=sb)
+        self.object_loss = ObjectLoss(device=device, mode=object_loss_mode)
         self.predict_track_params = predict_track_params
 
         # quantities to predict
