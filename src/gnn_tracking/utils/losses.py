@@ -54,11 +54,10 @@ class PotentialLoss(torch.nn.Module):
 
 
 class BackgroundLoss(torch.nn.Module):
-    def __init__(self, q_min=0.01, sb=0.1, device="cpu"):
+    def __init__(self, sb=0.1, device="cpu"):
         super().__init__()
         #: Strength of noise suppression
         self.sb = sb
-        self.q_min = q_min
         self.device = device
 
     def background_loss(self, beta: T, particle_id: T) -> T:
@@ -77,11 +76,9 @@ class BackgroundLoss(torch.nn.Module):
 
 
 class ObjectLoss(torch.nn.Module):
-    def __init__(self, q_min=0.01, sb=0.1, device="cpu", mode="efficiency"):
+    def __init__(self, device="cpu", mode="efficiency"):
         super().__init__()
         #: Strength of noise suppression
-        self.sb = sb
-        self.q_min = q_min
         self.device = device
         self.mode = mode
         #: Scale up loss value by this factor

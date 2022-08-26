@@ -17,6 +17,13 @@ from gnn_tracking.utils.losses import (
 from gnn_tracking.utils.training import BinaryClassificationStats
 
 
+# The following abbreviations are used throughout the code:
+# W: edge weights
+# B: condensation likelihoods
+# H: clustering coordinates
+# Y: edge truth labels
+# L: hit truth labels
+# P: Track parameters
 class GraphTCNTrainer:
     def __init__(
         self,
@@ -51,25 +58,10 @@ class GraphTCNTrainer:
         self.device = device
         self.edge_weight_loss = EdgeWeightLoss().to(device)
         self.potential_loss = PotentialLoss(q_min=q_min, device=device)
-        self.background_loss = BackgroundLoss(q_min=q_min, device=device, sb=sb)
-        self.object_loss = ObjectLoss(
-            q_min=q_min, device=device, sb=sb, mode=object_loss_mode
-        )
+        self.background_loss = BackgroundLoss(device=device, sb=sb)
+        self.object_loss = ObjectLoss(device=device, mode=object_loss_mode)
         self.predict_track_params = predict_track_params
 
-        # quantities to predict
-        self.W = torch.empty(1, dtype=torch.float, device=device)  # edge weights
-        self.B = torch.empty(
-            1, dtype=torch.float, device=device  # condensation likelihoods
-        )
-        self.H = torch.empty(
-            1, dtype=torch.float, device=device  # clustering coordinates
-        )
-        self.Y = torch.empty(1, dtype=torch.float, device=device)  # edge truth labels
-        self.L = torch.empty(1, dtype=torch.float, device=device)  # hit truth labels
-        self.P = torch.empty(1, dtype=torch.float, device=device)  # track parameters
-
-        # build a constrained optimizer
         self.optimizer = Adam(self.model.parameters(), lr=lr)
 
         # output quantities
@@ -83,28 +75,21 @@ class GraphTCNTrainer:
         for batch_idx, data in enumerate(self.train_loader):
             data = data.to(self.device)
             if self.predict_track_params:
-                self.W, self.H, self.B, self.P = self.model(
-                    data.x, data.edge_index, data.edge_attr
-                )
-                self.T = data.pt
+                W, H, B, P = self.model(data.x, data.edge_index, data.edge_attr)
             else:
-                self.W, self.H, self.B = self.model(
-                    data.x, data.edge_index, data.edge_attr
-                )
-            self.Y, self.W = data.y, self.W.squeeze(1)
-            self.L, self.T = data.particle_id, data.pt
-            self.R = data.reconstructable.long()
-            self.L = self.L * self.R  # should we mask out non-reconstructables?
-            self.B = self.B.squeeze()
-            loss_W = self.edge_weight_loss(self.W, self.B, self.H, self.Y, self.L)
-            loss_V = self.potential_loss(self.W, self.B, self.H, self.Y, self.L)
-            loss_B = self.background_loss(self.W, self.B, self.H, self.Y, self.L)
+                W, H, B = self.model(data.x, data.edge_index, data.edge_attr)
+            Y, W = data.y, W.squeeze(1)
+            L, T = data.particle_id, data.pt
+            R = data.reconstructable.long()
+            L = L * R  # should we mask out non-reconstructables?
+            B = B.squeeze()
+            loss_W = self.edge_weight_loss(W, B, H, Y, L)
+            loss_V = self.potential_loss(W, B, H, Y, L)
+            loss_B = self.background_loss(W, B, H, Y, L)
 
             loss = loss_W + loss_V + loss_B
             if self.predict_track_params:
-                loss_P = self.object_loss(
-                    self.W, self.B, self.H, self.P, self.Y, self.L, self.T, self.R
-                )
+                loss_P = self.object_loss(W, B, H, P, Y, L, T, R)
                 loss += loss_P
 
             self.optimizer.zero_grad()
@@ -134,33 +119,20 @@ class GraphTCNTrainer:
             for _batch_idx, data in enumerate(self.test_loader):
                 data = data.to(self.device)
                 if self.predict_track_params:
-                    self.W, self.H, self.B, self.P = self.model(
-                        data.x, data.edge_index, data.edge_attr
-                    )
+                    W, H, B, P = self.model(data.x, data.edge_index, data.edge_attr)
                 else:
-                    self.W, self.H, self.B = self.model(
-                        data.x, data.edge_index, data.edge_attr
-                    )
-                self.L = data.particle_id
-                self.Y, self.W = data.y, self.W.squeeze(1)
-                self.L, self.T = data.particle_id, data.pt
-                self.R = data.reconstructable.long()
-                self.B = self.B.squeeze()
-                loss_W = self.edge_weight_loss(
-                    self.W, self.B, self.H, self.Y, self.L
-                ).item()
-                loss_V = self.potential_loss(
-                    self.W, self.B, self.H, self.Y, self.L
-                ).item()
-                loss_B = self.background_loss(
-                    self.W, self.B, self.H, self.Y, self.L
-                ).item()
+                    W, H, B = self.model(data.x, data.edge_index, data.edge_attr)
+                Y, W = data.y, W.squeeze(1)
+                L, T = data.particle_id, data.pt
+                R = data.reconstructable.long()
+                B = B.squeeze()
+                loss_W = self.edge_weight_loss(W, B, H, Y, L).item()
+                loss_V = self.potential_loss(W, B, H, Y, L).item()
+                loss_B = self.background_loss(W, B, H, Y, L).item()
                 if self.predict_track_params:
-                    loss_P = self.object_loss(
-                        self.W, self.B, self.H, self.P, self.Y, self.L, self.T, self.R
-                    ).item()
+                    loss_P = self.object_loss(W, B, H, P, Y, L, T, R).item()
                     losses["P"].append(loss_P)
-                bcs = BinaryClassificationStats(self.W, self.Y.long(), thld)
+                bcs = BinaryClassificationStats(W, Y.long(), thld)
                 losses["total"].append(loss_W + loss_V + loss_B)
                 losses["W"].append(loss_W)
                 losses["V"].append(loss_V)
@@ -183,17 +155,11 @@ class GraphTCNTrainer:
         for data in iter(self.val_loader):
             data = data.to(self.device)
             if self.predict_track_params:
-                self.W, self.H, self.B, self.P = self.model(
-                    data.x, data.edge_index, data.edge_attr
-                )
+                W, H, B, P = self.model(data.x, data.edge_index, data.edge_attr)
             else:
-                self.W, self.H, self.B = self.model(
-                    data.x, data.edge_index, data.edge_attr
-                )
-            self.Y, self.W = data.y, self.W.squeeze(1)
-            self.L = data.particle_id
-            self.B = self.B.squeeze()
-            diff, opt_thld = 100, 0
+                W, H, B = self.model(data.x, data.edge_index, data.edge_attr)
+            Y, W = data.y, W.squeeze(1)
+            diff, opt_thld, opt_acc = 100, 0, 0
             for thld in np.arange(0.01, 0.5, 0.01):
                 bcs = BinaryClassificationStats(self.W, self.Y.long(), thld)
                 delta = abs(bcs.TPR - bcs.TNR)
