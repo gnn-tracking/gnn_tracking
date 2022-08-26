@@ -27,7 +27,7 @@ class BinaryClassificationStats:
         Returns:
             accuracy, TPR, TNR
         """
-        assert_int(output, y)
+        assert_int(y)
         self._output = output
         self._y = y
         self._thld = thld
