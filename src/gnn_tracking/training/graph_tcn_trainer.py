@@ -8,6 +8,7 @@ import torch
 from torch.optim import Adam
 from torch_geometric.loader import DataLoader
 
+from gnn_tracking.utils.early_stopping import StopEarly, no_early_stopping
 from gnn_tracking.utils.losses import (
     BackgroundLoss,
     EdgeWeightLoss,
@@ -29,6 +30,7 @@ class GraphTCNTrainer:
         epochs=1000,
         object_loss_mode="purity",
         predict_track_params=False,
+        stop_early: StopEarly = no_early_stopping,
     ):
         """
 
@@ -56,6 +58,7 @@ class GraphTCNTrainer:
             q_min=q_min, device=device, sb=sb, mode=object_loss_mode
         )
         self.predict_track_params = predict_track_params
+        self.stop_early = stop_early
 
         # quantities to predict
         self.W = torch.empty(1, dtype=torch.float, device=device)  # edge weights
@@ -127,7 +130,8 @@ class GraphTCNTrainer:
         losses = {k: np.nanmean(v) for k, v in losses.items()}
         self.train_loss.append(pd.DataFrame(losses, index=[epoch]))
 
-    def test_step(self, epoch: int, thld=0.5):
+    def test_step(self, epoch: int, thld=0.5) -> float:
+        """Returns total test loss"""
         self.model.eval()
         losses = collections.defaultdict(list)
         with torch.no_grad():
@@ -161,8 +165,8 @@ class GraphTCNTrainer:
                     ).item()
                     losses["P"].append(loss_P)
                 acc, TPR, TNR = binary_classification_stats(self.W, self.Y, thld)
-
-                losses["total"].append(loss_W + loss_V + loss_B)
+                total_loss = loss_W + loss_V + loss_B
+                losses["total"].append(total_loss)
                 losses["W"].append(loss_W)
                 losses["V"].append(loss_V)
                 losses["B"].append(loss_B)
@@ -171,6 +175,7 @@ class GraphTCNTrainer:
         losses = {k: np.nanmean(v) for k, v in losses.items()}
         print("test", losses)
         self.test_loss.append(pd.DataFrame(losses, index=[epoch]))
+        return total_loss
 
     def validate(self):
         self.model.eval()
@@ -203,5 +208,7 @@ class GraphTCNTrainer:
             print(f"---- Epoch {epoch} ----")
             self.train_step(epoch)
             thld = self.validate()
-            self.test_step(epoch, thld=thld)
+            total_loss = self.test_step(epoch, thld=thld)
+            if self.stop_early(total_loss):
+                break
             # self.scheduler.step()
