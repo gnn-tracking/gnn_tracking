@@ -8,7 +8,7 @@ import torch
 from torch.optim import Adam
 from torch_geometric.loader import DataLoader
 
-from gnn_tracking.utils.early_stopping import StopEarly, no_early_stopping
+from gnn_tracking.utils.early_stopping import StopEarly, dont_stop_early
 from gnn_tracking.utils.losses import (
     BackgroundLoss,
     EdgeWeightLoss,
@@ -37,7 +37,7 @@ class GraphTCNTrainer:
         epochs=1000,
         object_loss_mode="purity",
         predict_track_params=False,
-        stop_early: StopEarly = no_early_stopping,
+        stop_early: StopEarly = dont_stop_early,
     ):
         """
 
