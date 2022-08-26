@@ -79,7 +79,7 @@ class GraphTCNTrainer:
     def train_step(self, epoch: int):
         self.model.train()
 
-        losses = {"W": [], "V": [], "B": [], "P": [], "total": []}
+        losses = collections.defaultdict(list)
         for batch_idx, data in enumerate(self.train_loader):
             data = data.to(self.device)
             if self.predict_track_params:
@@ -196,7 +196,7 @@ class GraphTCNTrainer:
                     diff, opt_thld, opt_acc = delta, thld, acc
             opt_thlds.append(opt_thld)
             accs.append(opt_acc)
-        return np.nanmean(opt_thlds)
+        return np.nanmean(opt_thlds).item()
 
     def train(self):
         for epoch in range(1, self.epochs + 1):

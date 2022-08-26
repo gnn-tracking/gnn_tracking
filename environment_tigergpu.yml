@@ -3,8 +3,10 @@ channels:
   - pytorch
   - pyg
   - ostrokach-forge
+  - conda-forge
 dependencies:
   - python==3.9
+  - cudatoolkit=11.6
   - pytorch==1.12
   - pip
   - pip:
@@ -12,5 +14,4 @@ dependencies:
       - torch-sparse
       - torch-scatter
       - torch-cluster
-      - torch-spline-conv
       - torch-geometric
