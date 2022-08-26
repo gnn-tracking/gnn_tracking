@@ -61,7 +61,7 @@ class EventPlotter:
         hits = self.append_coordinates(hits, truth, particles)
         return hits, prefix
 
-    def plot_ep_rv_uv(self, evtid=None):
+    def plot_ep_rv_uv(self, evtid=None, savefig=False, filename=""):
         hits, prefix = self.get_hits(evtid)
         fig, axs = plt.subplots(nrows=1, ncols=3, dpi=200, figsize=(24, 8))
         axs[0].plot(hits["eta"], hits["phi"], "b.", lw=0, ms=0.1)
@@ -74,6 +74,8 @@ class EventPlotter:
         axs[2].set_xlabel(r"u")
         axs[2].set_ylabel(r"v")
         axs[1].set_title(prefix)
+        if savefig:
+            plt.savefig(filename, dpi=1200, format="pdf")
         plt.tight_layout()
         plt.show()
 
@@ -105,13 +107,15 @@ class PointCloudPlotter:
             plt.tight_layout()
             plt.show()
 
-    def plot_ep_rv_uv_all_sectors(self, evtid: int):
+    def plot_ep_rv_uv_all_sectors(self, evtid: int, savefig=False, filename=""):
         fig, axs = plt.subplots(nrows=1, ncols=3, dpi=200, figsize=(24, 8))
         sector_files = [join(self.indir, f) for f in self.infiles if str(evtid) in f]
         prefix = f"event{evtid}"
         for i, s in enumerate(sector_files):
             self.plot_ep_rv_uv(i, s, axs=axs, display=False)
         axs[1].set_title(prefix)
+        if savefig:
+            plt.savefig(filename, dpi=1200, format="pdf")
         plt.tight_layout()
         plt.show()
 
@@ -125,6 +129,8 @@ class PointCloudPlotter:
         ulim_high=0.035,
         vlim_low=-0.004,
         vlim_high=0.004,
+        savefig=False,
+        filename="",
     ):
         fig, axs = plt.subplots(nrows=1, ncols=3, dpi=200, figsize=(24, 8))
         f = join(self.indir, f"data{evtid}_s{sector}.pt")
@@ -155,6 +161,8 @@ class PointCloudPlotter:
         axs[2].set_xlim([ulim_low, ulim_high])
         axs[2].set_ylim([vlim_low, vlim_high])
         plt.legend(loc="best")
+        if savefig:
+            plt.savefig(filename, dpi=1200, format="pdf")
         plt.tight_layout()
         plt.show()
 
@@ -211,7 +219,6 @@ class GraphPlotter:
             x1_label=r"$\eta$",
             x2_label=r"$\phi$",
             ax=axs[0],
-            savefig=False,
         )
         self.plot_2d(
             np.stack((z * 1000.0, r * 1000.0), axis=1),
@@ -220,7 +227,6 @@ class GraphPlotter:
             x1_label=r"$z$ [mm]",
             x2_label=r"$r$ [mm]",
             ax=axs[1],
-            savefig=False,
         )
         self.plot_2d(
             np.stack((ur / 1000.0, vr / 1000.0), axis=1),
@@ -229,9 +235,10 @@ class GraphPlotter:
             x1_label=r"$u$ [1/mm]",
             x2_label="$v$ [1/mm]",
             ax=axs[2],
-            savefig=False,
         )
         axs[1].set_title(name)
+        if savefig:
+            plt.savefig(filename, dpi=1200, format="pdf")
         plt.tight_layout()
         plt.show()
 
