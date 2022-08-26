@@ -14,7 +14,7 @@ from gnn_tracking.utils.losses import (
     ObjectLoss,
     PotentialLoss,
 )
-from gnn_tracking.utils.training import binary_classification_stats
+from gnn_tracking.utils.training import BinaryClassificationStats
 
 
 # The following abbreviations are used throughout the code:
@@ -132,22 +132,27 @@ class GraphTCNTrainer:
                 if self.predict_track_params:
                     loss_P = self.object_loss(W, B, H, P, Y, L, T, R).item()
                     losses["P"].append(loss_P)
-                acc, TPR, TNR = binary_classification_stats(W, Y, thld)
-
+                bcs = BinaryClassificationStats(W, Y.long(), thld)
                 losses["total"].append(loss_W + loss_V + loss_B)
                 losses["W"].append(loss_W)
                 losses["V"].append(loss_V)
                 losses["B"].append(loss_B)
-                losses["acc"].append(acc.item())
+                losses["acc"].append(bcs.acc)
 
         losses = {k: np.nanmean(v) for k, v in losses.items()}
         print("test", losses)
         self.test_loss.append(pd.DataFrame(losses, index=[epoch]))
 
-    def validate(self):
+    def validate(self) -> float:
+        """
+
+        Returns:
+            Optimal threshold for binary classification.
+        """
         self.model.eval()
-        opt_thlds, accs = [], []
-        for _batch_idx, data in enumerate(self.val_loader):
+        # Optimal threshold for binary classification per batch
+        opt_thlds = []
+        for data in iter(self.val_loader):
             data = data.to(self.device)
             if self.predict_track_params:
                 W, H, B, P = self.model(data.x, data.edge_index, data.edge_attr)
@@ -156,12 +161,11 @@ class GraphTCNTrainer:
             Y, W = data.y, W.squeeze(1)
             diff, opt_thld, opt_acc = 100, 0, 0
             for thld in np.arange(0.01, 0.5, 0.01):
-                acc, TPR, TNR = binary_classification_stats(W, Y, thld)
-                delta = abs(TPR - TNR)
+                bcs = BinaryClassificationStats(self.W, self.Y.long(), thld)
+                delta = abs(bcs.TPR - bcs.TNR)
                 if delta < diff:
-                    diff, opt_thld, opt_acc = delta, thld, acc
+                    diff, opt_thld = delta, thld
             opt_thlds.append(opt_thld)
-            accs.append(opt_acc)
         return np.nanmean(opt_thlds).item()
 
     def train(self):
