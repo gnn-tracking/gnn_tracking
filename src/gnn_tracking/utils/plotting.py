@@ -74,9 +74,9 @@ class EventPlotter:
         axs[2].set_xlabel(r"u")
         axs[2].set_ylabel(r"v")
         axs[1].set_title(prefix)
+        plt.tight_layout()
         if savefig:
             plt.savefig(filename, dpi=1200, format="pdf")
-        plt.tight_layout()
         plt.show()
 
 
@@ -161,9 +161,9 @@ class PointCloudPlotter:
         axs[2].set_xlim([ulim_low, ulim_high])
         axs[2].set_ylim([vlim_low, vlim_high])
         plt.legend(loc="best")
+        plt.tight_layout()
         if savefig:
             plt.savefig(filename, dpi=1200, format="pdf")
-        plt.tight_layout()
         plt.show()
 
 
@@ -237,9 +237,9 @@ class GraphPlotter:
             ax=axs[2],
         )
         axs[1].set_title(name)
+        plt.tight_layout()
         if savefig:
             plt.savefig(filename, dpi=1200, format="pdf")
-        plt.tight_layout()
         plt.show()
 
     def plot_2d(
@@ -354,14 +354,14 @@ class GraphPlotter:
         ax.set_ylabel("r [m]")
         ax.set_xlabel("z [m]")
         if show_plot:
+            plt.tight_layout()
             plt.title(name)
             if savefig:
                 plt.savefig(filename, dpi=1200)
-            plt.tight_layout()
             plt.show()
 
 
-def plot_rz(X, idxs, y, save_fig=False, filename="rz.png"):
+def plot_rz(X, idxs, y, savefig=False, filename="rz.png"):
     X = np.array(X)
     feats_o = X[idxs[0, :]]
     feats_i = X[idxs[1, :]]
@@ -400,13 +400,13 @@ def plot_rz(X, idxs, y, save_fig=False, filename="rz.png"):
     plt.ylabel("r [m]")
     plt.xlabel("z [m]")
     # plt.title(f'Sector: ({label[0]}, {label[1]})')
-    if save_fig:
+    if savefig:
         plt.savefig(filename, dpi=1200)
     plt.tight_layout()
     plt.show()
 
 
-def plot_3d(X, idxs, y, save_fig=False, filename="rz.png"):
+def plot_3d(X, idxs, y, savefig=False, filename="rz.png"):
     X = np.array(X)
     r, phi, z = X[:, 0], X[:, 1], X[:, 2]
     pred = y
