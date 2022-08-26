@@ -22,6 +22,7 @@ class GraphBuilder:
         dR_max=1.7,
         directed=False,
         measurement_mode=False,
+        write_output=True,
     ):
         self.indir = indir
         os.makedirs(outdir, exist_ok=True)
@@ -39,6 +40,18 @@ class GraphBuilder:
         self.outfiles = os.listdir(outdir)
         self.directed = directed
         self.measurement_mode = measurement_mode
+        self.write_output = write_output
+        self.measurements = []
+
+    def get_measurements(self):
+        measurements = pd.DataFrame(self.measurements)
+        means = measurements.mean()
+        stds = measurements.std()
+        output = {}
+        for var in means.index:
+            output[var] = means[var]
+            output[var + "_err"] = stds[var]
+        return output
 
     def calc_dphi(self, phi1: np.ndarray, phi2: np.ndarray) -> np.ndarray:
         """Computes phi2-phi1 given in range [-pi,pi]"""
@@ -338,12 +351,21 @@ class GraphBuilder:
                 edge_index, edge_attr, y, edge_pt = self.build_edges(df)
 
                 if self.measurement_mode:
-                    n_truth_edges = self.get_n_truth_edges(df)
+                    n_truth_edges = self.get_n_truth_edges(df) 
                     edge_purity = sum(y) / len(y)
-                    self.edge_purities.append(edge_purity)
+                    edge_efficiencies = {}
                     for pt, denominator in n_truth_edges.items():
                         numerator = sum(y[edge_pt > pt])
-                        self.edge_efficiencies[pt].append(numerator / denominator)
+                        edge_efficiencies[f'edge_efficiency_{pt}'] = numerator/denominator
+                    n_truth_edges = {f'n_truth_edge_{pt}': n 
+                                     for pt, n in n_truth_edges.items()}
+                    measurements = {'n_edges': len(y),
+                                    'n_true_edges': sum(y),
+                                    'n_false_edges': len(y)-sum(y),
+                                    **n_truth_edges,
+                                    'edge_purity': edge_purity,
+                                    **edge_efficiencies}
+                    self.measurements.append(measurements)
 
                 graph = self.to_pyg_data(
                     graph, edge_index, edge_attr, y, evtid=evtid, s=s
@@ -351,16 +373,11 @@ class GraphBuilder:
                 outfile = join(self.outdir, name)
                 if verbose:
                     print(f"Writing {outfile}")
-                torch.save(graph, outfile)
+                if self.write_output:
+                    torch.save(graph, outfile)
                 self.data_list.append(graph)
 
-        print("Summary Statistics:")
-        print(
-            f" - Edge Purity: {np.mean(self.edge_purities)} "
-            + f"+/- {np.std(self.edge_purities)}"
-        )
-        for pt, effs in self.edge_efficiencies.items():
-            print(
-                f" - Edge Efficiency (pt > {pt} GeV): "
-                + f"{np.mean(effs)} +/- {np.std(effs)}"
-            )
+        if self.measurement_mode:
+            print(self.get_measurements())
+        
+            

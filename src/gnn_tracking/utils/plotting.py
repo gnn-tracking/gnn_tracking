@@ -115,7 +115,17 @@ class PointCloudPlotter:
         plt.tight_layout()
         plt.show()
 
-    def plot_ep_rv_uv_with_boundary(self, evtid: int, sector: int, di, ds):
+    def plot_ep_rv_uv_with_boundary(
+        self,
+        evtid: int,
+        sector: int,
+        di,
+        ds,
+        ulim_low=0,
+        ulim_high=0.035,
+        vlim_low=-0.004,
+        vlim_high=0.004,
+    ):
         fig, axs = plt.subplots(nrows=1, ncols=3, dpi=200, figsize=(24, 8))
         f = join(self.indir, f"data{evtid}_s{sector}.pt")
         x = torch.load(f).x
@@ -142,8 +152,8 @@ class PointCloudPlotter:
         axs[2].plot(xr, -slope * xr, "k-")
         axs[2].plot(xr, ds * slope * xr + di, "k--", label="Extended Sector")
         axs[2].plot(xr, -ds * slope * xr - di, "k--")
-        axs[2].set_xlim([0, 0.035])
-        axs[2].set_ylim([-0.002, 0.002])
+        axs[2].set_xlim([ulim_low, ulim_high])
+        axs[2].set_ylim([vlim_low, vlim_high])
         plt.legend(loc="best")
         plt.tight_layout()
         plt.show()
@@ -171,8 +181,6 @@ class GraphPlotter:
         f = join(self.indir, f"{name}.pt")
         graph = torch.load(f)
         x, edge_index, y = graph.x, graph.edge_index, graph.y
-        particle_id = graph.particle_id
-        mask = particle_id == np.random.choice(particle_id, size=None)
         phi, eta = x[:, 1], x[:, 3]
         r, z = x[:, 0], x[:, 2]
 
@@ -182,10 +190,18 @@ class GraphPlotter:
         ur = u * np.cos(2 * sector * theta) - v * np.sin(2 * sector * theta)
         vr = u * np.sin(2 * sector * theta) + v * np.cos(2 * sector * theta)
 
-        # plot a single particle
-        axs[0].plot(eta[mask], phi[mask] * np.pi, "r.", ms=8)
-        axs[1].plot(z[mask] * 1000.0, r[mask] * 1000.0, "r.", ms=8)
-        axs[2].plot(ur[mask] / 1000.0, vr[mask] / 1000.0, "r.", ms=8)
+        # plot single_particles
+        particle_id = graph.particle_id
+        colors = ["red", "green", "purple", "yellow", "orange"]
+        for i in range(len(colors)):
+            particle_id = graph.particle_id
+            mask = particle_id == np.random.choice(
+                particle_id[particle_id != 0], size=None
+            )
+            kwargs = {"marker": ".", "ms": 8, "zorder": 100, "color": colors[i]}
+            axs[0].plot(eta[mask], phi[mask] * np.pi, **kwargs)
+            axs[1].plot(z[mask] * 1000.0, r[mask] * 1000.0, **kwargs)
+            axs[2].plot(ur[mask] / 1000.0, vr[mask] / 1000.0, **kwargs)
 
         # plot others
         self.plot_2d(
