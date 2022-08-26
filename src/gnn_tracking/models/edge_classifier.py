@@ -31,8 +31,8 @@ class EdgeClassifier(nn.Module):
                     edge_latentdim,
                     node_outdim=node_latentdim,
                     edge_outdim=edge_latentdim,
-                    relational_hidden_size=r_hidden_size,
-                    object_hidden_size=o_hidden_size,
+                    edge_hidden_dim=r_hidden_size,
+                    node_hidden_dim=o_hidden_size,
                 )
             )
         self.gnn_layers = nn.ModuleList(gnn_layers)
