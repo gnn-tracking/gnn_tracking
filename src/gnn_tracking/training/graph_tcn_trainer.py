@@ -160,8 +160,7 @@ class GraphTCNTrainer:
                         self.W, self.B, self.H, self.P, self.Y, self.L, self.T, self.R
                     ).item()
                     losses["P"].append(loss_P)
-                bcs = BinaryClassificationStats(self.W, self.Y, thld)
-
+                bcs = BinaryClassificationStats(self.W, self.Y.long(), thld)
                 losses["total"].append(loss_W + loss_V + loss_B)
                 losses["W"].append(loss_W)
                 losses["V"].append(loss_V)
@@ -196,7 +195,7 @@ class GraphTCNTrainer:
             self.B = self.B.squeeze()
             diff, opt_thld = 100, 0
             for thld in np.arange(0.01, 0.5, 0.01):
-                bcs = BinaryClassificationStats(self.W, self.Y, thld)
+                bcs = BinaryClassificationStats(self.W, self.Y.long(), thld)
                 delta = abs(bcs.TPR - bcs.TNR)
                 if delta < diff:
                     diff, opt_thld = delta, thld
