@@ -14,5 +14,4 @@ dependencies:
       - torch-sparse
       - torch-scatter
       - torch-cluster
-      - torch-spline-conv
       - torch-geometric
