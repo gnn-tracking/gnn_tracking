@@ -164,9 +164,9 @@ class GraphTCNTrainer:
             else:
                 W, H, B = self.model(data.x, data.edge_index, data.edge_attr)
             Y, W = data.y, W.squeeze(1)
-            diff, opt_thld, opt_acc = 100, 0, 0
+            diff, opt_thld = 100, 0
             for thld in np.arange(0.01, 0.5, 0.01):
-                bcs = BinaryClassificationStats(self.W, self.Y.long(), thld)
+                bcs = BinaryClassificationStats(W, Y.long(), thld)
                 delta = abs(bcs.TPR - bcs.TNR)
                 if delta < diff:
                     diff, opt_thld = delta, thld
