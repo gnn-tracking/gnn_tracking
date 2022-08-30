@@ -34,7 +34,6 @@ class GraphTCNTrainer:
         lr: Any = 5 * 10**-4,
         q_min=0.01,
         sb=1,
-        epochs=1000,
         object_loss_mode="purity",
         predict_track_params=False,
         lr_scheduler: None | Callable = None,
@@ -48,14 +47,12 @@ class GraphTCNTrainer:
             lr: Learning rate
             q_min:
             sb:
-            epochs:
             object_loss_mode:
             predict_track_params:
             lr_scheduler: Learning rate scheduler. If it needs parameters, apply
                 functools.partial first
         """
         self.model = model.to(device)
-        self.epochs = epochs
         self.train_loader = loaders["train"]
         self.test_loader = loaders["test"]
         self.val_loader = loaders["val"]
@@ -173,8 +170,8 @@ class GraphTCNTrainer:
             opt_thlds.append(opt_thld)
         return np.nanmean(opt_thlds).item()
 
-    def train(self):
-        for epoch in range(1, self.epochs + 1):
+    def train(self, epochs=1000):
+        for epoch in range(1, epochs + 1):
             print(f"---- Epoch {epoch} ----")
             self.train_step(epoch)
             thld = self.validate()
