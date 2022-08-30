@@ -70,11 +70,23 @@ class GraphTCNTrainer:
         self.train_loss = []
         self.test_loss = []
 
-    def train_step(self, epoch: int):
+    def train_step(self, epoch: int, *, max_batches: int | None = None):
+        """
+
+        Args:
+            epoch: Current epoch
+            max_batches:  Only process this many batches per epoch (useful for testing
+                to get to the validation step more quickly)
+
+        Returns:
+
+        """
         self.model.train()
 
         losses = collections.defaultdict(list)
         for batch_idx, data in enumerate(self.train_loader):
+            if max_batches and batch_idx > max_batches:
+                break
             data = data.to(self.device)
             if self.predict_track_params:
                 W, H, B, P = self.model(data.x, data.edge_index, data.edge_attr)
@@ -170,10 +182,19 @@ class GraphTCNTrainer:
             opt_thlds.append(opt_thld)
         return np.nanmean(opt_thlds).item()
 
-    def train(self, epochs=1000):
+    def train(self, epochs=1000, max_batches: int | None = None):
+        """
+
+        Args:
+            epochs:
+            max_batches: See train_step.
+
+        Returns:
+
+        """
         for epoch in range(1, epochs + 1):
             print(f"---- Epoch {epoch} ----")
-            self.train_step(epoch)
+            self.train_step(epoch, max_batches=max_batches)
             thld = self.validate()
             self.test_step(epoch, thld=thld)
             if self._lr_scheduler:
