@@ -66,15 +66,17 @@ class GraphTCNTrainer:
         self.optimizer = Adam(self.model.parameters(), lr=lr)
         self._lr_scheduler = lr_scheduler(self.optimizer) if lr_scheduler else None
 
+        # Current epoch
+        self._epoch = 0
+
         # output quantities
         self.train_loss = []
         self.test_loss = []
 
-    def train_step(self, epoch: int, *, max_batches: int | None = None):
+    def train_step(self, *, max_batches: int | None = None):
         """
 
         Args:
-            epoch: Current epoch
             max_batches:  Only process this many batches per epoch (useful for testing
                 to get to the validation step more quickly)
 
@@ -112,7 +114,7 @@ class GraphTCNTrainer:
 
             if not (batch_idx % 10):
                 print(
-                    f"Epoch {epoch} ({batch_idx}/{len(self.train_loader)}):"
+                    f"Epoch {self._epoch} ({batch_idx}/{len(self.train_loader)}):"
                     + f" loss={loss.item():.5f}; loss_W={loss_W.item():.5f};"
                     + f" loss_V={loss_V.item():.5f}; loss_B={loss_B.item():.5f};"
                 )
@@ -124,9 +126,9 @@ class GraphTCNTrainer:
             # losses['P'].append(loss_P.item())
 
         losses = {k: np.nanmean(v) for k, v in losses.items()}
-        self.train_loss.append(pd.DataFrame(losses, index=[epoch]))
+        self.train_loss.append(pd.DataFrame(losses, index=[self._epoch]))
 
-    def test_step(self, epoch: int, thld=0.5):
+    def test_step(self, thld=0.5):
         self.model.eval()
         losses = collections.defaultdict(list)
         with torch.no_grad():
@@ -155,7 +157,7 @@ class GraphTCNTrainer:
 
         losses = {k: np.nanmean(v) for k, v in losses.items()}
         print("test", losses)
-        self.test_loss.append(pd.DataFrame(losses, index=[epoch]))
+        self.test_loss.append(pd.DataFrame(losses, index=[self._epoch]))
 
     def validate(self) -> float:
         """
@@ -192,10 +194,11 @@ class GraphTCNTrainer:
         Returns:
 
         """
-        for epoch in range(1, epochs + 1):
-            print(f"---- Epoch {epoch} ----")
-            self.train_step(epoch, max_batches=max_batches)
+        for _ in range(1, epochs + 1):
+            self._epoch += 1
+            print(f"---- Epoch {self._epoch} ----")
+            self.train_step(max_batches=max_batches)
             thld = self.validate()
-            self.test_step(epoch, thld=thld)
+            self.test_step(thld=thld)
             if self._lr_scheduler:
                 self._lr_scheduler.step()
