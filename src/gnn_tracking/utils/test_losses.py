@@ -5,8 +5,14 @@ from dataclasses import dataclass
 import numpy as np
 import torch
 from pytest import approx
+from torch.nn.functional import binary_cross_entropy
 
-from gnn_tracking.utils.losses import BackgroundLoss, ObjectLoss, PotentialLoss
+from gnn_tracking.utils.losses import (
+    BackgroundLoss,
+    ObjectLoss,
+    PotentialLoss,
+    binary_focal_loss,
+)
 
 T = torch.tensor
 
@@ -74,3 +80,11 @@ def test_object_loss_efficiency():
 def test_object_loss_purity():
     assert get_object_loss(td1, mode="purity") == approx(3.6432214679013644)
     assert get_object_loss(td2, mode="purity") == approx(3.8949206999806045)
+
+
+def test_focal_loss_vs_bce():
+    inpt = torch.rand(10)
+    target = (torch.rand(10) > 0.5).float()
+    assert binary_focal_loss(inpt, target, alpha=0.5, gamma=0.0) == approx(
+        0.5 * binary_cross_entropy(inpt, target, reduction="mean")
+    )

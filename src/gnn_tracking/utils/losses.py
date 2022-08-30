@@ -13,7 +13,7 @@ def binary_focal_loss(
     target: T,
     alpha: float = 0.25,
     gamma: float = 2.0,
-    reduction: str = "none",
+    reduction: str = "mean",
     pos_weight: T | None = None,
 ) -> T:
     """Binary Focal Loss, following https://arxiv.org/abs/1708.02002.
@@ -28,6 +28,9 @@ def binary_focal_loss(
     """
     assert gamma >= 0.0
     assert 0 <= alpha <= 1
+
+    if pos_weight is None:
+        pos_weight = torch.ones(inpt.shape[-1], device=inpt.device, dtype=inpt.dtype)
 
     probs_pos = inpt
     probs_neg = 1 - inpt
