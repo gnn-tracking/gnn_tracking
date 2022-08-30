@@ -351,20 +351,25 @@ class GraphBuilder:
                 edge_index, edge_attr, y, edge_pt = self.build_edges(df)
 
                 if self.measurement_mode:
-                    n_truth_edges = self.get_n_truth_edges(df) 
+                    n_truth_edges = self.get_n_truth_edges(df)
                     edge_purity = sum(y) / len(y)
                     edge_efficiencies = {}
                     for pt, denominator in n_truth_edges.items():
                         numerator = sum(y[edge_pt > pt])
-                        edge_efficiencies[f'edge_efficiency_{pt}'] = numerator/denominator
-                    n_truth_edges = {f'n_truth_edge_{pt}': n 
-                                     for pt, n in n_truth_edges.items()}
-                    measurements = {'n_edges': len(y),
-                                    'n_true_edges': sum(y),
-                                    'n_false_edges': len(y)-sum(y),
-                                    **n_truth_edges,
-                                    'edge_purity': edge_purity,
-                                    **edge_efficiencies}
+                        edge_efficiencies[f"edge_efficiency_{pt}"] = (
+                            numerator / denominator
+                        )
+                    n_truth_edges = {
+                        f"n_truth_edge_{pt}": n for pt, n in n_truth_edges.items()
+                    }
+                    measurements = {
+                        "n_edges": len(y),
+                        "n_true_edges": sum(y),
+                        "n_false_edges": len(y) - sum(y),
+                        **n_truth_edges,
+                        "edge_purity": edge_purity,
+                        **edge_efficiencies,
+                    }
                     self.measurements.append(measurements)
 
                 graph = self.to_pyg_data(
@@ -379,5 +384,3 @@ class GraphBuilder:
 
         if self.measurement_mode:
             print(self.get_measurements())
-        
-            
