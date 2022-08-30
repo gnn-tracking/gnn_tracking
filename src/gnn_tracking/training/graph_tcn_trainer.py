@@ -99,13 +99,15 @@ class GraphTCNTrainer:
             R = data.reconstructable.long()
             L = L * R  # should we mask out non-reconstructables?
             B = B.squeeze()
-            loss_W = self.edge_weight_loss(W, B, H, Y, L)
-            loss_V = self.potential_loss(W, B, H, Y, L)
-            loss_B = self.background_loss(W, B, H, Y, L)
+            loss_W = self.edge_weight_loss(w=W, y=Y)
+            loss_V = self.potential_loss(beta=B, x=H, particle_id=L)
+            loss_B = self.background_loss(beta=B, particle_id=L)
 
             loss = loss_W + loss_V + loss_B
             if self.predict_track_params:
-                loss_P = self.object_loss(W, B, H, P, Y, L, T, R)
+                loss_P = self.object_loss(
+                    beta=B, pred=P, particle_id=L, track_params=T, reconstructable=R
+                )
                 loss += loss_P
 
             self.optimizer.zero_grad()
@@ -142,11 +144,13 @@ class GraphTCNTrainer:
                 L, T = data.particle_id, data.pt
                 R = data.reconstructable.long()
                 B = B.squeeze()
-                loss_W = self.edge_weight_loss(W, B, H, Y, L).item()
-                loss_V = self.potential_loss(W, B, H, Y, L).item()
-                loss_B = self.background_loss(W, B, H, Y, L).item()
+                loss_W = self.edge_weight_loss(w=W, y=Y).item()
+                loss_V = self.potential_loss(beta=B, x=H, particle_id=L).item()
+                loss_B = self.background_loss(beta=B, particle_id=L).item()
                 if self.predict_track_params:
-                    loss_P = self.object_loss(W, B, H, P, Y, L, T, R).item()
+                    loss_P = self.object_loss(
+                        beta=B, pred=P, particle_id=L, track_params=T, reconstructable=R
+                    ).item()
                     losses["P"].append(loss_P)
                 bcs = BinaryClassificationStats(W, Y.long(), thld)
                 losses["total"].append(loss_W + loss_V + loss_B)

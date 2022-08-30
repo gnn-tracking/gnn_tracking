@@ -39,11 +39,15 @@ td2 = generate_test_data(20, n_particles=3, rng=np.random.default_rng(seed=0))
 
 
 def get_condensation_loss(td: MockData) -> float:
-    return PotentialLoss().condensation_loss(td.beta, td.x, td.particle_id).item()
+    return (
+        PotentialLoss()
+        .condensation_loss(beta=td.beta, x=td.x, particle_id=td.particle_id)
+        .item()
+    )
 
 
 def get_background_loss(td: MockData) -> float:
-    return BackgroundLoss().background_loss(td.beta, td.particle_id)
+    return BackgroundLoss().background_loss(beta=td.beta, particle_id=td.particle_id)
 
 
 def get_object_loss(td: MockData, **kwargs) -> float:
