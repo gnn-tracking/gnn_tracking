@@ -20,11 +20,9 @@ class PotentialLoss(torch.nn.Module):
         super().__init__()
         self.q_min = q_min
         self.device = device
-        #: Scale up repulsive force by this factor
-        self.repulsion_scaling = 10
         self.radius_threshold = 1.0
 
-    def condensation_loss(self, *, beta: T, x: T, particle_id: T) -> T:
+    def condensation_loss(self, *, beta: T, x: T, particle_id: T) -> dict[str, T]:
         pids = torch.unique(particle_id[particle_id > 0])
         # n_nodes x n_pids
         pid_masks = particle_id[:, None] == pids[None, :]  # type: ignore
@@ -38,18 +36,23 @@ class PotentialLoss(torch.nn.Module):
         norm_sq = torch.sum(diff**2, dim=1)
 
         # Attractive potential
-        va = (norm_sq * q_alphas).squeeze(dim=0)
+        va = q[:, None] * pid_masks * (norm_sq * q_alphas).squeeze(dim=0)
         # Repulsive potential
         vr = (
-            relu(self.radius_threshold - torch.sqrt(norm_sq + 1e-8)) * q_alphas
-        ).squeeze(dim=0)
-        loss = q[:, None] * (
-            pid_masks * va + self.repulsion_scaling * (~pid_masks) * vr
+            q[:, None]
+            * (~pid_masks)
+            * (
+                relu(self.radius_threshold - torch.sqrt(norm_sq + 1e-8)) * q_alphas
+            ).squeeze(dim=0)
         )
-        return torch.sum(torch.mean(loss, dim=0))
+
+        return {
+            "attractive": torch.sum(torch.mean(va, dim=0)),
+            "repulsive": torch.sum(torch.mean(vr, dim=0)),
+        }
 
     # noinspection PyUnusedVariable
-    def forward(self, *, beta: T, x: T, particle_id: T, **kwargs) -> T:
+    def forward(self, *, beta: T, x: T, particle_id: T, **kwargs) -> dict[str, T]:
         return self.condensation_loss(beta=beta, x=x, particle_id=particle_id)
 
 

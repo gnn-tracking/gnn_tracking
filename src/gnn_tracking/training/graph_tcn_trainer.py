@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import collections
-from typing import Any, Callable
+from typing import Any, Callable, Mapping
 
 import numpy as np
 import pandas as pd
@@ -46,7 +46,10 @@ class GraphTCNTrainer:
             lr_scheduler: Learning rate scheduler. If it needs parameters, apply
                 functools.partial first
             loss_weights: Weight different loss functions. If a key is left out, the
-                weight is set to 1.0. The weights will be normalized to sum to 1.0.
+                weight is set to 1.0. The weights will be normalized to sum to 1.0
+                before use.
+                If one of the loss functions called ``l`` returns a dictionary with keys
+                k, the keys for loss_weights should be ``k_l``.
         """
         self.model = model.to(device)
         self.train_loader = loaders["train"]
@@ -58,18 +61,12 @@ class GraphTCNTrainer:
 
         self.loss_functions = loss_functions
 
-        # Initialize loss weights: If not provided, unit weight is used.
-        # Weights are normalized to sum to 1.
-        self._loss_weights = {k: 1 for k in self.loss_functions}
+        # Loss weights should be normalized to sum to 1, but we cannot do that here
+        # because we do not know all of the keys. This is because of loss functions that
+        # return a dictionary of different losses that are summed together.
+        self._loss_weights = collections.defaultdict(lambda: 1.0)
         if loss_weights is not None:
-            assert set(loss_weights.keys()).issubset(set(self.loss_functions.keys()))
             self._loss_weights.update(loss_weights)
-        _total_weight = sum(self._loss_weights.values())
-        self._loss_weights = {
-            k: v / _total_weight for k, v in self._loss_weights.items()
-        }
-        assert len(self._loss_weights) == len(self.loss_functions)
-        assert sum(self._loss_weights.values()) == 1
 
         self.optimizer = Adam(self.model.parameters(), lr=lr)
         self._lr_scheduler = lr_scheduler(self.optimizer) if lr_scheduler else None
@@ -122,12 +119,26 @@ class GraphTCNTrainer:
             total loss, dictionary of losses, where total loss includes the weights
             assigned to the individual losses
         """
-        individual = {
-            key: loss_func(**model_output)
-            for key, loss_func in self.loss_functions.items()
-        }
-        total = sum(self._loss_weights[k] * individual[k] for k in individual)
-        return total, individual
+        individual_losses = {}
+        for key, loss_func in self.loss_functions.items():
+            loss = loss_func(**model_output)
+            if isinstance(loss, Mapping):
+                for k, v in loss.items():
+                    individual_losses[f"{key}_{k}"] = v
+            else:
+                individual_losses[key] = loss
+        assert set(self._loss_weights).issubset(set(individual_losses))
+
+        # Note that we take the keys from individual_losses and not from
+        # self._loss_weights (because that is a defaultdict and might not have all keys,
+        # yet).
+        total_weight = sum(self._loss_weights[k] for k in individual_losses)
+
+        total = sum(
+            self._loss_weights[k] / total_weight * individual_losses[k]
+            for k in individual_losses
+        )
+        return total, individual_losses
 
     def train_step(self, *, max_batches: int | None = None):
         """

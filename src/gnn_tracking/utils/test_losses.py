@@ -39,11 +39,11 @@ td2 = generate_test_data(20, n_particles=3, rng=np.random.default_rng(seed=0))
 
 
 def get_condensation_loss(td: MockData) -> float:
-    return (
-        PotentialLoss()
-        .condensation_loss(beta=td.beta, x=td.x, particle_id=td.particle_id)
-        .item()
+    loss_dct = PotentialLoss().condensation_loss(
+        beta=td.beta, x=td.x, particle_id=td.particle_id
     )
+    assert len(loss_dct) == 2
+    return loss_dct["attractive"] + 10 * loss_dct["repulsive"]
 
 
 def get_background_loss(td: MockData) -> float:
