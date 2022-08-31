@@ -6,7 +6,9 @@ from typing import Any, Callable
 import numpy as np
 import pandas as pd
 import torch
+from torch import Tensor
 from torch.optim import Adam
+from torch_geometric.data import Data
 from torch_geometric.loader import DataLoader
 
 from gnn_tracking.utils.losses import (
@@ -73,6 +75,35 @@ class GraphTCNTrainer:
         self.train_loss = []
         self.test_loss = []
 
+    def evaluate_model(self, data: Data, mask_pids_reco=True) -> dict[str, Tensor]:
+        """Evaluate the model on the data and return a dictionary of outputs
+
+        Args:
+            data:
+            mask_pids_reco: If True, mask out PIDs for non-reconstructables
+        """
+        data = data.to(self.device)
+        if self.predict_track_params:
+            W, H, B, P = self.model(data.x, data.edge_index, data.edge_attr)
+        else:
+            W, H, B = self.model(data.x, data.edge_index, data.edge_attr)
+        if mask_pids_reco:
+            pid_field = data.particle_id * data.reconstructable.long()
+        else:
+            pid_field = data.particle_id
+        dct = {
+            "w": W.squeeze(),
+            "x": H,
+            "beta": B.squeeze(),
+            "y": data.y,
+            "particle_id": pid_field,
+            "track_params": data.pt,
+            "reconstructable": data.reconstructable.long(),
+        }
+        if self.predict_track_params:
+            dct["pred"] = P
+        return dct
+
     def train_step(self, *, max_batches: int | None = None):
         """
 
@@ -89,25 +120,15 @@ class GraphTCNTrainer:
         for batch_idx, data in enumerate(self.train_loader):
             if max_batches and batch_idx > max_batches:
                 break
-            data = data.to(self.device)
-            if self.predict_track_params:
-                W, H, B, P = self.model(data.x, data.edge_index, data.edge_attr)
-            else:
-                W, H, B = self.model(data.x, data.edge_index, data.edge_attr)
-            Y, W = data.y, W.squeeze(1)
-            L, T = data.particle_id, data.pt
-            R = data.reconstructable.long()
-            L = L * R  # should we mask out non-reconstructables?
-            B = B.squeeze()
-            loss_W = self.edge_weight_loss(w=W, y=Y)
-            loss_V = self.potential_loss(beta=B, x=H, particle_id=L)
-            loss_B = self.background_loss(beta=B, particle_id=L)
+            model_output = self.evaluate_model(data)
+
+            loss_W = self.edge_weight_loss(**model_output)
+            loss_V = self.potential_loss(**model_output)
+            loss_B = self.background_loss(**model_output)
 
             loss = loss_W + loss_V + loss_B
             if self.predict_track_params:
-                loss_P = self.object_loss(
-                    beta=B, pred=P, particle_id=L, track_params=T, reconstructable=R
-                )
+                loss_P = self.object_loss(**model_output)
                 loss += loss_P
 
             self.optimizer.zero_grad()
@@ -135,24 +156,16 @@ class GraphTCNTrainer:
         losses = collections.defaultdict(list)
         with torch.no_grad():
             for _batch_idx, data in enumerate(self.test_loader):
-                data = data.to(self.device)
+                model_output = self.evaluate_model(data, mask_pids_reco=False)
+                loss_W = self.edge_weight_loss(**model_output).item()
+                loss_V = self.potential_loss(**model_output).item()
+                loss_B = self.background_loss(**model_output).item()
                 if self.predict_track_params:
-                    W, H, B, P = self.model(data.x, data.edge_index, data.edge_attr)
-                else:
-                    W, H, B = self.model(data.x, data.edge_index, data.edge_attr)
-                Y, W = data.y, W.squeeze(1)
-                L, T = data.particle_id, data.pt
-                R = data.reconstructable.long()
-                B = B.squeeze()
-                loss_W = self.edge_weight_loss(w=W, y=Y).item()
-                loss_V = self.potential_loss(beta=B, x=H, particle_id=L).item()
-                loss_B = self.background_loss(beta=B, particle_id=L).item()
-                if self.predict_track_params:
-                    loss_P = self.object_loss(
-                        beta=B, pred=P, particle_id=L, track_params=T, reconstructable=R
-                    ).item()
+                    loss_P = self.object_loss(**model_output).item()
                     losses["P"].append(loss_P)
-                bcs = BinaryClassificationStats(W, Y.long(), thld)
+                bcs = BinaryClassificationStats(
+                    output=model_output["w"], y=model_output["y"].long(), thld=thld
+                )
                 losses["total"].append(loss_W + loss_V + loss_B)
                 losses["W"].append(loss_W)
                 losses["V"].append(loss_V)
@@ -173,15 +186,12 @@ class GraphTCNTrainer:
         # Optimal threshold for binary classification per batch
         opt_thlds = []
         for data in iter(self.val_loader):
-            data = data.to(self.device)
-            if self.predict_track_params:
-                W, H, B, P = self.model(data.x, data.edge_index, data.edge_attr)
-            else:
-                W, H, B = self.model(data.x, data.edge_index, data.edge_attr)
-            Y, W = data.y, W.squeeze(1)
+            model_output = self.evaluate_model(data)
             diff, opt_thld = 100, 0
             for thld in np.arange(0.01, 0.5, 0.01):
-                bcs = BinaryClassificationStats(W, Y.long(), thld)
+                bcs = BinaryClassificationStats(
+                    output=model_output["w"], y=model_output["y"].long(), thld=thld
+                )
                 delta = abs(bcs.TPR - bcs.TNR)
                 if delta < diff:
                     diff, opt_thld = delta, thld
