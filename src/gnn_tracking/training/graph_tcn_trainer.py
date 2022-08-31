@@ -13,6 +13,8 @@ from torch_geometric.loader import DataLoader
 
 from gnn_tracking.utils.training import BinaryClassificationStats
 
+hook_type = Callable[[torch.nn.Module, dict[str, Tensor]], None]
+
 
 # The following abbreviations are used throughout the code:
 # W: edge weights
@@ -74,9 +76,34 @@ class GraphTCNTrainer:
         # Current epoch
         self._epoch = 0
 
+        self._train_hooks: list[hook_type] = []
+        self._test_hooks: list[hook_type] = []
+
         # output quantities
         self.train_loss = []
         self.test_loss = []
+
+    def add_hook(self, hook: hook_type, called_at: str) -> None:
+        """Add a hook to training/test step
+
+        Args:
+            hook: Callable that takes a training model and a dictionary of tensors as
+                inputs
+            called_at: train or test
+
+        Returns:
+            None
+
+        Example:
+
+
+        """
+        if called_at == "train":
+            self._train_hooks.append(hook)
+        elif called_at == "test":
+            self._test_hooks.append(hook)
+        else:
+            raise ValueError("Invalid value for called_at")
 
     def evaluate_model(self, data: Data, mask_pids_reco=True) -> dict[str, Tensor]:
         """Evaluate the model on the data and return a dictionary of outputs
@@ -178,6 +205,8 @@ class GraphTCNTrainer:
 
         losses = {k: np.nanmean(v) for k, v in losses.items()}
         self.train_loss.append(pd.DataFrame(losses, index=[self._epoch]))
+        for hook in self._train_hooks:
+            hook(self.model, losses)
 
     def test_step(self, thld=0.5):
         self.model.eval()
@@ -197,6 +226,8 @@ class GraphTCNTrainer:
         losses = {k: np.nanmean(v) for k, v in losses.items()}
         print("test", losses)
         self.test_loss.append(pd.DataFrame(losses, index=[self._epoch]))
+        for hook in self._test_hooks:
+            hook(self.model, losses)
 
     def validate(self) -> float:
         """
