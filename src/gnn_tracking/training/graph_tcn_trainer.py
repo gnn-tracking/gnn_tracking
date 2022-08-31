@@ -59,11 +59,18 @@ class GraphTCNTrainer:
         self.test_loader = loaders["test"]
         self.val_loader = loaders["val"]
         self.device = device
-        self.edge_weight_loss = EdgeWeightLoss().to(device)
-        self.potential_loss = PotentialLoss(q_min=q_min, device=device)
-        self.background_loss = BackgroundLoss(device=device, sb=sb)
-        self.object_loss = ObjectLoss(device=device, mode=object_loss_mode)
+
         self.predict_track_params = predict_track_params
+
+        self.loss_functions = {
+            "edge": EdgeWeightLoss().to(device),
+            "potential": PotentialLoss(q_min=q_min, device=device),
+            "background": BackgroundLoss(device=device, sb=sb),
+        }
+        if self.predict_track_params:
+            self.loss_functions["object"] = (
+                ObjectLoss(device=device, mode=object_loss_mode),
+            )
 
         self.optimizer = Adam(self.model.parameters(), lr=lr)
         self._lr_scheduler = lr_scheduler(self.optimizer) if lr_scheduler else None
@@ -104,6 +111,24 @@ class GraphTCNTrainer:
             dct["pred"] = P
         return dct
 
+    def get_batch_losses(
+        self, model_output: dict[str, Tensor]
+    ) -> tuple[Tensor, dict[str, Tensor]]:
+        """Calculate the losses for a batch of data
+
+        Args:
+            model_output:
+
+        Returns:
+            total loss, dictionary of losses
+        """
+        individual = {
+            key: loss_func(**model_output)
+            for key, loss_func in self.loss_functions.items()
+        }
+        total = sum(individual.values())
+        return total, individual
+
     def train_step(self, *, max_batches: int | None = None):
         """
 
@@ -121,32 +146,24 @@ class GraphTCNTrainer:
             if max_batches and batch_idx > max_batches:
                 break
             model_output = self.evaluate_model(data)
-
-            loss_W = self.edge_weight_loss(**model_output)
-            loss_V = self.potential_loss(**model_output)
-            loss_B = self.background_loss(**model_output)
-
-            loss = loss_W + loss_V + loss_B
-            if self.predict_track_params:
-                loss_P = self.object_loss(**model_output)
-                loss += loss_P
+            batch_loss, batch_losses = self.get_batch_losses(model_output)
 
             self.optimizer.zero_grad()
-            loss.backward()
+            batch_loss.backward()
             self.optimizer.step()
 
             if not (batch_idx % 10):
-                print(
-                    f"Epoch {self._epoch} ({batch_idx}/{len(self.train_loader)}):"
-                    + f" loss={loss.item():.5f}; loss_W={loss_W.item():.5f};"
-                    + f" loss_V={loss_V.item():.5f}; loss_B={loss_B.item():.5f};"
+                report_str = (
+                    f"Epoch {self._epoch} ({batch_idx}/{len(self.train_loader)}): "
                 )
+                report_str += f"total: {batch_loss.item():.5f} "
+                for key, loss in batch_losses.items():
+                    report_str += f"{key}: {loss.item():.5f} "
+                print(report_str)
 
-            losses["total"].append(loss.item())
-            losses["W"].append(loss_W.item())
-            losses["V"].append(loss_V.item())
-            losses["B"].append(loss_B.item())
-            # losses['P'].append(loss_P.item())
+            losses["total"].append(batch_loss.item())
+            for key, loss in batch_losses.items():
+                losses[key].append(loss.item())
 
         losses = {k: np.nanmean(v) for k, v in losses.items()}
         self.train_loss.append(pd.DataFrame(losses, index=[self._epoch]))
@@ -157,19 +174,13 @@ class GraphTCNTrainer:
         with torch.no_grad():
             for _batch_idx, data in enumerate(self.test_loader):
                 model_output = self.evaluate_model(data, mask_pids_reco=False)
-                loss_W = self.edge_weight_loss(**model_output).item()
-                loss_V = self.potential_loss(**model_output).item()
-                loss_B = self.background_loss(**model_output).item()
-                if self.predict_track_params:
-                    loss_P = self.object_loss(**model_output).item()
-                    losses["P"].append(loss_P)
+                batch_loss, batch_losses = self.get_batch_losses(model_output)
                 bcs = BinaryClassificationStats(
                     output=model_output["w"], y=model_output["y"].long(), thld=thld
                 )
-                losses["total"].append(loss_W + loss_V + loss_B)
-                losses["W"].append(loss_W)
-                losses["V"].append(loss_V)
-                losses["B"].append(loss_B)
+                losses["total"].append(batch_loss.item())
+                for key, loss in batch_losses.items():
+                    losses[key].append(loss.item())
                 losses["acc"].append(bcs.acc)
 
         losses = {k: np.nanmean(v) for k, v in losses.items()}
