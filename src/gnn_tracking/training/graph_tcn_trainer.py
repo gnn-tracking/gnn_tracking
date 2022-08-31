@@ -27,6 +27,7 @@ class GraphTCNTrainer:
         model,
         loaders: dict[str, DataLoader],
         loss_functions: dict[str, Callable[[Any], Tensor]],
+        *,
         device="cpu",
         lr: Any = 5 * 10**-4,
         predict_track_params=False,
