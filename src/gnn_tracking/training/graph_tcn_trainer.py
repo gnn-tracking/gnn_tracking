@@ -11,12 +11,6 @@ from torch.optim import Adam
 from torch_geometric.data import Data
 from torch_geometric.loader import DataLoader
 
-from gnn_tracking.utils.losses import (
-    BackgroundLoss,
-    EdgeWeightLoss,
-    ObjectLoss,
-    PotentialLoss,
-)
 from gnn_tracking.utils.training import BinaryClassificationStats
 
 
@@ -32,11 +26,9 @@ class GraphTCNTrainer:
         self,
         model,
         loaders: dict[str, DataLoader],
+        loss_functions: dict[str, Callable[[Any], Tensor]],
         device="cpu",
         lr: Any = 5 * 10**-4,
-        q_min=0.01,
-        sb=1,
-        object_loss_mode="purity",
         predict_track_params=False,
         lr_scheduler: None | Callable = None,
     ):
@@ -45,11 +37,9 @@ class GraphTCNTrainer:
         Args:
             model:
             loaders:
+            loss_functions: Dictionary of loss functions, keyed by loss name
             device:
             lr: Learning rate
-            q_min:
-            sb:
-            object_loss_mode:
             predict_track_params:
             lr_scheduler: Learning rate scheduler. If it needs parameters, apply
                 functools.partial first
@@ -62,15 +52,7 @@ class GraphTCNTrainer:
 
         self.predict_track_params = predict_track_params
 
-        self.loss_functions = {
-            "edge": EdgeWeightLoss().to(device),
-            "potential": PotentialLoss(q_min=q_min, device=device),
-            "background": BackgroundLoss(device=device, sb=sb),
-        }
-        if self.predict_track_params:
-            self.loss_functions["object"] = (
-                ObjectLoss(device=device, mode=object_loss_mode),
-            )
+        self.loss_functions = loss_functions
 
         self.optimizer = Adam(self.model.parameters(), lr=lr)
         self._lr_scheduler = lr_scheduler(self.optimizer) if lr_scheduler else None
