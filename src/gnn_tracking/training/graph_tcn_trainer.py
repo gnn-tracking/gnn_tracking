@@ -156,11 +156,12 @@ class GraphTCNTrainer:
         # Note that we take the keys from individual_losses and not from
         # self._loss_weights (because that is a defaultdict and might not have all keys,
         # yet).
-        total_weight = sum(self._loss_weights[k] for k in individual_losses)
+        # total_weight = sum(self._loss_weights[k] for k in individual_losses)
 
         total = sum(
-            self._loss_weights[k] / total_weight * individual_losses[k]
-            for k in individual_losses
+            # self._loss_weights[k] / total_weight * individual_losses[k]
+            self._loss_weights[k] * individual_losses[k]
+            for k in individual_losses.keys()
         )
         return total, individual_losses
 
@@ -194,7 +195,8 @@ class GraphTCNTrainer:
                 )
                 report_str += f"total: {batch_loss.item():.5f} "
                 for key, loss in batch_losses.items():
-                    report_str += f"{key}: {loss.item():.5f} "
+                    w = self._loss_weights[key]
+                    report_str += f"{key}: {w*loss.item():.5f} "
                 self.logger.info(report_str)
 
             losses["total"].append(batch_loss.item())
