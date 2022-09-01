@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import collections
+import logging
 import os
 from os.path import join as join
 
@@ -8,6 +9,8 @@ import numpy as np
 import pandas as pd
 import torch
 from torch_geometric.data import Data
+
+from gnn_tracking.utils.log import get_logger
 
 
 class GraphBuilder:
@@ -42,6 +45,7 @@ class GraphBuilder:
         self.measurement_mode = measurement_mode
         self.write_output = write_output
         self.measurements = []
+        self.logger = get_logger("GraphBuilder", logging.INFO)
 
     def get_measurements(self):
         measurements = pd.DataFrame(self.measurements)
@@ -194,8 +198,10 @@ class GraphBuilder:
                     n_corrected += len(relabel_idx)
 
         if n_corrected > 0:
-            print(f"Relabeled {n_corrected} edges crossing from barrel to endcaps.")
-            print(f"Updated y has {int(np.sum(y))}/{len(y)} true edges.")
+            self.logger.info(
+                f"Relabeled {n_corrected} edges crossing from barrel to endcaps."
+            )
+            self.logger.info(f"Updated y has {int(np.sum(y))}/{len(y)} true edges.")
         return y, n_corrected
 
     def build_edges(self, hits):
@@ -329,7 +335,7 @@ class GraphBuilder:
         s = int(evtid_s.split("_s")[-1])
         return evtid, s
 
-    def process(self, n=10**6, verbose=False):
+    def process(self, n=10**6):
         infiles = os.listdir(self.indir)
         self.edge_purities = []
         self.edge_efficiencies = collections.defaultdict(list)
@@ -343,8 +349,7 @@ class GraphBuilder:
                     evtid, s = self.get_event_id_sector_from_str(name)
                 except (ValueError, KeyError) as e:
                     raise ValueError(f"{name} is not a valid file name") from e
-                if verbose:
-                    print(f"Processing {f}")
+                self.logger.debug(f"Processing {f}")
                 f = join(self.indir, f)
                 graph = torch.load(f)
                 df = self.get_dataframe(graph, evtid)
@@ -376,11 +381,10 @@ class GraphBuilder:
                     graph, edge_index, edge_attr, y, evtid=evtid, s=s
                 )
                 outfile = join(self.outdir, name)
-                if verbose:
-                    print(f"Writing {outfile}")
+                self.logger.debug(f"Writing {outfile}")
                 if self.write_output:
                     torch.save(graph, outfile)
                 self.data_list.append(graph)
 
         if self.measurement_mode:
-            print(self.get_measurements())
+            self.logger.info(self.get_measurements())

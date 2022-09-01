@@ -8,9 +8,9 @@ import colorlog
 LOG_DEFAULT_LEVEL = logging.DEBUG
 
 
-def get_logger():
+def get_logger(name="GNNTracking", level=LOG_DEFAULT_LEVEL):
     """Sets up global logger."""
-    _log = colorlog.getLogger("{{cookiecutter.package_name}}")
+    _log = colorlog.getLogger(name)
 
     if _log.handlers:
         # the logger already has handlers attached to it, even though
@@ -18,7 +18,7 @@ def get_logger():
         # logger ==> we don't need to do anything
         return _log
 
-    _log.setLevel(LOG_DEFAULT_LEVEL)
+    _log.setLevel(level)
 
     sh = colorlog.StreamHandler()
     log_colors = {

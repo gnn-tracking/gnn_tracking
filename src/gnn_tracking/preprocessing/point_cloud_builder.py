@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import collections
+import logging
 import os
 from os.path import join
 
@@ -9,6 +10,8 @@ import pandas as pd
 import torch
 from torch_geometric.data import Data
 from trackml.dataset import load_event
+
+from gnn_tracking.utils.log import get_logger
 
 pd.options.mode.chained_assignment = None  # default='warn'
 
@@ -78,6 +81,7 @@ class PointCloudBuilder:
                 self.prefixes.append(join(indir, prefix))
 
         self.data_list: list[Data] = []
+        self.logger = get_logger("PointCloudBuilder", level=logging.INFO)
 
     def calc_eta(self, r, z):
         theta = np.arctan2(r, z)
@@ -247,7 +251,7 @@ class PointCloudBuilder:
             output[var + "_err"] = stds[var]
         return output
 
-    def process(self, n: int | None = None, verbose=False):
+    def process(self, n: int | None = None):
         """Process input files from self.input_files and write output files to
         self.output_files
 
@@ -259,7 +263,7 @@ class PointCloudBuilder:
 
         """
         for f in self.prefixes[:n]:
-            print(f"Processing {f}")
+            self.logger.debug(f"Processing {f}")
 
             evtid = int(f[-9:])
             hits, particles, truth = load_event(f, parts=["hits", "particles", "truth"])
@@ -288,8 +292,7 @@ class PointCloudBuilder:
                 if self.exists[name] and not self.redo:
                     data = torch.load(join(self.outdir, name))
                     self.data_list.append(data)
-                    if verbose:
-                        print(f"skipping {name}")
+                    self.logger.debug(f"skipping {name}")
                 else:
                     sector = self.sector_hits(
                         hits, s, particle_id_counts=particle_id_counts
@@ -301,8 +304,7 @@ class PointCloudBuilder:
                     if self.write_output:
                         torch.save(sector, outfile)
                     self.data_list.append(sector)
-                    if verbose:
-                        print(f"wrote {outfile}")
+                    self.logger.debug(f"wrote {outfile}")
 
             self.stats[evtid] = {
                 "n_hits": n_hits,
@@ -312,11 +314,10 @@ class PointCloudBuilder:
                 "n_sector_particles": n_sector_particles,
             }
 
-        if verbose:
-            print("Output statistics:", self.stats[evtid])
-            if self.measurement_mode:
-                measurements = pd.DataFrame(self.measurements)
-                means = measurements.mean()
-                stds = measurements.std()
-                for var in stds.index:
-                    print(f"{var}: {means[var]:.4f}+/-{stds[var]:.4f}")
+        self.logger.debug("Output statistics:", self.stats[evtid])
+        if self.measurement_mode:
+            measurements = pd.DataFrame(self.measurements)
+            means = measurements.mean()
+            stds = measurements.std()
+            for var in stds.index:
+                self.logger.debug(f"{var}: {means[var]:.4f}+/-{stds[var]:.4f}")
