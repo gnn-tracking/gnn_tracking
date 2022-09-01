@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import collections
+import logging
 from typing import Any, Callable, Mapping
 
 import numpy as np
@@ -11,6 +12,7 @@ from torch.optim import Adam
 from torch_geometric.data import Data
 from torch_geometric.loader import DataLoader
 
+from gnn_tracking.utils.log import get_logger
 from gnn_tracking.utils.training import BinaryClassificationStats
 
 hook_type = Callable[[torch.nn.Module, dict[str, Tensor]], None]
@@ -74,6 +76,8 @@ class GraphTCNTrainer:
 
         self._train_hooks: list[hook_type] = []
         self._test_hooks: list[hook_type] = []
+
+        self.logger = get_logger("TCNTrainer", level=logging.INFO)
 
         # output quantities
         self.train_loss = []
@@ -191,7 +195,7 @@ class GraphTCNTrainer:
                 report_str += f"total: {batch_loss.item():.5f} "
                 for key, loss in batch_losses.items():
                     report_str += f"{key}: {loss.item():.5f} "
-                print(report_str)
+                self.logger.info(report_str)
 
             losses["total"].append(batch_loss.item())
             for key, loss in batch_losses.items():
@@ -219,7 +223,7 @@ class GraphTCNTrainer:
                 losses["acc"].append(bcs.acc)
 
         losses = {k: np.nanmean(v) for k, v in losses.items()}
-        print("test", losses)
+        self.logger.info("test", losses)
         self.test_loss.append(pd.DataFrame(losses, index=[self._epoch]))
         for hook in self._test_hooks:
             hook(self.model, losses)

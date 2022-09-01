@@ -20,7 +20,7 @@ def point_clouds_path(tmp_path_factory) -> Path:
         measurement_mode=False,
         thld=0.9,
     )
-    pc_builder.process(verbose=True)
+    pc_builder.process()
     return out_path
 
 
