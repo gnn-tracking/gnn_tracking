@@ -225,7 +225,7 @@ class GraphTCNTrainer:
                 losses["acc"].append(bcs.acc)
 
         losses = {k: np.nanmean(v) for k, v in losses.items()}
-        self.logger.info("test", losses)
+        self.logger.info(f"test step: {losses}")
         self.test_loss.append(pd.DataFrame(losses, index=[self._epoch]))
         for hook in self._test_hooks:
             hook(self.model, losses)
