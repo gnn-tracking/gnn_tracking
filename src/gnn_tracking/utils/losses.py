@@ -181,11 +181,7 @@ class ObjectLoss(torch.nn.Module):
             xi_p_norm = torch.sum(xi_p, dim=0)
             # shape: n_pids
             terms = torch.sum(mse[:, None] * xi_p, dim=0)
-            print("beta", beta)
-            print("xi_p", xi_p)
-            print("xi_p_norm", xi_p_norm)
             loss = torch.mean(terms / xi_p_norm)
-            print("loss", loss)
             return loss
         else:
             raise ValueError("Unknown mode: {mode}")
