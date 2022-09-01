@@ -92,10 +92,12 @@ class PointCloudBuilder:
 
         # select barrel layers and assign convenient layer number [0-9]
         hit_layer_groups = hits.groupby(["volume_id", "layer_id"])
+        available_pixel_layers = hit_layer_groups.groups.keys()
         hits = pd.concat(
             [
                 hit_layer_groups.get_group(pixel_layers[i]).assign(layer=i)
                 for i in range(n_layers)
+                if pixel_layers[i] in available_pixel_layers
             ]
         )
         return hits
