@@ -58,3 +58,4 @@ repos:
 
 ci:
   autoupdate_schedule: monthly
+  autofix_prs: false
