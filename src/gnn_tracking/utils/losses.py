@@ -1,9 +1,12 @@
 from __future__ import annotations
 
+from abc import abstractmethod
+
 import torch
 from torch.nn.functional import binary_cross_entropy, mse_loss, relu
 
 T = torch.Tensor
+
 
 # Follows the implementation in kornia at
 # https://github.com/kornia/kornia/blob/master/kornia/losses/focal.py
@@ -11,6 +14,7 @@ T = torch.Tensor
 def binary_focal_loss(
     inpt: T,
     target: T,
+    *,
     alpha: float = 0.25,
     gamma: float = 2.0,
     reduction: str = "mean",
@@ -52,11 +56,37 @@ def binary_focal_loss(
 
 
 class EdgeWeightLoss(torch.nn.Module):
+    @abstractmethod
+    def forward(self, w, y, **kwargs) -> T:
+        pass
+
+
+class EdgeWeightBCELoss(EdgeWeightLoss):
     @staticmethod
-    # noinspection PyUnusedVariable
-    def forward(*, w, y, **kwargs):
+    def forward(*, w, y, **kwargs) -> T:
         bce_loss = binary_cross_entropy(w, y, reduction="mean")
         return bce_loss
+
+
+class EdgeWeightFocalLoss(EdgeWeightLoss):
+    def __init__(self, *, alpha=0.25, gamma=2.0, pos_weight=None, reduction="mean"):
+        """See binary_focal_loss for details."""
+        super().__init__()
+        self.alpha = alpha
+        self.gamma = gamma
+        self.pos_weight = pos_weight
+        self.reduction = reduction
+
+    def forward(self, *, w, y, **kwargs) -> T:
+        focal_loss = binary_focal_loss(
+            w,
+            y,
+            alpha=self.alpha,
+            gamma=self.gamma,
+            pos_weight=self.pos_weight,
+            reduction=self.reduction,
+        )
+        return focal_loss
 
 
 class PotentialLoss(torch.nn.Module):
