@@ -5,8 +5,14 @@ from dataclasses import dataclass
 import numpy as np
 import torch
 from pytest import approx
+from torch.nn.functional import binary_cross_entropy
 
-from gnn_tracking.utils.losses import BackgroundLoss, ObjectLoss, PotentialLoss
+from gnn_tracking.utils.losses import (
+    BackgroundLoss,
+    ObjectLoss,
+    PotentialLoss,
+    binary_focal_loss,
+)
 
 T = torch.tensor
 
@@ -43,12 +49,16 @@ def get_condensation_loss(td: MockData) -> float:
 
 
 def get_background_loss(td: MockData) -> float:
-    return BackgroundLoss().background_loss(td.beta, td.particle_id)
+    return BackgroundLoss().background_loss(td.beta, td.particle_id).item()
 
 
 def get_object_loss(td: MockData, **kwargs) -> float:
-    return ObjectLoss(**kwargs).object_loss(
-        beta=td.beta, particle_id=td.particle_id, pred=td.pred, truth=td.truth
+    return (
+        ObjectLoss(**kwargs)
+        .object_loss(
+            beta=td.beta, particle_id=td.particle_id, pred=td.pred, truth=td.truth
+        )
+        .item()
     )
 
 
@@ -58,15 +68,23 @@ def test_potential_loss():
 
 
 def test_background_loss():
-    assert get_background_loss(td1).item() == approx(0.12870374134954846)
-    assert get_background_loss(td2).item() == approx(0.16493608241281874)
+    assert get_background_loss(td1) == approx(0.12870374134954846)
+    assert get_background_loss(td2) == approx(0.16493608241281874)
 
 
 def test_object_loss_efficiency():
-    assert get_object_loss(td1).item() == approx(29.833900451660156)
-    assert get_object_loss(td2).item() == approx(77.24552154541016)
+    assert get_object_loss(td1) == approx(29.833900451660156)
+    assert get_object_loss(td2) == approx(77.24552154541016)
 
 
 def test_object_loss_purity():
-    assert get_object_loss(td1, mode="purity").item() == approx(3.6432214679013644)
-    assert get_object_loss(td2, mode="purity").item() == approx(3.8949206999806045)
+    assert get_object_loss(td1, mode="purity") == approx(3.6432214679013644)
+    assert get_object_loss(td2, mode="purity") == approx(3.8949206999806045)
+
+
+def test_focal_loss_vs_bce():
+    inpt = torch.rand(10)
+    target = (torch.rand(10) > 0.5).float()
+    assert binary_focal_loss(inpt, target, alpha=0.5, gamma=0.0) == approx(
+        0.5 * binary_cross_entropy(inpt, target, reduction="mean")
+    )

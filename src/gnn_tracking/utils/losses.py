@@ -3,6 +3,53 @@ from __future__ import annotations
 import torch
 from torch.nn.functional import binary_cross_entropy, mse_loss, relu
 
+T = torch.Tensor
+
+# Follows the implementation in kornia at
+# https://github.com/kornia/kornia/blob/master/kornia/losses/focal.py
+# (binary_focal_loss_with_logits function)
+def binary_focal_loss(
+    inpt: T,
+    target: T,
+    alpha: float = 0.25,
+    gamma: float = 2.0,
+    reduction: str = "mean",
+    pos_weight: T | None = None,
+) -> T:
+    """Binary Focal Loss, following https://arxiv.org/abs/1708.02002.
+
+    Args:
+        inpt:
+        target:
+        alpha: Weight for positive/negative results
+        gamma: Focusing parameter
+        reduction: 'none', 'mean', 'sum'
+        pos_weight: Can be used to balance precision/recall
+    """
+    assert gamma >= 0.0
+    assert 0 <= alpha <= 1
+
+    if pos_weight is None:
+        pos_weight = torch.ones(inpt.shape[-1], device=inpt.device, dtype=inpt.dtype)
+
+    probs_pos = inpt
+    probs_neg = 1 - inpt
+
+    pos_term = -alpha * pos_weight * probs_neg.pow(gamma) * target * probs_pos.log()
+    neg_term = -(1 - alpha) * probs_pos.pow(gamma) * (1.0 - target) * probs_neg.log()
+    loss_tmp = pos_term + neg_term
+
+    if reduction == "none":
+        loss = loss_tmp
+    elif reduction == "mean":
+        loss = torch.mean(loss_tmp)
+    elif reduction == "sum":
+        loss = torch.sum(loss_tmp)
+    else:
+        raise NotImplementedError(f"Invalid reduction mode: {reduction}")
+
+    return loss
+
 
 class EdgeWeightLoss(torch.nn.Module):
     @staticmethod
@@ -10,9 +57,6 @@ class EdgeWeightLoss(torch.nn.Module):
     def forward(w, beta, x, y, particle_id):
         bce_loss = binary_cross_entropy(w, y, reduction="mean")
         return bce_loss
-
-
-T = torch.tensor
 
 
 class PotentialLoss(torch.nn.Module):
