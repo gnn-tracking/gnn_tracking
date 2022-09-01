@@ -83,21 +83,27 @@ class PointCloudBuilder:
         theta = np.arctan2(r, z)
         return -1.0 * np.log(np.tan(theta / 2.0))
 
-    def restrict_to_pixel(self, hits: pd.DataFrame) -> pd.DataFrame:
-        pixel_barrel = [(8, 2), (8, 4), (8, 6), (8, 8)]
-        pixel_LEC = [(7, 14), (7, 12), (7, 10), (7, 8), (7, 6), (7, 4), (7, 2)]
-        pixel_REC = [(9, 2), (9, 4), (9, 6), (9, 8), (9, 10), (9, 12), (9, 14)]
-        pixel_layers = pixel_barrel + pixel_REC + pixel_LEC
-        n_layers = len(pixel_layers)
-
+    def restrict_to_subdetectors(self, hits: pd.DataFrame) -> pd.DataFrame:
         # select barrel layers and assign convenient layer number [0-9]
+        if self.pixel_only:
+            pixel_barrel = [(8, 2), (8, 4), (8, 6), (8, 8)]
+            pixel_LEC = [(7, 14), (7, 12), (7, 10), (7, 8), (7, 6), (7, 4), (7, 2)]
+            pixel_REC = [(9, 2), (9, 4), (9, 6), (9, 8), (9, 10), (9, 12), (9, 14)]
+            allowed_layers = pixel_barrel + pixel_REC + pixel_LEC
+        else:
+            allowed_layers = None
+
         hit_layer_groups = hits.groupby(["volume_id", "layer_id"])
-        available_pixel_layers = hit_layer_groups.groups.keys()
+        if allowed_layers is not None:
+            available_allowed_layers = sorted(
+                set(hit_layer_groups.groups.keys()) & set(allowed_layers)
+            )
+        else:
+            available_allowed_layers = sorted(hit_layer_groups.groups.keys())
         hits = pd.concat(
             [
-                hit_layer_groups.get_group(pixel_layers[i]).assign(layer=i)
-                for i in range(n_layers)
-                if pixel_layers[i] in available_pixel_layers
+                hit_layer_groups.get_group(layer).assign(layer=i)
+                for i, layer in enumerate(available_allowed_layers)
             ]
         )
         return hits
@@ -258,8 +264,7 @@ class PointCloudBuilder:
             evtid = int(f[-9:])
             hits, particles, truth = load_event(f, parts=["hits", "particles", "truth"])
 
-            if self.pixel_only:
-                hits = self.restrict_to_pixel(hits)
+            hits = self.restrict_to_subdetectors(hits)
             hits = self.append_features(hits, particles, truth)
             hits_by_pid = hits.groupby("particle_id")
 
