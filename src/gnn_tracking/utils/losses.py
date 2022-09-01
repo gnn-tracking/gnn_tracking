@@ -158,8 +158,6 @@ class ObjectLoss(torch.nn.Module):
         #: Strength of noise suppression
         self.device = device
         self.mode = mode
-        #: Scale up loss value by this factor
-        self.scale = 100
 
     def MSE(self, *, pred, truth):
         return torch.sum(mse_loss(pred, truth, reduction="none"), dim=1)
@@ -171,7 +169,7 @@ class ObjectLoss(torch.nn.Module):
             noise_mask = particle_id == 0
             # shape: n_nodes
             xi = (~noise_mask) * torch.arctanh(beta) ** 2
-            return self.scale / torch.sum(xi) * torch.mean(xi * mse)
+            return 1 / torch.sum(xi) * torch.mean(xi * mse)
         elif self.mode == "efficiency":
             # shape: n_pids
             pids = torch.unique(particle_id[particle_id > 0])
@@ -183,8 +181,12 @@ class ObjectLoss(torch.nn.Module):
             xi_p_norm = torch.sum(xi_p, dim=0)
             # shape: n_pids
             terms = torch.sum(mse[:, None] * xi_p, dim=0)
+            print("beta", beta)
+            print("xi_p", xi_p)
+            print("xi_p_norm", xi_p_norm)
             loss = torch.mean(terms / xi_p_norm)
-            return self.scale * loss
+            print("loss", loss)
+            return loss
         else:
             raise ValueError("Unknown mode: {mode}")
 
