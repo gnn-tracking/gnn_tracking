@@ -153,6 +153,7 @@ class PointCloudBuilder:
         self, hits: pd.DataFrame, s, particle_id_counts: dict[int, int]
     ) -> pd.DataFrame:
         if self.n_sectors == 1:
+            hits["sector"] = 0
             return hits
         # build sectors in each 2*np.pi/self.n_sectors window
         theta = np.pi / self.n_sectors
