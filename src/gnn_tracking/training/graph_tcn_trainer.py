@@ -32,7 +32,6 @@ class GraphTCNTrainer:
         *,
         device="cpu",
         lr: Any = 5 * 10**-4,
-        predict_track_params=False,
         lr_scheduler: None | Callable = None,
         loss_weights: dict[str, float] = None,
     ):
@@ -44,7 +43,6 @@ class GraphTCNTrainer:
             loss_functions: Dictionary of loss functions, keyed by loss name
             device:
             lr: Learning rate
-            predict_track_params:
             lr_scheduler: Learning rate scheduler. If it needs parameters, apply
                 functools.partial first
             loss_weights: Weight different loss functions. If a key is left out, the
@@ -58,8 +56,6 @@ class GraphTCNTrainer:
         self.test_loader = loaders["test"]
         self.val_loader = loaders["val"]
         self.device = device
-
-        self.predict_track_params = predict_track_params
 
         self.loss_functions = loss_functions
 
@@ -113,10 +109,7 @@ class GraphTCNTrainer:
             mask_pids_reco: If True, mask out PIDs for non-reconstructables
         """
         data = data.to(self.device)
-        if self.predict_track_params:
-            W, H, B, P = self.model(data.x, data.edge_index, data.edge_attr)
-        else:
-            W, H, B = self.model(data.x, data.edge_index, data.edge_attr)
+        W, H, B, P = self.model(data.x, data.edge_index, data.edge_attr)
         if mask_pids_reco:
             pid_field = data.particle_id * data.reconstructable.long()
         else:
@@ -129,9 +122,8 @@ class GraphTCNTrainer:
             "particle_id": pid_field,
             "track_params": data.pt,
             "reconstructable": data.reconstructable.long(),
+            "pred": P,
         }
-        if self.predict_track_params:
-            dct["pred"] = P
         return dct
 
     def get_batch_losses(
@@ -154,6 +146,7 @@ class GraphTCNTrainer:
                     individual_losses[f"{key}_{k}"] = v
             else:
                 individual_losses[key] = loss
+
         assert set(self._loss_weights).issubset(set(individual_losses))
 
         # Note that we take the keys from individual_losses and not from
@@ -181,6 +174,7 @@ class GraphTCNTrainer:
 
         losses = collections.defaultdict(list)
         for batch_idx, data in enumerate(self.train_loader):
+            data = data.to(self.device)
             if max_batches and batch_idx > max_batches:
                 break
             model_output = self.evaluate_model(data)
@@ -213,6 +207,7 @@ class GraphTCNTrainer:
         losses = collections.defaultdict(list)
         with torch.no_grad():
             for _batch_idx, data in enumerate(self.test_loader):
+                data = data.to(self.device)
                 model_output = self.evaluate_model(data, mask_pids_reco=False)
                 batch_loss, batch_losses = self.get_batch_losses(model_output)
                 bcs = BinaryClassificationStats(
