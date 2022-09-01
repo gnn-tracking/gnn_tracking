@@ -334,6 +334,8 @@ class GraphBuilder:
         self.edge_purities = []
         self.edge_efficiencies = collections.defaultdict(list)
         for f in infiles[:n]:
+            if f.split(".")[-1] != "pt":
+                continue
             name = f.split("/")[-1]
             if f in self.outfiles and not self.redo:
                 graph = torch.load(join(self.outdir, name))
