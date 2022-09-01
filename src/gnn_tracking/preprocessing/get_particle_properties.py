@@ -12,6 +12,9 @@ import trackml.dataset
 from matplotlib import pyplot as plt
 from scipy import optimize
 
+from gnn_tracking.utils.graph_construction import select_hits
+from gnn_tracking.utils.log import logger
+
 
 def parse_args(args):
     """Parse command line arguments."""
@@ -277,14 +280,14 @@ def make_df(
 
     # load the data
     evtid = int(prefix[-9:])
-    logging.info("Event %i, loading data" % evtid)
+    logger.info("Event %i, loading data" % evtid)
     hits, particles, truth = trackml.dataset.load_event(
         prefix, parts=["hits", "particles", "truth"]
     )
     hits = hits.assign(evtid=evtid)
 
     # apply hit selection
-    logging.info("Event %i, selecting hits" % evtid)
+    logger.info("Event %i, selecting hits" % evtid)
     hits, particles = select_hits(
         hits, truth, particles, 0, endcaps, remove_noise, remove_duplicates
     )
@@ -430,20 +433,20 @@ def make_df(
 
     df = pd.concat(df_properties)
     outfile = join(output_dir, f"{evtid}.csv")
-    logging.info(f"Writing {outfile}")
+    logger.info(f"Writing {outfile}")
     df.to_csv(outfile, index=False)
     return 1
 
 
 def main(args):
-    initialize_logger()
     args = parse_args(args)
-    logging.info(f"Args {args}")
-    initialize_logger(verbose=args.verbose)
+    logger.info(f"Args {args}")
+    if not args.verbose:
+        logger.setLevel(logging.INFO)
     input_dir = args.input_dir
     # train_idx = int(input_dir.split("train_")[-1][0])
-    logging.info(f"Running on data from {input_dir}.")
-    logging.info("All done!")
+    logger.info(f"Running on data from {input_dir}.")
+    logger.info("All done!")
 
 
 if __name__ == "__main__":
