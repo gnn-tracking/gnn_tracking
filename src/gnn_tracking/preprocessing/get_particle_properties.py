@@ -2,10 +2,8 @@ from __future__ import annotations
 
 import argparse
 import logging
-import multiprocessing as mp
 import sys
 from collections import Counter, OrderedDict
-from functools import partial
 from os.path import join
 
 import numpy as np
@@ -13,8 +11,6 @@ import pandas as pd
 import trackml.dataset
 from matplotlib import pyplot as plt
 from scipy import optimize
-
-from gnn_tracking.utils.graph_construction import initialize_logger, select_hits
 
 
 def parse_args(args):
@@ -29,6 +25,29 @@ def parse_args(args):
     add_arg("--n-tasks", type=int, default=1)
     add_arg("--task", type=int, default=0)
     return parser.parse_args(args)
+
+
+def initialize_logger(verbose=False):
+    log_format = "%(asctime)s %(levelname)s %(message)s"
+    log_level = logging.DEBUG if verbose else logging.INFO
+    logging.basicConfig(level=log_level, format=log_format)
+    logging.info("Initializing")
+
+
+def calc_dphi(phi1: np.ndarray, phi2: np.ndarray) -> np.ndarray:
+    """Computes phi2-phi1 given in range [-pi,pi]"""
+    dphi = phi2 - phi1
+    dphi[dphi > np.pi] -= 2 * np.pi
+    dphi[dphi < -np.pi] += 2 * np.pi
+    return dphi
+
+
+def calc_eta(r: np.ndarray, z: np.ndarray) -> np.ndarray:
+    """Computes pseudorapidity
+    (https://en.wikipedia.org/wiki/Pseudorapidity)
+    """
+    theta = np.arctan2(r, z)
+    return -1.0 * np.log(np.tan(theta / 2.0))
 
 
 def calc_radii(xc: float, yc: float, x: np.ndarray, y: np.ndarray) -> np.ndarray:
@@ -117,6 +136,106 @@ def track_fit_plot(x, y, u, v, conformal_fit, xc, yc, R, label=""):
     axs[1].set_ylabel("$v$ [1/mm]")
     plt.tight_layout()
     plt.show()
+
+
+def relabel_pids(hits, particles):
+    particles = particles[particles.particle_id.isin(pd.unique(hits.particle_id))]
+    particle_id_map = {p: i + 1 for i, p in enumerate(particles["particle_id"].values)}
+    particle_id_map[0] = 0
+    particles = particles.assign(
+        particle_id=particles["particle_id"].map(particle_id_map)
+    )
+    hits = hits.assign(particle_id=hits["particle_id"].map(particle_id_map))
+    return hits, particles
+
+
+def select_hits(
+    hits: pd.DataFrame,
+    truth: pd.DataFrame,
+    particles: pd.DataFrame,
+    pt_min=0,
+    endcaps=False,
+    remove_noise=False,
+    remove_duplicates=False,
+    relabel_pids=False,
+) -> tuple[pd.DataFrame, pd.DataFrame]:
+    """Cleans hits in the event
+
+    Returns:
+        hits, particles
+    """
+
+    # Barrel volume and layer ids
+    vlids = [(8, 2), (8, 4), (8, 6), (8, 8)]
+    if endcaps:
+        vlids.extend(
+            [
+                (7, 14),
+                (7, 12),
+                (7, 10),
+                (7, 8),
+                (7, 6),
+                (7, 4),
+                (7, 2),
+                (9, 2),
+                (9, 4),
+                (9, 6),
+                (9, 8),
+                (9, 10),
+                (9, 12),
+                (9, 14),
+            ]
+        )
+    n_det_layers = len(vlids)
+
+    # select barrel layers and assign convenient layer number [0-9]
+    vlid_groups = hits.groupby(["volume_id", "layer_id"])
+    hits = pd.concat(
+        [vlid_groups.get_group(vlids[i]).assign(layer=i) for i in range(n_det_layers)]
+    )
+
+    # calculate particle transverse momentum
+    particles["pt"] = np.sqrt(particles.px**2 + particles.py**2)
+    particles["eta_pt"] = calc_eta(particles.pt, particles.pz)
+
+    # true particle selection.
+    particles = particles[particles.pt > pt_min]
+    truth_noise = truth[["hit_id", "particle_id"]][truth.particle_id == 0]
+    truth_noise["pt"] = 0
+    truth = truth[["hit_id", "particle_id"]].merge(
+        particles[["particle_id", "pt", "eta_pt", "q", "vx", "vy"]], on="particle_id"
+    )
+
+    # optionally add noise
+    if not remove_noise:
+        truth = truth.append(truth_noise)
+
+    # calculate derived hits variables
+    hits["r"] = np.sqrt(hits.x**2 + hits.y**2)
+    hits["phi"] = np.arctan2(hits.y, hits.x)
+    hits["eta"] = calc_eta(hits.r, hits.z)
+    hits["u"] = hits["x"] / (hits["x"] ** 2 + hits["y"] ** 2)
+    hits["v"] = hits["y"] / (hits["x"] ** 2 + hits["y"] ** 2)
+
+    # select the data columns we need
+    hits = hits[
+        ["hit_id", "r", "phi", "eta", "x", "y", "z", "u", "v", "layer", "module_id"]
+    ].merge(
+        truth[["hit_id", "particle_id", "pt", "eta_pt", "q", "vx", "vy"]], on="hit_id"
+    )
+
+    # optionally remove duplicates
+    if remove_duplicates:
+        noise_hits = hits[hits.particle_id == 0]
+        particle_hits = hits[hits.particle_id != 0]
+        particle_hits = particle_hits.loc[
+            particle_hits.groupby(["particle_id", "layer"]).r.idxmin()
+        ]
+        hits = particle_hits.append(noise_hits)
+
+    if relabel_pids:
+        hits, particles = relabel_pids(hits, particles)
+    return hits, particles
 
 
 def make_df(
@@ -322,7 +441,6 @@ def main(args):
     logging.info(f"Args {args}")
     initialize_logger(verbose=args.verbose)
     input_dir = args.input_dir
-    output_dir = args.output_dir
     # train_idx = int(input_dir.split("train_")[-1][0])
     logging.info(f"Running on data from {input_dir}.")
     logging.info("All done!")
