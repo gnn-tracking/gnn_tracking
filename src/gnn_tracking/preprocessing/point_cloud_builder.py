@@ -30,6 +30,7 @@ class PointCloudBuilder:
         thld=0.5,
         remove_noise=False,
         write_output=True,
+        log_level=0,
     ):
         """
 
@@ -46,6 +47,8 @@ class PointCloudBuilder:
             measurement_mode:
             thld: pt threshold
             remove_noise:
+            write_output:
+            log_level:
         """
         # create outdir if necessary
         os.makedirs(outdir, exist_ok=True)
@@ -81,7 +84,8 @@ class PointCloudBuilder:
                 self.prefixes.append(join(indir, prefix))
 
         self.data_list: list[Data] = []
-        self.logger = get_logger("PointCloudBuilder", level=logging.INFO)
+        level = logging.DEBUG if (log_level > 0) else logging.INFO
+        self.logger = get_logger("PointCloudBuilder", level=level)
 
     def calc_eta(self, r, z):
         theta = np.arctan2(r, z)
@@ -233,12 +237,14 @@ class PointCloudBuilder:
     def to_pyg_data(self, hits: pd.DataFrame) -> Data:
         """Build the output data structure"""
         data = Data(
-            x=hits[self.feature_names].values / self.feature_scale,
-            layer=hits.layer.values,
-            particle_id=hits["particle_id"].values,
-            pt=hits["pt"].values,
-            reconstructable=hits["reconstructable"].values,
-            sector=hits["sector"].values,
+            x=torch.from_numpy(
+                hits[self.feature_names].values / self.feature_scale
+            ).float(),
+            layer=torch.from_numpy(hits.layer.values).long(),
+            particle_id=torch.from_numpy(hits["particle_id"].values).long(),
+            pt=torch.from_numpy(hits["pt"].values).float(),
+            reconstructable=torch.from_numpy(hits["reconstructable"].values).long(),
+            sector=torch.from_numpy(hits["sector"].values).long(),
         )
         return data
 
