@@ -26,6 +26,7 @@ class GraphBuilder:
         directed=False,
         measurement_mode=False,
         write_output=True,
+        log_level=0,
     ):
         self.indir = indir
         os.makedirs(outdir, exist_ok=True)
@@ -45,7 +46,8 @@ class GraphBuilder:
         self.measurement_mode = measurement_mode
         self.write_output = write_output
         self.measurements = []
-        self.logger = get_logger("GraphBuilder", logging.INFO)
+        level = logging.DEBUG if log_level > 0 else logging.INFO
+        self.logger = get_logger("GraphBuilder", level)
 
     def get_measurements(self):
         measurements = pd.DataFrame(self.measurements)
