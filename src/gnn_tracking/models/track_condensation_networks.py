@@ -3,6 +3,7 @@ from __future__ import annotations
 import torch
 import torch.nn as nn
 from torch import Tensor
+from torch_geometric.data import Data
 
 from gnn_tracking.models.dynamic_edge_conv import DynamicEdgeConv
 from gnn_tracking.models.interaction_network import InteractionNetwork as IN
@@ -57,11 +58,12 @@ class PointCloudTCN(nn.Module):
 
     def forward(
         self,
-        x: Tensor,
+        data: Data,
         alpha: float = 0.5,
     ) -> Tensor:
 
         # apply the edge classifier to generate edge weights
+        x = data.x
         h, edge_index = self.edge_conv(x)
         h = self.relu(h)
         edge_attr = torch.cat([h[edge_index[0]], h[edge_index[1]]], dim=1)
@@ -81,7 +83,7 @@ class PointCloudTCN(nn.Module):
 
         h_out = self.X(h)
         track_params, _ = self.P(h, edge_index, torch.cat(edge_attrs, dim=1))
-        return h_out, beta, track_params
+        return {"W": None, "H": h_out, "B": beta, "P": track_params}
 
 
 class GraphTCN(nn.Module):
@@ -152,14 +154,13 @@ class GraphTCN(nn.Module):
 
     def forward(
         self,
-        x: Tensor,
-        edge_index: Tensor,
-        edge_attr: Tensor,
+        data: Data,
         alpha_ec: float = 0.5,
         alpha_hc: float = 0.5,
     ) -> Tensor:
 
         # apply the edge classifier to generate edge weights
+        x, edge_index, edge_attr = data.x, data.edge_index, data.edge_attr
         h_ec = self.relu(self.ec_node_encoder(x))
         edge_attr_ec = self.relu(self.ec_edge_encoder(edge_attr))
         edge_attrs_ec = [edge_attr_ec]
@@ -190,4 +191,4 @@ class GraphTCN(nn.Module):
 
         h = self.X(h_hc)
         track_params, _ = self.P(h_hc, edge_index, torch.cat(edge_attrs_hc, dim=1))
-        return edge_weights, h, beta, track_params
+        return {"W": edge_weights, "H": h, "B": beta, "P": track_params}

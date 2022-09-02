@@ -113,20 +113,20 @@ class GraphTCNTrainer:
             mask_pids_reco: If True, mask out PIDs for non-reconstructables
         """
         data = data.to(self.device)
-        W, H, B, P = self.model(data.x, data.edge_index, data.edge_attr)
+        out = self.model(data)
         if mask_pids_reco:
             pid_field = data.particle_id * data.reconstructable.long()
         else:
             pid_field = data.particle_id
         dct = {
-            "w": W.squeeze(),
-            "x": H,
-            "beta": B.squeeze(),
+            "w": out["W"].squeeze() if out["W"] is not None else None,
+            "x": out["H"],
+            "beta": out["B"].squeeze(),
             "y": data.y,
             "particle_id": pid_field,
             "track_params": data.pt,
             "reconstructable": data.reconstructable.long(),
-            "pred": P,
+            "pred": out["P"],
         }
         return dct
 
