@@ -16,6 +16,11 @@ class MLP(nn.Module):
         layers.append(nn.Linear(hidden_dim, output_size))
         self.layers = nn.ModuleList(layers)
 
+    def reset_parameters(self):
+        for layer in self.layers:
+            if hasattr(layer, "reset_parameters"):
+                layer.reset_parameters()
+
     def forward(self, x):
         for layer in self.layers:
             x = layer(x)
