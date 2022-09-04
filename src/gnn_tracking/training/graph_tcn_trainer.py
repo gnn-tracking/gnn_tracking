@@ -61,9 +61,6 @@ class GraphTCNTrainer:
 
         self.loss_functions = loss_functions
 
-        # Loss weights should be normalized to sum to 1, but we cannot do that here
-        # because we do not know all of the keys. This is because of loss functions that
-        # return a dictionary of different losses that are summed together.
         self._loss_weights = collections.defaultdict(lambda: 1.0)
         if loss_weights is not None:
             self._loss_weights.update(loss_weights)
@@ -153,13 +150,7 @@ class GraphTCNTrainer:
 
         assert set(self._loss_weights).issubset(set(individual_losses))
 
-        # Note that we take the keys from individual_losses and not from
-        # self._loss_weights (because that is a defaultdict and might not have all keys,
-        # yet).
-        # total_weight = sum(self._loss_weights[k] for k in individual_losses)
-
         total = sum(
-            # self._loss_weights[k] / total_weight * individual_losses[k]
             self._loss_weights[k] * individual_losses[k]
             for k in individual_losses.keys()
         )
