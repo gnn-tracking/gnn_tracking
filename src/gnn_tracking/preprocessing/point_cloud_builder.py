@@ -30,7 +30,7 @@ class PointCloudBuilder:
         thld=0.5,
         remove_noise=False,
         write_output=True,
-        log_level=0,
+        log_level=logging.INFO,
     ):
         """
 
@@ -84,8 +84,7 @@ class PointCloudBuilder:
                 self.prefixes.append(join(indir, prefix))
 
         self.data_list: list[Data] = []
-        level = logging.DEBUG if (log_level > 0) else logging.INFO
-        self.logger = get_logger("PointCloudBuilder", level=level)
+        self.logger = get_logger("PointCloudBuilder", level=log_level)
 
     def calc_eta(self, r, z):
         theta = np.arctan2(r, z)
