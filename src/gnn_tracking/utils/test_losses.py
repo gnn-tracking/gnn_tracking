@@ -77,13 +77,13 @@ def test_background_loss():
 
 
 def test_object_loss_efficiency():
-    assert get_object_loss(td1) == approx(29.833900451660156)
-    assert get_object_loss(td2) == approx(77.24552154541016)
+    assert get_object_loss(td1) == approx(0.29833901913542193)
+    assert get_object_loss(td2) == approx(0.7724552036470809)
 
 
 def test_object_loss_purity():
-    assert get_object_loss(td1, mode="purity") == approx(3.6432214679013644)
-    assert get_object_loss(td2, mode="purity") == approx(3.8949206999806045)
+    assert get_object_loss(td1, mode="purity") == approx(0.03643221467901364)
+    assert get_object_loss(td2, mode="purity") == approx(0.038949206999806044)
 
 
 def test_focal_loss_vs_bce():
