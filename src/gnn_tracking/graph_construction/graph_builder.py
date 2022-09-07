@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import collections
 import logging
 import os
 from os.path import join as join
@@ -339,8 +338,6 @@ class GraphBuilder:
 
     def process(self, n=10**6):
         infiles = os.listdir(self.indir)
-        self.edge_purities = []
-        self.edge_efficiencies = collections.defaultdict(list)
         for f in infiles[:n]:
             if f.split(".")[-1] != "pt":
                 continue

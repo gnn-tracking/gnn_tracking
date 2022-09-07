@@ -13,7 +13,7 @@ from torch_geometric.data import Data
 from torch_geometric.loader import DataLoader
 
 from gnn_tracking.utils.log import get_logger
-from gnn_tracking.utils.training import BinaryClassificationStats
+from gnn_tracking.utils.training import BinaryClassificationStats, add_key_prefix
 
 hook_type = Callable[[torch.nn.Module, dict[str, Tensor]], None]
 
@@ -33,7 +33,7 @@ class GraphTCNTrainer:
         loss_functions: dict[str, Callable[[Any], Tensor]],
         *,
         device="cpu",
-        lr: Any = 5 * 10**-4,
+        lr: Any = 5e-4,
         lr_scheduler: None | Callable = None,
         loss_weights: dict[str, float] = None,
     ):
@@ -61,9 +61,6 @@ class GraphTCNTrainer:
 
         self.loss_functions = loss_functions
 
-        # Loss weights should be normalized to sum to 1, but we cannot do that here
-        # because we do not know all of the keys. This is because of loss functions that
-        # return a dictionary of different losses that are summed together.
         self._loss_weights = collections.defaultdict(lambda: 1.0)
         if loss_weights is not None:
             self._loss_weights.update(loss_weights)
@@ -153,13 +150,7 @@ class GraphTCNTrainer:
 
         assert set(self._loss_weights).issubset(set(individual_losses))
 
-        # Note that we take the keys from individual_losses and not from
-        # self._loss_weights (because that is a defaultdict and might not have all keys,
-        # yet).
-        # total_weight = sum(self._loss_weights[k] for k in individual_losses)
-
         total = sum(
-            # self._loss_weights[k] / total_weight * individual_losses[k]
             self._loss_weights[k] * individual_losses[k]
             for k in individual_losses.keys()
         )
@@ -206,7 +197,7 @@ class GraphTCNTrainer:
         losses = {k: np.nanmean(v) for k, v in losses.items()}
         self.train_loss.append(pd.DataFrame(losses, index=[self._epoch]))
         for hook in self._train_hooks:
-            hook(self.model, losses)
+            hook(self.model, add_key_prefix(losses, "train_"))
 
     def test_step(self, thld=0.5):
         self.model.eval()
@@ -228,7 +219,7 @@ class GraphTCNTrainer:
         self.logger.info(f"test step: {losses}")
         self.test_loss.append(pd.DataFrame(losses, index=[self._epoch]))
         for hook in self._test_hooks:
-            hook(self.model, losses)
+            hook(self.model, add_key_prefix(losses, "test_"))
 
     def validate(self) -> float:
         """
