@@ -13,7 +13,7 @@ from torch_geometric.data import Data
 from torch_geometric.loader import DataLoader
 
 from gnn_tracking.utils.log import get_logger
-from gnn_tracking.utils.training import BinaryClassificationStats
+from gnn_tracking.utils.training import BinaryClassificationStats, add_key_prefix
 
 hook_type = Callable[[torch.nn.Module, dict[str, Tensor]], None]
 
@@ -197,7 +197,7 @@ class GraphTCNTrainer:
         losses = {k: np.nanmean(v) for k, v in losses.items()}
         self.train_loss.append(pd.DataFrame(losses, index=[self._epoch]))
         for hook in self._train_hooks:
-            hook(self.model, losses)
+            hook(self.model, add_key_prefix(losses, "train_"))
 
     def test_step(self, thld=0.5):
         self.model.eval()
@@ -219,7 +219,7 @@ class GraphTCNTrainer:
         self.logger.info(f"test step: {losses}")
         self.test_loss.append(pd.DataFrame(losses, index=[self._epoch]))
         for hook in self._test_hooks:
-            hook(self.model, losses)
+            hook(self.model, add_key_prefix(losses, "test_"))
 
     def validate(self) -> float:
         """
