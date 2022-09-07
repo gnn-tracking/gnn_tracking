@@ -1,11 +1,11 @@
 from __future__ import annotations
 
-from typing import Callable, Optional, Union
+from typing import Callable, Optional
 
 import torch
 from torch import Tensor
 from torch_geometric.nn.conv import MessagePassing
-from torch_geometric.typing import Adj, OptTensor, PairOptTensor, PairTensor
+from torch_geometric.typing import OptTensor, PairOptTensor, PairTensor
 
 try:
     from torch_cluster import knn
