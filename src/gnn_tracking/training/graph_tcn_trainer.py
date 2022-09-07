@@ -33,7 +33,7 @@ class GraphTCNTrainer:
         loss_functions: dict[str, Callable[[Any], Tensor]],
         *,
         device="cpu",
-        lr: Any = 5 * 10**-4,
+        lr: Any = 5e-4,
         lr_scheduler: None | Callable = None,
         loss_weights: dict[str, float] = None,
     ):
