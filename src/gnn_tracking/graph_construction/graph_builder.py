@@ -276,14 +276,14 @@ class GraphBuilder:
         return edge_index, edge_attr, y, edge_pt
 
     def to_pyg_data(self, graph, edge_index, edge_attr, y, evtid=-1, s=-1):
-        x = torch.from_numpy(graph.x / self.feature_scale).float()
+        x = torch.tensor(graph.x / self.feature_scale).float()
         edge_index = torch.tensor(edge_index).long()
         edge_attr = torch.from_numpy(edge_attr).float()
-        pt = torch.from_numpy(graph.pt).float()
-        particle_id = torch.from_numpy(graph.particle_id).long()
-        y = torch.from_numpy(y).float()
-        reconstructable = torch.from_numpy(graph.reconstructable).long()
-        sector = torch.from_numpy(graph.sector).long()
+        pt = torch.tensor(graph.pt).float()
+        particle_id = torch.tensor(graph.particle_id).long()
+        y = torch.tensor(y).float()
+        reconstructable = torch.tensor(graph.reconstructable).long()
+        sector = torch.tensor(graph.sector).long()
         evtid = torch.tensor([evtid]).long()  # event label
         s = torch.tensor([s]).long()  # sector label
 
