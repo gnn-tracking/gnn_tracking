@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from abc import abstractmethod
+from abc import ABC, abstractmethod
 
 import torch
 from torch.nn.functional import binary_cross_entropy, mse_loss, relu
@@ -55,7 +55,7 @@ def binary_focal_loss(
     return loss
 
 
-class EdgeWeightLoss(torch.nn.Module):
+class EdgeWeightLoss(torch.nn.Module, ABC):
     @abstractmethod
     def forward(self, w, y, **kwargs) -> T:
         pass
