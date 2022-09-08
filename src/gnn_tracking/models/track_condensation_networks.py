@@ -10,29 +10,31 @@ from gnn_tracking.models.interaction_network import InteractionNetwork as IN
 from gnn_tracking.models.mlp import MLP
 
 
-class PointCloudTCN(nn.Module):
+class INConvBlock(nn.Module):
     def __init__(
         self,
-        node_indim,
-        h_dim=5,  # node dimension in latent space
-        e_dim=8,  # edge dimension in latent space
-        h_outdim=2,  # output dimension in clustering space
-        hidden_dim=40,  # hidden with of all nn.Linear layers
-        L_hc=3,  # message passing depth for track condenser
-        k=4,  # number of neighbors to connect in latent space
+        indim,
+        h_dim,
+        e_dim,
+        L,
+        k,
+        hidden_dim=100,
     ):
-        super(PointCloudTCN, self).__init__()
+        super(INConvBlock, self).__init__()
+        self.indim = indim
         self.h_dim = h_dim
         self.e_dim = e_dim
+        self.L = L
+        self.k = k
         self.relu = nn.ReLU()
+        self.hidden_dim = hidden_dim
 
-        # specify the edge builder / classifier
-        self.node_encoder = MLP(2 * node_indim, self.h_dim, hidden_dim=hidden_dim, L=1)
-        self.edge_conv = DynamicEdgeConv(self.node_encoder, aggr="max", k=k)
+        self.node_encoder = MLP(2 * indim, self.h_dim, hidden_dim=hidden_dim, L=1)
+        self.edge_conv = DynamicEdgeConv(self.node_encoder, aggr="add", k=k)
         self.edge_encoder = MLP(2 * self.h_dim, self.e_dim, hidden_dim=hidden_dim, L=1)
-        hc_layers = []
-        for _ in range(L_hc):
-            hc_layers.append(
+        layers = []
+        for _ in range(L):
+            layers.append(
                 IN(
                     self.h_dim,
                     self.e_dim,
@@ -42,19 +44,51 @@ class PointCloudTCN(nn.Module):
                     edge_hidden_dim=hidden_dim,
                 )
             )
-        self.hc_layers = nn.ModuleList(hc_layers)
+        self.layers = nn.ModuleList(layers)
+
+    def forward(
+        self,
+        x: Tensor,
+        alpha: float = 0.5,
+    ) -> Tensor:
+
+        h, edge_index = self.edge_conv(x)
+        h = self.relu(h)
+        edge_attr = torch.cat([h[edge_index[0]], h[edge_index[1]]], dim=1)
+        edge_attr = self.relu(self.edge_encoder(edge_attr))
+
+        # apply the track condenser
+        for layer in self.layers:
+            delta_h, edge_attr = layer(h, edge_index, edge_attr)
+            h = alpha * h + (1 - alpha) * delta_h
+        return h
+
+
+class PointCloudTCN(nn.Module):
+    def __init__(
+        self,
+        node_indim,
+        h_dim=10,  # node dimension in latent space
+        e_dim=10,  # edge dimension in latent space
+        h_outdim=5,  # output dimension in clustering space
+        hidden_dim=100,  # hidden with of all nn.Linear layers
+        N_blocks=3,  # number of edge_conv + IN blocks
+        L=3,  # message passing depth in each block
+        # k=2,  # number of neighbors to connect in latent space
+    ):
+        super(PointCloudTCN, self).__init__()
+        self.h_dim = h_dim
+        self.e_dim = e_dim
+        self.relu = nn.ReLU()
+
+        layers = [INConvBlock(node_indim, h_dim, e_dim, L=L, k=N_blocks)]
+        for i in range(N_blocks):
+            layers.append(INConvBlock(h_dim, h_dim, e_dim, L=L, k=N_blocks - i))
+        self.layers = nn.ModuleList(layers)
 
         # modules to predict outputs
         self.B = MLP(self.h_dim, 1, hidden_dim, L=3)
         self.X = MLP(self.h_dim, h_outdim, hidden_dim, L=3)
-        self.P = IN(
-            self.h_dim,
-            self.e_dim * (L_hc + 1),
-            node_outdim=1,
-            edge_outdim=1,
-            node_hidden_dim=hidden_dim,
-            edge_hidden_dim=hidden_dim,
-        )
 
     def forward(
         self,
@@ -63,27 +97,16 @@ class PointCloudTCN(nn.Module):
     ) -> Tensor:
 
         # apply the edge classifier to generate edge weights
-        x = data.x
-        h, edge_index = self.edge_conv(x)
-        h = self.relu(h)
-        edge_attr = torch.cat([h[edge_index[0]], h[edge_index[1]]], dim=1)
-        edge_attr = self.relu(self.edge_encoder(edge_attr))
-
-        # apply the track condenser
-        edge_attrs = [edge_attr]
-        for layer in self.hc_layers:
-            delta_h, new_edge_attr = layer(h, edge_index, edge_attr)
-            h = alpha * h + (1 - alpha) * delta_h
-            edge_attrs.append(new_edge_attr)
-            edge_attr = new_edge_attr
+        h = data.x
+        for layer in self.layers:
+            h = layer(h)
 
         beta = torch.sigmoid(self.B(h))
         # protect against nans
-        beta = beta + torch.ones_like(beta) * 10e-6
+        beta = beta + torch.ones_like(beta) * 10e-12
 
         h_out = self.X(h)
-        track_params, _ = self.P(h, edge_index, torch.cat(edge_attrs, dim=1))
-        return {"W": None, "H": h_out, "B": beta, "P": track_params}
+        return {"W": None, "H": h_out, "B": beta, "P": None}
 
 
 class GraphTCN(nn.Module):

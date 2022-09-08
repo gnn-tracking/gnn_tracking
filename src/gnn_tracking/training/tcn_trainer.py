@@ -208,49 +208,31 @@ class TCNTrainer:
         for hook in self._train_hooks:
             hook(self.model, losses)
 
-    def test_step(self, thld=0.5):
+    def test_step(self, thld=0.5, val=True):
         self.model.eval()
         losses = collections.defaultdict(list)
         with torch.no_grad():
-            for _batch_idx, data in enumerate(self.test_loader):
+            loader = self.val_loader if val else self.test_loader
+            for _batch_idx, data in enumerate(loader):
                 data = data.to(self.device)
                 model_output = self.evaluate_model(data, mask_pids_reco=False)
                 batch_loss, batch_losses = self.get_batch_losses(model_output)
-                bcs = BinaryClassificationStats(
-                    output=model_output["w"], y=model_output["y"].long(), thld=thld
-                )
+
+                if model_output["w"] is not None:
+                    bcs = BinaryClassificationStats(
+                        output=model_output["w"], y=model_output["y"].long(), thld=thld
+                    )
+                    losses["acc"].append(bcs.acc)
+
                 losses["total"].append(batch_loss.item())
                 for key, loss in batch_losses.items():
                     losses[key].append(loss.item())
-                losses["acc"].append(bcs.acc)
 
         losses = {k: np.nanmean(v) for k, v in losses.items()}
         self.logger.info(f"test step: {losses}")
         self.test_loss.append(pd.DataFrame(losses, index=[self._epoch]))
         for hook in self._test_hooks:
             hook(self.model, losses)
-
-    def validate(self) -> float:
-        """
-
-        Returns:
-            Optimal threshold for binary classification.
-        """
-        self.model.eval()
-        # Optimal threshold for binary classification per batch
-        opt_thlds = []
-        for data in iter(self.val_loader):
-            model_output = self.evaluate_model(data)
-            diff, opt_thld = 100, 0
-            for thld in np.arange(0.01, 0.5, 0.01):
-                bcs = BinaryClassificationStats(
-                    output=model_output["w"], y=model_output["y"].long(), thld=thld
-                )
-                delta = abs(bcs.TPR - bcs.TNR)
-                if delta < diff:
-                    diff, opt_thld = delta, thld
-            opt_thlds.append(opt_thld)
-        return np.nanmean(opt_thlds).item()
 
     def train(self, epochs=1000, max_batches: int | None = None):
         """
@@ -266,7 +248,6 @@ class TCNTrainer:
             self._epoch += 1
             print(f"---- Epoch {self._epoch} ----")
             self.train_step(max_batches=max_batches)
-            thld = self.validate()
-            self.test_step(thld=thld)
+            self.test_step(thld=0.5, val=True)
             if self._lr_scheduler:
                 self._lr_scheduler.step()

@@ -94,7 +94,7 @@ class PotentialLoss(torch.nn.Module):
         super().__init__()
         self.q_min = q_min
         self.device = device
-        self.radius_threshold = 1.0
+        self.radius_threshold = 10.0
 
     def condensation_loss(self, *, beta: T, x: T, particle_id: T) -> dict[str, T]:
         pids = torch.unique(particle_id[particle_id > 0])
