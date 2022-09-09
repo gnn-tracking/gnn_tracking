@@ -34,14 +34,8 @@ class ClusterHyperParamScanner:
             early_stopping: Instance that can be called and has a reset method
 
         Example:
-
-            # Optional to early abort the scan
-            es = RelEarlyStopper(
-                wait=30,
-                grace=50,
-                change_threshold=0.01,
-                direction="max"
-            )
+            from sklearn import metrics
+            from sklearn.cluster import DBSCAN
 
             def dbscan(graph, eps, min_samples):
                 return DBSCAN(eps=eps, min_samples=min_samples).fit_predict(graph)
@@ -52,7 +46,6 @@ class ClusterHyperParamScanner:
                 truths,
                 expensive_metric,
                 cheap_metric=metrics.v_measure_score,
-                early_stopping=es
             )
             study = chps.scan(n_trials=100)
             print(study.best_params)
