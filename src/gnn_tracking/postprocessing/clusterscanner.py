@@ -13,9 +13,9 @@ _metric_type = Callable[[np.ndarray, np.ndarray], float]
 class ClusterHyperParamScanner:
     def __init__(
         self,
-        algorithm,
-        graphs,
-        truth,
+        algorithm: Callable[[np.ndarray, ...], np.ndarray],
+        graphs: list[np.ndarray],
+        truth: list[np.ndarray],
         metric: _metric_type,
         *,
         cheap_metric: _metric_type | None = None,
@@ -24,7 +24,7 @@ class ClusterHyperParamScanner:
         """Class to scan hyperparameters of a clustering algorithm.
 
         Args:
-            algorithm: Takes graph and and keyword arguments
+            algorithm: Takes graph and keyword arguments
             graphs:
             truth:
             metric: (Expensive) metric: Callable that takes truth and predicted labels
