@@ -39,7 +39,7 @@ repos:
     rev: "v0.971"
     hooks:
       - id: mypy
-        args: [--exist-zero]
+        args: [--exit-zero]
   - repo: https://github.com/codespell-project/codespell
     rev: "v2.2.1"
     hooks:
