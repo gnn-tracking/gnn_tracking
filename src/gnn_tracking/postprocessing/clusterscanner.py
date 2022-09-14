@@ -7,14 +7,19 @@ import numpy as np
 import optuna
 
 from gnn_tracking.utils.earlystopping import no_early_stopping
+from gnn_tracking.utils.timing import timing
 
 metric_type = Callable[[np.ndarray, np.ndarray], float]
 
 
 class AbstractClusterHyperParamScanner(ABC):
     @abstractmethod
-    def scan(self, *args, **kwargs):
+    def _scan(self, *args, **kwargs):
         pass
+
+    def scan(self, *args, **kwargs):
+        with timing("Clustering hyperparameter scan"):
+            return self._scan(*args, **kwargs)
 
 
 class ClusterHyperParamScanner(AbstractClusterHyperParamScanner):
@@ -114,7 +119,7 @@ class ClusterHyperParamScanner(AbstractClusterHyperParamScanner):
             trial.study.stop()
         return global_fom
 
-    def scan(self, n_trials=100) -> optuna.study.Study:
+    def _scan(self, n_trials=100) -> optuna.study.Study:
         """Run scan
 
         Args:
