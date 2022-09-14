@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Callable
+from typing import Any, Callable
 
 import numpy as np
 import optuna
@@ -14,6 +14,7 @@ class ClusterHyperParamScanner:
     def __init__(
         self,
         algorithm: Callable[[np.ndarray, ...], np.ndarray],
+        suggest: Callable[[optuna.trial.Trial], dict[str, Any]],
         graphs: list[np.ndarray],
         truth: list[np.ndarray],
         metric: _metric_type,
@@ -25,12 +26,13 @@ class ClusterHyperParamScanner:
 
         Args:
             algorithm: Takes graph and keyword arguments
+            suggest: Function that suggest parameters to optuna
             graphs:
-            truth:
+            truth: Truth labels for clustering
             metric: (Expensive) metric: Callable that takes truth and predicted labels
                 and returns float
             cheap_metric: Cheap metric: Callable that takes truth and predicted labels
-                and returns float
+                and returns float and runs faster than $metric.
             early_stopping: Instance that can be called and has a reset method
 
         Example:
@@ -40,8 +42,14 @@ class ClusterHyperParamScanner:
             def dbscan(graph, eps, min_samples):
                 return DBSCAN(eps=eps, min_samples=min_samples).fit_predict(graph)
 
+            def suggest(trial):
+                eps = trial.suggest_float("eps", 1e-5, 1.0)
+                min_samples = trial.suggest_int("min_samples", 1, 50)
+                return dict(eps=eps, min_samples=min_samples)
+
             chps = ClusterHyperParamScanner(
                 dbscan,
+                suggest,
                 graphs,
                 truths,
                 expensive_metric,
@@ -51,6 +59,7 @@ class ClusterHyperParamScanner:
             print(study.best_params)
         """
         self.algorithm = algorithm
+        self.suggest = suggest
         self.graphs: list[np.ndarray] = graphs
         self.truth: list[np.ndarray] = truth
         self._es = early_stopping
@@ -59,13 +68,12 @@ class ClusterHyperParamScanner:
         self._expensive_metric = metric
 
     def _objective(self, trial: optuna.trial.Trial) -> float:
-        eps = trial.suggest_float("eps", 1e-5, 1.0)
-        min_samples = trial.suggest_int("min_samples", 1, 50)
+        params = self.suggest(trial)
         cheap_foms = []
         all_labels = []
         # Do a first run, looking only at the cheap metric, stopping early
         for i_graph, (graph, truth) in enumerate(zip(self.graphs, self.truth)):
-            labels = self.algorithm(graph, eps=eps, min_samples=min_samples)
+            labels = self.algorithm(graph, **params)
             all_labels.append(labels)
             maybe_cheap_metric: _metric_type = (
                 self._cheap_metric or self._expensive_metric
