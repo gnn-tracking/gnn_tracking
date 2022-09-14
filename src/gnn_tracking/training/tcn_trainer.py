@@ -198,7 +198,7 @@ class TCNTrainer:
             else:
                 table_items.append((k, float(v)))
         report_str += tabulate.tabulate(
-            table_items, tablefmt="fancygrid", floatfmt=".5f"
+            table_items, tablefmt="fancy_grid", floatfmt=".5f"
         )
         self.logger.info(report_str)
 
