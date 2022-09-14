@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from abc import ABC, abstractmethod
 from typing import Any, Callable
 
 import numpy as np
@@ -7,19 +8,25 @@ import optuna
 
 from gnn_tracking.utils.earlystopping import no_early_stopping
 
-_metric_type = Callable[[np.ndarray, np.ndarray], float]
+metric_type = Callable[[np.ndarray, np.ndarray], float]
 
 
-class ClusterHyperParamScanner:
+class AbstractClusterHyperParamScanner(ABC):
+    @abstractmethod
+    def scan(self, *args, **kwargs):
+        pass
+
+
+class ClusterHyperParamScanner(AbstractClusterHyperParamScanner):
     def __init__(
         self,
         algorithm: Callable[[np.ndarray, ...], np.ndarray],
         suggest: Callable[[optuna.trial.Trial], dict[str, Any]],
         graphs: list[np.ndarray],
         truth: list[np.ndarray],
-        metric: _metric_type,
+        metric: metric_type,
         *,
-        cheap_metric: _metric_type | None = None,
+        cheap_metric: metric_type | None = None,
         early_stopping=no_early_stopping,
     ):
         """Class to scan hyperparameters of a clustering algorithm.
@@ -36,6 +43,8 @@ class ClusterHyperParamScanner:
             early_stopping: Instance that can be called and has a reset method
 
         Example:
+            # Note: This is also pre-implemented in dbscanner.py
+
             from sklearn import metrics
             from sklearn.cluster import DBSCAN
 
@@ -75,7 +84,7 @@ class ClusterHyperParamScanner:
         for i_graph, (graph, truth) in enumerate(zip(self.graphs, self.truth)):
             labels = self.algorithm(graph, **params)
             all_labels.append(labels)
-            maybe_cheap_metric: _metric_type = (
+            maybe_cheap_metric: metric_type = (
                 self._cheap_metric or self._expensive_metric
             )
             cheap_foms.append(maybe_cheap_metric(truth, labels))
