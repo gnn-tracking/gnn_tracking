@@ -16,7 +16,8 @@ from gnn_tracking.utils.log import get_logger
 from gnn_tracking.utils.training import BinaryClassificationStats
 
 hook_type = Callable[[torch.nn.Module, dict[str, Tensor]], None]
-
+loss_fct_type = Callable[[dict[str, Tensor], ...], Tensor]
+test_fct_type = Callable[[dict[str, Any], ...], float]
 
 # The following abbreviations are used throughout the code:
 # W: edge weights
@@ -30,12 +31,13 @@ class TCNTrainer:
         self,
         model,
         loaders: dict[str, DataLoader],
-        loss_functions: dict[str, Callable[[Any], Tensor]],
+        loss_functions: dict[str, loss_fct_type],
         *,
         device="cpu",
         lr: Any = 5 * 10**-4,
         lr_scheduler: None | Callable = None,
         loss_weights: dict[str, float] = None,
+        test_functions: dict[str, test_fct_type] | None = None,
     ):
         """
 
@@ -52,6 +54,9 @@ class TCNTrainer:
                 before use.
                 If one of the loss functions called ``l`` returns a dictionary with keys
                 k, the keys for loss_weights should be ``k_l``.
+            test_functions: Dictionary of functions that take the output of the model
+                during testing and report additional figures of merits (e.g.,
+                clustering)
         """
         self.model = model.to(device)
         self.train_loader = loaders["train"]
@@ -60,10 +65,10 @@ class TCNTrainer:
         self.device = device
 
         self.loss_functions = loss_functions
+        if test_functions is None:
+            test_functions = {}
+        self.test_functions = test_functions
 
-        # Loss weights should be normalized to sum to 1, but we cannot do that here
-        # because we do not know all of the keys. This is because of loss functions that
-        # return a dictionary of different losses that are summed together.
         self._loss_weights = collections.defaultdict(lambda: 1.0)
         if loss_weights is not None:
             self._loss_weights.update(loss_weights)
@@ -223,6 +228,9 @@ class TCNTrainer:
                         output=model_output["w"], y=model_output["y"].long(), thld=thld
                     )
                     losses["acc"].append(bcs.acc)
+
+                for k, f in self.test_functions.items():
+                    losses[k].append(f(model_output, epoch=self._epoch))
 
                 losses["total"].append(batch_loss.item())
                 for key, loss in batch_losses.items():
