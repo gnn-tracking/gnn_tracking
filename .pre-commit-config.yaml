@@ -6,7 +6,7 @@ repos:
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v4.3.0
     hooks:
-      #      - id: check-added-large-files
+    #      - id: check-added-large-files
       - id: check-case-conflict
       - id: check-merge-conflict
       - id: detect-private-key
@@ -35,11 +35,10 @@ repos:
         # Make it non-blocking for now!
         args: [--exit-zero]
         verbose: true
-  - repo: https://github.com/pre-commit/mirrors-mypy
-    rev: "v0.971"
-    hooks:
-      - id: mypy
-        args: [--exist-zero]
+  # -   repo: https://github.com/pre-commit/mirrors-mypy
+  #     rev: 'v0.971'
+  #     hooks:
+  #      -   id: mypy
   - repo: https://github.com/codespell-project/codespell
     rev: "v2.2.1"
     hooks:
