@@ -16,8 +16,8 @@ from gnn_tracking.utils.log import get_logger
 from gnn_tracking.utils.training import BinaryClassificationStats
 
 hook_type = Callable[[torch.nn.Module, dict[str, Tensor]], None]
-loss_fct_type = Callable[[dict[str, Tensor], ...], Tensor]
-test_fct_type = Callable[[dict[str, Any], ...], float]
+loss_fct_type = Callable[..., Tensor]
+test_fct_type = Callable[..., float]
 
 # The following abbreviations are used throughout the code:
 # W: edge weights
