@@ -36,7 +36,7 @@ class DBSCANHyperParamScanner(AbstractClusterHyperParamScanner):
             metric: See ClusterHyperParamScanner
             eps_range: Range of epsilons to sample from
             min_samples_range: Range of min_samples to sample from
-            **kwargs:
+            **kwargs: Passed on to ClusterHyperParamScanner.
         """
 
         def suggest(trial):

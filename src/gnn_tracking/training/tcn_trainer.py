@@ -246,7 +246,7 @@ class TCNTrainer:
         """
         for _ in range(1, epochs + 1):
             self._epoch += 1
-            print(f"---- Epoch {self._epoch} ----")
+            self.logger.info(f"---- Epoch {self._epoch} ----")
             self.train_step(max_batches=max_batches)
             self.test_step(thld=0.5, val=True)
             if self._lr_scheduler:
