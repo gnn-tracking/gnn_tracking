@@ -294,9 +294,9 @@ class TCNTrainer:
                     truths.append(model_output["particle_id"].detach().cpu().numpy())
 
         losses = {k: np.nanmean(v) for k, v in losses.items()}
-        self._log_losses(losses["total"], batch_losses, header=f"Test {self._epoch}: ")
         for k, f in self.clustering_functions.items():
             losses[k] = f(graphs, truths, epoch=self._epoch)
+        self._log_losses(losses["total"], batch_losses, header=f"Test {self._epoch}: ")
         self.test_loss.append(pd.DataFrame(losses, index=[self._epoch]))
         for hook in self._test_hooks:
             hook(self.model, losses)
