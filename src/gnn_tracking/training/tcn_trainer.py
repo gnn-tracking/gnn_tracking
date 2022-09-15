@@ -188,6 +188,7 @@ class TCNTrainer:
         batch_loss: Tensor,
         batch_losses: dict[str, Tensor | float],
         *,
+        style="table",
         header: str = "",
     ) -> None:
         """Log the losses
@@ -195,17 +196,18 @@ class TCNTrainer:
         Args:
             batch_loss: Total loss
             batch_losses:
+            style: "table" or "inline"
             header: Header to prepend to the log message
 
         Returns:
             None
         """
         if header:
-            report_str = header + "\n"
+            report_str = header
         else:
-            # Need line break to ensure that log specification doesn't mess up
-            # spacing
-            report_str = "\n"
+            report_str = ""
+        if style == "table":
+            report_str += "\n"
         table_items: list[tuple[str, float]] = [("Total", batch_loss.item())]
         for k, v in batch_losses.items():
             if k.casefold() == "total":
@@ -214,9 +216,12 @@ class TCNTrainer:
                 table_items.append((k, float(v) * self._loss_weights[k]))
             else:
                 table_items.append((k, float(v)))
-        report_str += tabulate.tabulate(
-            table_items, tablefmt="fancy_grid", floatfmt=".5f"
-        )
+        if style == "table":
+            report_str += tabulate.tabulate(
+                table_items, tablefmt="fancy_grid", floatfmt=".5f"
+            )
+        else:
+            report_str += ", ".join(f"{k}={v:.5f}" for k, v in table_items)
         self.logger.info(report_str)
 
     def train_step(self, *, max_batches: int | None = None):
@@ -249,6 +254,7 @@ class TCNTrainer:
                     batch_losses,
                     header=f"Epoch {self._epoch} "
                     f"({batch_idx}/{len(self.train_loader)}): ",
+                    style="inline",
                 )
 
             _losses["total"].append(batch_loss.item())
