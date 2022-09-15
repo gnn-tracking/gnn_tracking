@@ -253,7 +253,7 @@ class TCNTrainer:
                     batch_loss,
                     batch_losses,
                     header=f"Epoch {self._epoch} "
-                    f"({batch_idx}/{len(self.train_loader)}): ",
+                    f"({batch_idx:>5}/{len(self.train_loader)}): ",
                     style="inline",
                 )
 
