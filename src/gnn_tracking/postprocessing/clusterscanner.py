@@ -14,12 +14,12 @@ metric_type = Callable[[np.ndarray, np.ndarray], float]
 
 class AbstractClusterHyperParamScanner(ABC):
     @abstractmethod
-    def _scan(self, *args, **kwargs):
+    def _scan(self, **kwargs):
         pass
 
     def scan(self, *args, **kwargs):
         with timing("Clustering hyperparameter scan"):
-            return self._scan(*args, **kwargs)
+            return self._scan(**kwargs)
 
 
 class ClusterHyperParamScanner(AbstractClusterHyperParamScanner):
@@ -94,7 +94,8 @@ class ClusterHyperParamScanner(AbstractClusterHyperParamScanner):
             )
             cheap_foms.append(maybe_cheap_metric(truth, labels))
             if i_graph >= 2:
-                trial.report(np.nanmean(cheap_foms).item(), i_graph)
+                v = np.nanmean(cheap_foms).item()
+                trial.report(v, i_graph)
             if trial.should_prune():
                 raise optuna.TrialPruned()
         if self._cheap_metric is None:
@@ -119,7 +120,7 @@ class ClusterHyperParamScanner(AbstractClusterHyperParamScanner):
             trial.study.stop()
         return global_fom
 
-    def _scan(self, n_trials=100) -> optuna.study.Study:
+    def _scan(self, **kwargs) -> optuna.study.Study:
         """Run scan
 
         Args:
@@ -136,6 +137,6 @@ class ClusterHyperParamScanner(AbstractClusterHyperParamScanner):
             )
         self._study.optimize(
             self._objective,
-            n_trials=n_trials,
+            **kwargs,
         )
         return self._study

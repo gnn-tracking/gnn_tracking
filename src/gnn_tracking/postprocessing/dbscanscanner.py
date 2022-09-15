@@ -53,5 +53,5 @@ class DBSCANHyperParamScanner(AbstractClusterHyperParamScanner):
             **kwargs,
         )
 
-    def _scan(self, *args, **kwargs) -> optuna.Study:
-        return self.chps.scan(*args, **kwargs)
+    def _scan(self, **kwargs) -> optuna.Study:
+        return self.chps._scan(**kwargs)
