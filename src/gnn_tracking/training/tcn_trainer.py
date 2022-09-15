@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import collections
 import logging
-from typing import Any, Callable, Mapping
+from typing import Any, Callable, DefaultDict, Mapping, Protocol
 
 import numpy as np
 import pandas as pd
@@ -17,6 +17,15 @@ from gnn_tracking.utils.log import get_logger
 from gnn_tracking.utils.training import BinaryClassificationStats
 
 hook_type = Callable[[torch.nn.Module, dict[str, Tensor]], None]
+loss_fct_type = Callable[..., Tensor]
+cluster_type = Callable[[list[np.ndarray], list[np.ndarray]], Tensor]
+
+
+class ClusterFctType(Protocol):
+    def __call__(
+        self, graphs: list[np.ndarray], truth: list[np.ndarray], epoch=None
+    ) -> float:
+        ...
 
 
 # The following abbreviations are used throughout the code:
@@ -31,12 +40,13 @@ class TCNTrainer:
         self,
         model,
         loaders: dict[str, DataLoader],
-        loss_functions: dict[str, Callable[[Any], Tensor]],
+        loss_functions: dict[str, loss_fct_type],
         *,
         device="cpu",
         lr: Any = 5 * 10**-4,
         lr_scheduler: None | Callable = None,
         loss_weights: dict[str, float] = None,
+        cluster_functions: dict[str, ClusterFctType] | None = None,
     ):
         """
 
@@ -53,6 +63,9 @@ class TCNTrainer:
                 before use.
                 If one of the loss functions called ``l`` returns a dictionary with keys
                 k, the keys for loss_weights should be ``k_l``.
+            cluster_functions: Dictionary of functions that take the output of the model
+                during testing and report additional figures of merits (e.g.,
+                clustering)
         """
         self.model = model.to(device)
         self.train_loader = loaders["train"]
@@ -61,11 +74,13 @@ class TCNTrainer:
         self.device = device
 
         self.loss_functions = loss_functions
+        if cluster_functions is None:
+            cluster_functions = {}
+        self.clustering_functions = cluster_functions
 
-        # Loss weights should be normalized to sum to 1, but we cannot do that here
-        # because we do not know all of the keys. This is because of loss functions that
-        # return a dictionary of different losses that are summed together.
-        self._loss_weights = collections.defaultdict(lambda: 1.0)
+        self._loss_weights: DefaultDict[str, float] = collections.defaultdict(
+            lambda: 1.0
+        )
         if loss_weights is not None:
             self._loss_weights.update(loss_weights)
 
@@ -81,8 +96,10 @@ class TCNTrainer:
         self.logger = get_logger("TCNTrainer", level=logging.INFO)
 
         # output quantities
-        self.train_loss = []
-        self.test_loss = []
+        self.train_loss: list[pd.DataFrame] = []
+        self.test_loss: list[pd.DataFrame] = []
+
+        self.max_batches_for_clustering = 10
 
     def add_hook(self, hook: hook_type, called_at: str) -> None:
         """Add a hook to training/test step
@@ -214,7 +231,7 @@ class TCNTrainer:
         """
         self.model.train()
 
-        losses = collections.defaultdict(list)
+        _losses = collections.defaultdict(list)
         for batch_idx, data in enumerate(self.train_loader):
             data = data.to(self.device)
             if max_batches and batch_idx > max_batches:
@@ -234,11 +251,11 @@ class TCNTrainer:
                     f"({batch_idx}/{len(self.train_loader)}): ",
                 )
 
-            losses["total"].append(batch_loss.item())
+            _losses["total"].append(batch_loss.item())
             for key, loss in batch_losses.items():
-                losses[key].append(loss.item())
+                _losses[key].append(loss.item())
 
-        losses = {k: np.nanmean(v) for k, v in losses.items()}
+        losses = {k: np.nanmean(v) for k, v in _losses.items()}
         self.train_loss.append(pd.DataFrame(losses, index=[self._epoch]))
         for hook in self._train_hooks:
             hook(self.model, losses)
@@ -246,6 +263,9 @@ class TCNTrainer:
     def test_step(self, thld=0.5, val=True):
         self.model.eval()
         losses = collections.defaultdict(list)
+
+        graphs = []
+        truths = []
         with torch.no_grad():
             loader = self.val_loader if val else self.test_loader
             for _batch_idx, data in enumerate(loader):
@@ -263,8 +283,14 @@ class TCNTrainer:
                 for key, loss in batch_losses.items():
                     losses[key].append(loss.item())
 
+                if _batch_idx <= self.max_batches_for_clustering:
+                    graphs.append(model_output["x"].detach().cpu().numpy())
+                    truths.append(model_output["particle_id"].detach().cpu().numpy())
+
         losses = {k: np.nanmean(v) for k, v in losses.items()}
         self._log_losses(losses["total"], batch_losses, header=f"Test {self._epoch}: ")
+        for k, f in self.clustering_functions.items():
+            losses[k] = f(graphs, truths, epoch=self._epoch)
         self.test_loss.append(pd.DataFrame(losses, index=[self._epoch]))
         for hook in self._test_hooks:
             hook(self.model, losses)

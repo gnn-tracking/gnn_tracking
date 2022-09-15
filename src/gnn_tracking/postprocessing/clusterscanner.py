@@ -1,26 +1,36 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from typing import Any, Callable
+from typing import Any, Callable, Protocol
 
 import numpy as np
 import optuna
 
 from gnn_tracking.utils.earlystopping import no_early_stopping
+from gnn_tracking.utils.timing import timing
 
 metric_type = Callable[[np.ndarray, np.ndarray], float]
 
 
 class AbstractClusterHyperParamScanner(ABC):
     @abstractmethod
-    def scan(self, *args, **kwargs):
+    def _scan(self, **kwargs):
         pass
+
+    def scan(self, *args, **kwargs):
+        with timing("Clustering hyperparameter scan"):
+            return self._scan(**kwargs)
+
+
+class AlgorithmType(Protocol):
+    def __call__(self, graphs: np.ndarray, *args, **kwargs) -> np.ndarray:
+        ...
 
 
 class ClusterHyperParamScanner(AbstractClusterHyperParamScanner):
     def __init__(
         self,
-        algorithm: Callable[[np.ndarray, ...], np.ndarray],
+        algorithm: AlgorithmType,
         suggest: Callable[[optuna.trial.Trial], dict[str, Any]],
         graphs: list[np.ndarray],
         truth: list[np.ndarray],
@@ -89,7 +99,8 @@ class ClusterHyperParamScanner(AbstractClusterHyperParamScanner):
             )
             cheap_foms.append(maybe_cheap_metric(truth, labels))
             if i_graph >= 2:
-                trial.report(np.nanmean(cheap_foms).item(), i_graph)
+                v = np.nanmean(cheap_foms).item()
+                trial.report(v, i_graph)
             if trial.should_prune():
                 raise optuna.TrialPruned()
         if self._cheap_metric is None:
@@ -114,7 +125,7 @@ class ClusterHyperParamScanner(AbstractClusterHyperParamScanner):
             trial.study.stop()
         return global_fom
 
-    def scan(self, n_trials=100) -> optuna.study.Study:
+    def _scan(self, **kwargs) -> optuna.study.Study:
         """Run scan
 
         Args:
@@ -129,8 +140,9 @@ class ClusterHyperParamScanner(AbstractClusterHyperParamScanner):
                 pruner=optuna.pruners.MedianPruner(),
                 direction="maximize",
             )
+        assert self._study is not None  # for mypy
         self._study.optimize(
             self._objective,
-            n_trials=n_trials,
+            **kwargs,
         )
         return self._study

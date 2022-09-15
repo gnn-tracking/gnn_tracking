@@ -13,7 +13,7 @@ from gnn_tracking.postprocessing.clusterscanner import (
 __all__ = ["DBSCANHyperParamScanner"]
 
 
-def dbscan(graph, eps, min_samples):
+def dbscan(graph: np.ndarray, eps, min_samples) -> np.ndarray:
     return DBSCAN(eps=eps, min_samples=min_samples).fit_predict(graph)
 
 
@@ -53,5 +53,5 @@ class DBSCANHyperParamScanner(AbstractClusterHyperParamScanner):
             **kwargs,
         )
 
-    def scan(self, *args, **kwargs) -> optuna.Study:
-        return self.chps.scan(*args, **kwargs)
+    def _scan(self, **kwargs) -> optuna.Study:
+        return self.chps._scan(**kwargs)
