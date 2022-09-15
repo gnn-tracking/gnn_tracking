@@ -6,6 +6,7 @@ from typing import Any, Callable, DefaultDict, Mapping, Protocol
 
 import numpy as np
 import pandas as pd
+import tabulate
 import torch
 from torch import Tensor
 from torch.optim import Adam
@@ -182,6 +183,47 @@ class TCNTrainer:
         )
         return total, individual_losses
 
+    def _log_losses(
+        self,
+        batch_loss: Tensor,
+        batch_losses: dict[str, Tensor | float],
+        *,
+        style="table",
+        header: str = "",
+    ) -> None:
+        """Log the losses
+
+        Args:
+            batch_loss: Total loss
+            batch_losses:
+            style: "table" or "inline"
+            header: Header to prepend to the log message
+
+        Returns:
+            None
+        """
+        if header:
+            report_str = header
+        else:
+            report_str = ""
+        if style == "table":
+            report_str += "\n"
+        table_items: list[tuple[str, float]] = [("Total", batch_loss.item())]
+        for k, v in batch_losses.items():
+            if k.casefold() == "total":
+                continue
+            if k in self._loss_weights:
+                table_items.append((k, float(v) * self._loss_weights[k]))
+            else:
+                table_items.append((k, float(v)))
+        if style == "table":
+            report_str += tabulate.tabulate(
+                table_items, tablefmt="fancy_grid", floatfmt=".5f"
+            )
+        else:
+            report_str += ", ".join(f"{k}={v:>9.5f}" for k, v in table_items)
+        self.logger.info(report_str)
+
     def train_step(self, *, max_batches: int | None = None):
         """
 
@@ -207,14 +249,13 @@ class TCNTrainer:
             self.optimizer.step()
 
             if not (batch_idx % 10):
-                report_str = (
-                    f"Epoch {self._epoch} ({batch_idx}/{len(self.train_loader)}): "
+                self._log_losses(
+                    batch_loss,
+                    batch_losses,
+                    header=f"Epoch {self._epoch} "
+                    f"({batch_idx:>5}/{len(self.train_loader)}): ",
+                    style="inline",
                 )
-                report_str += f"total: {batch_loss.item():.5f} "
-                for key, loss in batch_losses.items():
-                    w = self._loss_weights[key]
-                    report_str += f"{key}: {w*loss.item():.5f} "
-                self.logger.info(report_str)
 
             _losses["total"].append(batch_loss.item())
             for key, loss in batch_losses.items():
@@ -253,9 +294,9 @@ class TCNTrainer:
                     truths.append(model_output["particle_id"].detach().cpu().numpy())
 
         losses = {k: np.nanmean(v) for k, v in losses.items()}
+        self._log_losses(losses["total"], batch_losses, header=f"Test {self._epoch}: ")
         for k, f in self.clustering_functions.items():
             losses[k] = f(graphs, truths, epoch=self._epoch)
-        self.logger.info(f"test step: {losses}")
         self.test_loss.append(pd.DataFrame(losses, index=[self._epoch]))
         for hook in self._test_hooks:
             hook(self.model, losses)
