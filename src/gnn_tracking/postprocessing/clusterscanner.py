@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from typing import Any, Callable
+from typing import Any, Callable, Protocol
 
 import numpy as np
 import optuna
@@ -22,10 +22,15 @@ class AbstractClusterHyperParamScanner(ABC):
             return self._scan(**kwargs)
 
 
+class AlgorithmType(Protocol):
+    def __call__(self, graphs: np.ndarray, *args, **kwargs) -> np.ndarray:
+        ...
+
+
 class ClusterHyperParamScanner(AbstractClusterHyperParamScanner):
     def __init__(
         self,
-        algorithm: Callable[[np.ndarray, ...], np.ndarray],
+        algorithm: AlgorithmType,
         suggest: Callable[[optuna.trial.Trial], dict[str, Any]],
         graphs: list[np.ndarray],
         truth: list[np.ndarray],
@@ -135,6 +140,7 @@ class ClusterHyperParamScanner(AbstractClusterHyperParamScanner):
                 pruner=optuna.pruners.MedianPruner(),
                 direction="maximize",
             )
+        assert self._study is not None  # for mypy
         self._study.optimize(
             self._objective,
             **kwargs,

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import collections
 import logging
-from typing import Any, Callable, Mapping, Protocol
+from typing import Any, Callable, DefaultDict, Mapping, Protocol
 
 import numpy as np
 import pandas as pd
@@ -77,7 +77,9 @@ class TCNTrainer:
             cluster_functions = {}
         self.clustering_functions = cluster_functions
 
-        self._loss_weights = collections.defaultdict(lambda: 1.0)
+        self._loss_weights: DefaultDict[str, float] = collections.defaultdict(
+            lambda: 1.0
+        )
         if loss_weights is not None:
             self._loss_weights.update(loss_weights)
 
@@ -93,8 +95,8 @@ class TCNTrainer:
         self.logger = get_logger("TCNTrainer", level=logging.INFO)
 
         # output quantities
-        self.train_loss = []
-        self.test_loss = []
+        self.train_loss: list[pd.DataFrame] = []
+        self.test_loss: list[pd.DataFrame] = []
 
         self.max_batches_for_clustering = 10
 
@@ -192,7 +194,7 @@ class TCNTrainer:
         """
         self.model.train()
 
-        losses = collections.defaultdict(list)
+        _losses = collections.defaultdict(list)
         for batch_idx, data in enumerate(self.train_loader):
             data = data.to(self.device)
             if max_batches and batch_idx > max_batches:
@@ -214,11 +216,11 @@ class TCNTrainer:
                     report_str += f"{key}: {w*loss.item():.5f} "
                 self.logger.info(report_str)
 
-            losses["total"].append(batch_loss.item())
+            _losses["total"].append(batch_loss.item())
             for key, loss in batch_losses.items():
-                losses[key].append(loss.item())
+                _losses[key].append(loss.item())
 
-        losses = {k: np.nanmean(v) for k, v in losses.items()}
+        losses = {k: np.nanmean(v) for k, v in _losses.items()}
         self.train_loss.append(pd.DataFrame(losses, index=[self._epoch]))
         for hook in self._train_hooks:
             hook(self.model, losses)
