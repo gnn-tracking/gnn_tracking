@@ -20,10 +20,11 @@ def dbscan(graph: np.ndarray, eps, min_samples) -> np.ndarray:
 class DBSCANHyperParamScanner(AbstractClusterHyperParamScanner):
     def __init__(
         self,
+        *,
         graphs: list[np.ndarray],
         truth: list[np.ndarray],
+        sectors: list[np.ndarray],
         metric: metric_type,
-        *,
         eps_range: tuple[float, float] = (1e-5, 1.0),
         min_samples_range: tuple[int, int] = (1, 50),
         **kwargs,
@@ -33,6 +34,7 @@ class DBSCANHyperParamScanner(AbstractClusterHyperParamScanner):
         Args:
             graphs: See ClusterHyperParamScanner
             truth: See ClusterHyperParamScanner
+            sectors: See ClusterHyperParamScanner
             metric: See ClusterHyperParamScanner
             eps_range: Range of epsilons to sample from
             min_samples_range: Range of min_samples to sample from
@@ -45,11 +47,12 @@ class DBSCANHyperParamScanner(AbstractClusterHyperParamScanner):
             return dict(eps=eps, min_samples=min_samples)
 
         self.chps = ClusterHyperParamScanner(
-            dbscan,
-            suggest,
-            graphs,
-            truth,
-            metric,
+            algorithm=dbscan,
+            suggest=suggest,
+            graphs=graphs,
+            truth=truth,
+            sectors=sectors,
+            metric=metric,
             **kwargs,
         )
 

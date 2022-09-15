@@ -7,6 +7,7 @@ import numpy as np
 import optuna
 
 from gnn_tracking.utils.earlystopping import no_early_stopping
+from gnn_tracking.utils.log import logger
 from gnn_tracking.utils.timing import timing
 
 metric_type = Callable[[np.ndarray, np.ndarray], float]
@@ -17,7 +18,8 @@ class AbstractClusterHyperParamScanner(ABC):
     def _scan(self, **kwargs):
         pass
 
-    def scan(self, *args, **kwargs):
+    def scan(self, **kwargs):
+        logger.info("Starting hyperparameter scan for clustering")
         with timing("Clustering hyperparameter scan"):
             return self._scan(**kwargs)
 
@@ -30,12 +32,13 @@ class AlgorithmType(Protocol):
 class ClusterHyperParamScanner(AbstractClusterHyperParamScanner):
     def __init__(
         self,
+        *,
         algorithm: AlgorithmType,
         suggest: Callable[[optuna.trial.Trial], dict[str, Any]],
         graphs: list[np.ndarray],
         truth: list[np.ndarray],
         metric: metric_type,
-        *,
+        sectors: list[np.ndarray] | None = None,
         cheap_metric: metric_type | None = None,
         early_stopping=no_early_stopping,
     ):
@@ -48,6 +51,9 @@ class ClusterHyperParamScanner(AbstractClusterHyperParamScanner):
             truth: Truth labels for clustering
             metric: (Expensive) metric: Callable that takes truth and predicted labels
                 and returns float
+            sectors: List of 1D arrays of sector indices (answering which sector each
+                hit from each graph belongs to). If None, all hits are assumed to be
+                from the same sector.
             cheap_metric: Cheap metric: Callable that takes truth and predicted labels
                 and returns float and runs faster than $metric.
             early_stopping: Instance that can be called and has a reset method
@@ -81,10 +87,30 @@ class ClusterHyperParamScanner(AbstractClusterHyperParamScanner):
         self.suggest = suggest
         self.graphs: list[np.ndarray] = graphs
         self.truth: list[np.ndarray] = truth
+        if sectors is None:
+            self.sectors: list[np.ndarray] = [np.ones(t, dtype=int) for t in self.truth]
+        else:
+            self.sectors = sectors
         self._es = early_stopping
         self._study = None
         self._cheap_metric = cheap_metric
         self._expensive_metric = metric
+        self._graph_to_sector: dict[int, int] = {}
+
+    def _get_sector_to_study(self, i_graph: int):
+        """Return index of sector to study for graph $i_graph"""
+        try:
+            return self._graph_to_sector[i_graph]
+        except KeyError:
+            pass
+        available: list[int] = np.unique(self.sectors[i_graph]).tolist()  # type: ignore
+        try:
+            available.remove(-1)
+        except ValueError:
+            pass
+        choice = np.random.choice(available).item()
+        self._graph_to_sector[i_graph] = choice
+        return choice
 
     def _objective(self, trial: optuna.trial.Trial) -> float:
         params = self.suggest(trial)
@@ -92,6 +118,12 @@ class ClusterHyperParamScanner(AbstractClusterHyperParamScanner):
         all_labels = []
         # Do a first run, looking only at the cheap metric, stopping early
         for i_graph, (graph, truth) in enumerate(zip(self.graphs, self.truth)):
+            # Consider a random sector for each graph, but keep the sector consistent
+            # between different trials.
+            sector = self._get_sector_to_study(i_graph)
+            sector_mask = self.sectors[i_graph] == sector
+            graph = graph[sector_mask]
+            truth = truth[sector_mask]
             labels = self.algorithm(graph, **params)
             all_labels.append(labels)
             maybe_cheap_metric: metric_type = (

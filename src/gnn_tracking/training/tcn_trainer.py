@@ -23,7 +23,11 @@ cluster_type = Callable[[list[np.ndarray], list[np.ndarray]], Tensor]
 
 class ClusterFctType(Protocol):
     def __call__(
-        self, graphs: list[np.ndarray], truth: list[np.ndarray], epoch=None
+        self,
+        graphs: list[np.ndarray],
+        truth: list[np.ndarray],
+        sectors: list[np.ndarray],
+        epoch=None,
     ) -> float:
         ...
 
@@ -270,12 +274,14 @@ class TCNTrainer:
         self.model.eval()
         losses = collections.defaultdict(list)
 
-        graphs = []
-        truths = []
+        graphs: list[np.ndarray] = []
+        truths: list[np.ndarray] = []
+        sectors: list[np.ndarray] = []
         with torch.no_grad():
             loader = self.val_loader if val else self.test_loader
             for _batch_idx, data in enumerate(loader):
                 data = data.to(self.device)
+                sectors.append(data.sector.detach().cpu().numpy())
                 model_output = self.evaluate_model(data, mask_pids_reco=False)
                 batch_loss, batch_losses = self.get_batch_losses(model_output)
 
@@ -295,8 +301,8 @@ class TCNTrainer:
 
         losses = {k: np.nanmean(v) for k, v in losses.items()}
         for k, f in self.clustering_functions.items():
-            losses[k] = f(graphs, truths, epoch=self._epoch)
-        self._log_losses(losses["total"], batch_losses, header=f"Test {self._epoch}: ")
+            losses[k] = f(graphs, truths, sectors, epoch=self._epoch)
+        self._log_losses(losses["total"], losses, header=f"Test {self._epoch}: ")
         self.test_loss.append(pd.DataFrame(losses, index=[self._epoch]))
         for hook in self._test_hooks:
             hook(self.model, losses)
