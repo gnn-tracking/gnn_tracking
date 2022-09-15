@@ -221,7 +221,7 @@ class TCNTrainer:
                 table_items, tablefmt="fancy_grid", floatfmt=".5f"
             )
         else:
-            report_str += ", ".join(f"{k}={v:.5f}" for k, v in table_items)
+            report_str += ", ".join(f"{k}={v:>9.5f}" for k, v in table_items)
         self.logger.info(report_str)
 
     def train_step(self, *, max_batches: int | None = None):
