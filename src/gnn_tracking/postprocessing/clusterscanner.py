@@ -37,9 +37,9 @@ class ClusterHyperParamScanner(AbstractClusterHyperParamScanner):
         suggest: Callable[[optuna.trial.Trial], dict[str, Any]],
         graphs: list[np.ndarray],
         truth: list[np.ndarray],
-        metric: metric_type,
+        guiding_metric: metric_type,
         sectors: list[np.ndarray] | None = None,
-        cheap_metric: metric_type | None = None,
+        cheap_guiding_metric: metric_type | None = None,
         early_stopping=no_early_stopping,
     ):
         """Class to scan hyperparameters of a clustering algorithm.
@@ -49,13 +49,12 @@ class ClusterHyperParamScanner(AbstractClusterHyperParamScanner):
             suggest: Function that suggest parameters to optuna
             graphs:
             truth: Truth labels for clustering
-            metric: (Expensive) metric: Callable that takes truth and predicted labels
-                and returns float
+            guiding_metric: Expensive metric that is taken as a figure of merit for the
+                overall performance: Callable that takes truth and predicted labels
             sectors: List of 1D arrays of sector indices (answering which sector each
                 hit from each graph belongs to). If None, all hits are assumed to be
                 from the same sector.
-            cheap_metric: Cheap metric: Callable that takes truth and predicted labels
-                and returns float and runs faster than $metric.
+            cheap_guiding_metric: Faster proxy for guiding metric
             early_stopping: Instance that can be called and has a reset method
 
         Example:
@@ -93,8 +92,8 @@ class ClusterHyperParamScanner(AbstractClusterHyperParamScanner):
             self.sectors = sectors
         self._es = early_stopping
         self._study = None
-        self._cheap_metric = cheap_metric
-        self._expensive_metric = metric
+        self._cheap_metric = cheap_guiding_metric
+        self._expensive_metric = guiding_metric
         self._graph_to_sector: dict[int, int] = {}
 
     def _get_sector_to_study(self, i_graph: int):

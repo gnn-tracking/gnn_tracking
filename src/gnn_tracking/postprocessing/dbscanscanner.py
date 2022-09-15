@@ -52,7 +52,7 @@ class DBSCANHyperParamScanner(AbstractClusterHyperParamScanner):
             graphs=graphs,
             truth=truth,
             sectors=sectors,
-            metric=metric,
+            guiding_metric=metric,
             **kwargs,
         )
 
