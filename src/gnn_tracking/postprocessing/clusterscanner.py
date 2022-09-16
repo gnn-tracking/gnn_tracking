@@ -39,7 +39,7 @@ class AbstractClusterHyperParamScanner(ABC):
             return self._scan(**kwargs)
 
 
-class AlgorithmType(Protocol):
+class ClusterAlgorithmType(Protocol):
     def __call__(self, graphs: np.ndarray, *args, **kwargs) -> np.ndarray:
         ...
 
@@ -48,7 +48,7 @@ class ClusterHyperParamScanner(AbstractClusterHyperParamScanner):
     def __init__(
         self,
         *,
-        algorithm: AlgorithmType,
+        algorithm: ClusterAlgorithmType,
         suggest: Callable[[optuna.trial.Trial], dict[str, Any]],
         graphs: list[np.ndarray],
         truth: list[np.ndarray],
@@ -149,6 +149,7 @@ class ClusterHyperParamScanner(AbstractClusterHyperParamScanner):
             return self.metrics[name](truth, predicted)  # type: ignore
 
     def _objective(self, trial: optuna.trial.Trial) -> float:
+        """Objective function for optuna."""
         params = self.suggest(trial)
         cheap_foms = []
         all_labels = []
@@ -203,12 +204,14 @@ class ClusterHyperParamScanner(AbstractClusterHyperParamScanner):
 
     def _evaluate(self) -> dict[str, float]:
         """Evaluate all metrics (on all sectors and given graphs) for the best
-        parameters that we just found."""
+        parameters that we just found.
+        """
         logger.debug("Evaluating all metrics for best clustering")
         with timing("Evaluating all metrics"):
             return self.__evaluate()
 
     def __evaluate(self) -> dict[str, float]:
+        """See _evaluate."""
         assert self._study is not None  # mypy
         params = self._study.best_params
         metric_values = defaultdict(list)
@@ -233,6 +236,7 @@ class ClusterHyperParamScanner(AbstractClusterHyperParamScanner):
         return {k: np.nanmean(v).item() for k, v in metric_values.items() if v}
 
     def _scan(self, **kwargs) -> ClusterScanResult:
+        """Run the scan."""
         self._es.reset()
         if self._study is None:
             self._study = optuna.create_study(
