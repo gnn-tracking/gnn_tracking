@@ -18,7 +18,7 @@ metric_type = Callable[[np.ndarray, np.ndarray], float]
 @dataclasses.dataclass
 class ClusterScanResult:
     study: optuna.Study
-    all_metrics: dict[str, float]
+    metrics: dict[str, float]
 
     @property
     def best_params(self) -> dict[str, Any]:
