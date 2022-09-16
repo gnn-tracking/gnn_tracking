@@ -120,11 +120,15 @@ class GraphTCN(nn.Module):
         hidden_dim=40,  # hidden with of all nn.Linear layers
         L_ec=3,  # message passing depth for edge classifier
         L_hc=3,  # message passing depth for track condenser
+        alpha_ec: float = 0.5,  # strength of residual connection for EC
+        alpha_hc: float = 0.5,  # strength of residual connection for HC
     ):
         super(GraphTCN, self).__init__()
         self.h_dim = h_dim
         self.e_dim = e_dim
         self.relu = nn.ReLU()
+        self.alpha_ec = alpha_ec
+        self.alpha_hc = alpha_hc
 
         # specify the edge classifier
         self.ec_node_encoder = MLP(node_indim, self.h_dim, hidden_dim=hidden_dim, L=1)
@@ -145,9 +149,7 @@ class GraphTCN(nn.Module):
 
         # specify the track condenser
         self.hc_node_encoder = MLP(node_indim, self.h_dim, hidden_dim=hidden_dim, L=1)
-        self.hc_edge_encoder = MLP(
-            edge_indim + 1, self.e_dim, hidden_dim=hidden_dim, L=1
-        )
+        self.hc_edge_encoder = MLP(edge_indim, self.e_dim, hidden_dim=hidden_dim, L=1)
         hc_layers = []
         for _ in range(L_hc):
             hc_layers.append(
@@ -163,9 +165,9 @@ class GraphTCN(nn.Module):
         self.hc_layers = nn.ModuleList(hc_layers)
 
         # modules to predict outputs
-        self.W = MLP(self.e_dim * (L_ec + 1), 1, hidden_dim, L=3)
-        self.B = MLP(self.h_dim, 1, hidden_dim, L=3)
-        self.X = MLP(self.h_dim, h_outdim, hidden_dim, L=3)
+        self.W = MLP(self.e_dim * (L_ec + 1), 1, hidden_dim, L=1)
+        self.B = MLP(self.h_dim, 1, hidden_dim, L=1)
+        self.X = MLP(self.h_dim, h_outdim, hidden_dim, L=1)
         self.P = IN(
             self.h_dim,
             self.e_dim * (L_hc + 1),
@@ -178,8 +180,6 @@ class GraphTCN(nn.Module):
     def forward(
         self,
         data: Data,
-        alpha_ec: float = 0.5,
-        alpha_hc: float = 0.5,
     ) -> Tensor:
 
         # apply the edge classifier to generate edge weights
@@ -189,14 +189,21 @@ class GraphTCN(nn.Module):
         edge_attrs_ec = [edge_attr_ec]
         for layer in self.ec_layers:
             delta_h_ec, new_edge_attr_ec = layer(h_ec, edge_index, edge_attr_ec)
-            h_ec = alpha_ec * h_ec + (1 - alpha_ec) * delta_h_ec
+            h_ec = self.alpha_ec * h_ec + (1 - self.alpha_ec) * delta_h_ec
             edge_attrs_ec.append(new_edge_attr_ec)
             edge_attr_ec = new_edge_attr_ec
 
         # append edge weights as new edge features
         edge_attrs_ec = torch.cat(edge_attrs_ec, dim=1)
         edge_weights = torch.sigmoid(self.W(edge_attrs_ec))
-        edge_attr = torch.cat((edge_weights, edge_attr), dim=1)
+        # edge_attr = torch.cat((edge_weights, edge_attr), dim=1)
+
+        # apply edge weight threshold
+        row, col = edge_index
+        mask = (edge_weights > 0.5).squeeze()
+        row, col = row[mask], col[mask]
+        edge_index = torch.stack([row, col], dim=0)
+        edge_attr = edge_attr[mask]
 
         # apply the track condenser
         h_hc = self.relu(self.hc_node_encoder(x))
@@ -204,7 +211,7 @@ class GraphTCN(nn.Module):
         edge_attrs_hc = [edge_attr_hc]
         for layer in self.hc_layers:
             delta_h_hc, new_edge_attr_hc = layer(h_hc, edge_index, edge_attr_hc)
-            h_hc = alpha_hc * h_hc + (1 - alpha_hc) * delta_h_hc
+            h_hc = self.alpha_hc * h_hc + (1 - self.alpha_hc) * delta_h_hc
             edge_attrs_hc.append(new_edge_attr_hc)
             edge_attr_hc = new_edge_attr_hc
 
