@@ -1,2 +1,6 @@
 coo
 fom
+fpr
+tnr
+tpr
+fnr

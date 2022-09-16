@@ -290,6 +290,10 @@ class TCNTrainer:
                         output=model_output["w"], y=model_output["y"].long(), thld=thld
                     )
                     losses["acc"].append(bcs.acc)
+                    losses["TPR"].append(bcs.TPR)
+                    losses["TNR"].append(bcs.TNR)
+                    losses["FPR"].append(bcs.FPR)
+                    losses["FNR"].append(bcs.FNR)
 
                 losses["total"].append(batch_loss.item())
                 for key, loss in batch_losses.items():
