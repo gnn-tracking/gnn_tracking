@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Callable, Optional
+from typing import Callable
 
 import torch
 from torch import Tensor
@@ -39,8 +39,6 @@ class DynamicEdgeConv(MessagePassing):
         x: Tensor | PairTensor,
         batch: OptTensor | PairTensor | None = None,
     ) -> Tensor:
-        # type: (Tensor, OptTensor) -> Tensor  # noqa
-        # type: (PairTensor, Optional[PairTensor]) -> Tensor  # noqa
 
         if isinstance(x, Tensor):
             x: PairTensor = (x, x)

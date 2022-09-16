@@ -2,10 +2,11 @@ from __future__ import annotations
 
 import collections
 import logging
-from typing import Any, Callable, Mapping
+from typing import Any, Callable, DefaultDict, Mapping, Protocol
 
 import numpy as np
 import pandas as pd
+import tabulate
 import torch
 from torch import Tensor
 from torch.optim import Adam
@@ -16,6 +17,19 @@ from gnn_tracking.utils.log import get_logger
 from gnn_tracking.utils.training import BinaryClassificationStats
 
 hook_type = Callable[[torch.nn.Module, dict[str, Tensor]], None]
+loss_fct_type = Callable[..., Tensor]
+cluster_type = Callable[[list[np.ndarray], list[np.ndarray]], Tensor]
+
+
+class ClusterFctType(Protocol):
+    def __call__(
+        self,
+        graphs: list[np.ndarray],
+        truth: list[np.ndarray],
+        sectors: list[np.ndarray],
+        epoch=None,
+    ) -> float:
+        ...
 
 
 # The following abbreviations are used throughout the code:
@@ -30,12 +44,13 @@ class TCNTrainer:
         self,
         model,
         loaders: dict[str, DataLoader],
-        loss_functions: dict[str, Callable[[Any], Tensor]],
+        loss_functions: dict[str, loss_fct_type],
         *,
         device="cpu",
         lr: Any = 5 * 10**-4,
         lr_scheduler: None | Callable = None,
         loss_weights: dict[str, float] = None,
+        cluster_functions: dict[str, ClusterFctType] | None = None,
     ):
         """
 
@@ -52,6 +67,9 @@ class TCNTrainer:
                 before use.
                 If one of the loss functions called ``l`` returns a dictionary with keys
                 k, the keys for loss_weights should be ``k_l``.
+            cluster_functions: Dictionary of functions that take the output of the model
+                during testing and report additional figures of merits (e.g.,
+                clustering)
         """
         self.model = model.to(device)
         self.train_loader = loaders["train"]
@@ -60,11 +78,13 @@ class TCNTrainer:
         self.device = device
 
         self.loss_functions = loss_functions
+        if cluster_functions is None:
+            cluster_functions = {}
+        self.clustering_functions = cluster_functions
 
-        # Loss weights should be normalized to sum to 1, but we cannot do that here
-        # because we do not know all of the keys. This is because of loss functions that
-        # return a dictionary of different losses that are summed together.
-        self._loss_weights = collections.defaultdict(lambda: 1.0)
+        self._loss_weights: DefaultDict[str, float] = collections.defaultdict(
+            lambda: 1.0
+        )
         if loss_weights is not None:
             self._loss_weights.update(loss_weights)
 
@@ -80,8 +100,10 @@ class TCNTrainer:
         self.logger = get_logger("TCNTrainer", level=logging.INFO)
 
         # output quantities
-        self.train_loss = []
-        self.test_loss = []
+        self.train_loss: list[pd.DataFrame] = []
+        self.test_loss: list[pd.DataFrame] = []
+
+        self.max_batches_for_clustering = 10
 
     def add_hook(self, hook: hook_type, called_at: str) -> None:
         """Add a hook to training/test step
@@ -165,6 +187,47 @@ class TCNTrainer:
         )
         return total, individual_losses
 
+    def _log_losses(
+        self,
+        batch_loss: Tensor,
+        batch_losses: dict[str, Tensor | float],
+        *,
+        style="table",
+        header: str = "",
+    ) -> None:
+        """Log the losses
+
+        Args:
+            batch_loss: Total loss
+            batch_losses:
+            style: "table" or "inline"
+            header: Header to prepend to the log message
+
+        Returns:
+            None
+        """
+        if header:
+            report_str = header
+        else:
+            report_str = ""
+        if style == "table":
+            report_str += "\n"
+        table_items: list[tuple[str, float]] = [("Total", batch_loss.item())]
+        for k, v in batch_losses.items():
+            if k.casefold() == "total":
+                continue
+            if k in self._loss_weights:
+                table_items.append((k, float(v) * self._loss_weights[k]))
+            else:
+                table_items.append((k, float(v)))
+        if style == "table":
+            report_str += tabulate.tabulate(
+                table_items, tablefmt="fancy_grid", floatfmt=".5f"
+            )
+        else:
+            report_str += ", ".join(f"{k}={v:>9.5f}" for k, v in table_items)
+        self.logger.info(report_str)
+
     def train_step(self, *, max_batches: int | None = None):
         """
 
@@ -177,7 +240,7 @@ class TCNTrainer:
         """
         self.model.train()
 
-        losses = collections.defaultdict(list)
+        _losses = collections.defaultdict(list)
         for batch_idx, data in enumerate(self.train_loader):
             data = data.to(self.device)
             if max_batches and batch_idx > max_batches:
@@ -190,20 +253,19 @@ class TCNTrainer:
             self.optimizer.step()
 
             if not (batch_idx % 10):
-                report_str = (
-                    f"Epoch {self._epoch} ({batch_idx}/{len(self.train_loader)}): "
+                self._log_losses(
+                    batch_loss,
+                    batch_losses,
+                    header=f"Epoch {self._epoch} "
+                    f"({batch_idx:>5}/{len(self.train_loader)}): ",
+                    style="inline",
                 )
-                report_str += f"total: {batch_loss.item():.5f} "
-                for key, loss in batch_losses.items():
-                    w = self._loss_weights[key]
-                    report_str += f"{key}: {w*loss.item():.5f} "
-                self.logger.info(report_str)
 
-            losses["total"].append(batch_loss.item())
+            _losses["total"].append(batch_loss.item())
             for key, loss in batch_losses.items():
-                losses[key].append(loss.item())
+                _losses[key].append(loss.item())
 
-        losses = {k: np.nanmean(v) for k, v in losses.items()}
+        losses = {k: np.nanmean(v) for k, v in _losses.items()}
         self.train_loss.append(pd.DataFrame(losses, index=[self._epoch]))
         for hook in self._train_hooks:
             hook(self.model, losses)
@@ -211,10 +273,15 @@ class TCNTrainer:
     def test_step(self, thld=0.5, val=True):
         self.model.eval()
         losses = collections.defaultdict(list)
+
+        graphs: list[np.ndarray] = []
+        truths: list[np.ndarray] = []
+        sectors: list[np.ndarray] = []
         with torch.no_grad():
             loader = self.val_loader if val else self.test_loader
             for _batch_idx, data in enumerate(loader):
                 data = data.to(self.device)
+                sectors.append(data.sector.detach().cpu().numpy())
                 model_output = self.evaluate_model(data, mask_pids_reco=False)
                 batch_loss, batch_losses = self.get_batch_losses(model_output)
 
@@ -228,8 +295,14 @@ class TCNTrainer:
                 for key, loss in batch_losses.items():
                     losses[key].append(loss.item())
 
+                if _batch_idx <= self.max_batches_for_clustering:
+                    graphs.append(model_output["x"].detach().cpu().numpy())
+                    truths.append(model_output["particle_id"].detach().cpu().numpy())
+
         losses = {k: np.nanmean(v) for k, v in losses.items()}
-        self.logger.info(f"test step: {losses}")
+        for k, f in self.clustering_functions.items():
+            losses[k] = f(graphs, truths, sectors, epoch=self._epoch)
+        self._log_losses(losses["total"], losses, header=f"Test {self._epoch}: ")
         self.test_loss.append(pd.DataFrame(losses, index=[self._epoch]))
         for hook in self._test_hooks:
             hook(self.model, losses)
@@ -246,7 +319,7 @@ class TCNTrainer:
         """
         for _ in range(1, epochs + 1):
             self._epoch += 1
-            print(f"---- Epoch {self._epoch} ----")
+            self.logger.info(f"---- Epoch {self._epoch} ----")
             self.train_step(max_batches=max_batches)
             self.test_step(thld=0.5, val=True)
             if self._lr_scheduler:
