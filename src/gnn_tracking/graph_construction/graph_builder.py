@@ -199,10 +199,10 @@ class GraphBuilder:
                     n_corrected += len(relabel_idx)
 
         if n_corrected > 0:
-            self.logger.info(
+            self.logger.debug(
                 f"Relabeled {n_corrected} edges crossing from barrel to endcaps."
             )
-            self.logger.info(f"Updated y has {int(np.sum(y))}/{len(y)} true edges.")
+            self.logger.debug(f"Updated y has {int(np.sum(y))}/{len(y)} true edges.")
         return y, n_corrected
 
     def build_edges(self, hits):
