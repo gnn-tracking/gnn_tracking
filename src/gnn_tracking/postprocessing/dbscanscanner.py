@@ -3,6 +3,7 @@ from __future__ import annotations
 import numpy as np
 from sklearn.cluster import DBSCAN
 
+from gnn_tracking.postprocessing.cluster_metrics import common_metrics
 from gnn_tracking.postprocessing.clusterscanner import (
     AbstractClusterHyperParamScanner,
     ClusterHyperParamScanner,
@@ -12,8 +13,8 @@ from gnn_tracking.postprocessing.clusterscanner import (
 __all__ = ["DBSCANHyperParamScanner"]
 
 
-def dbscan(graph: np.ndarray, eps, min_samples) -> np.ndarray:
-    return DBSCAN(eps=eps, min_samples=min_samples).fit_predict(graph)
+def dbscan(graphs: np.ndarray, eps, min_samples) -> np.ndarray:
+    return DBSCAN(eps=eps, min_samples=min_samples).fit_predict(graphs)
 
 
 class DBSCANHyperParamScanner(AbstractClusterHyperParamScanner):
@@ -49,3 +50,22 @@ class DBSCANHyperParamScanner(AbstractClusterHyperParamScanner):
 
     def _scan(self, **kwargs) -> ClusterScanResult:
         return self.chps._scan(**kwargs)
+
+
+def dbscan_scan(
+    graphs: np.ndarray,
+    truth: np.ndarray,
+    sectors: np.ndarray,
+    n_jobs=1,
+    n_trials=100,
+    guide="v_measure",
+    **kwargs,
+) -> ClusterScanResult:
+    dbss = DBSCANHyperParamScanner(
+        graphs=graphs,
+        truth=truth,
+        sectors=sectors,
+        guide=guide,
+        metrics=common_metrics,
+    )
+    return dbss.scan(n_jobs=n_jobs, n_trials=n_trials, **kwargs)

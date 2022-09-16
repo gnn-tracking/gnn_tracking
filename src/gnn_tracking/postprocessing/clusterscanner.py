@@ -3,16 +3,15 @@ from __future__ import annotations
 import dataclasses
 from abc import ABC, abstractmethod
 from collections import defaultdict
-from typing import Any, Callable, Mapping, Protocol, Union
+from typing import Any, Callable, Mapping, Protocol
 
 import numpy as np
 import optuna
 
+from gnn_tracking.postprocessing.cluster_metrics import metric_type
 from gnn_tracking.utils.earlystopping import no_early_stopping
 from gnn_tracking.utils.log import logger
 from gnn_tracking.utils.timing import timing
-
-metric_type = Callable[[np.ndarray, np.ndarray], Union[float, dict[str, float]]]
 
 
 @dataclasses.dataclass
@@ -145,9 +144,9 @@ class ClusterHyperParamScanner(AbstractClusterHyperParamScanner):
         """Get metric value from dict of metrics."""
         if "." in name:
             metric, subkey = name.split(".")
-            return self.metrics[metric](truth, predicted)[subkey]
+            return self.metrics[metric](truth, predicted)[subkey]  # type: ignore
         else:
-            return self.metrics[name](truth, predicted)
+            return self.metrics[name](truth, predicted)  # type: ignore
 
     def _objective(self, trial: optuna.trial.Trial) -> float:
         params = self.suggest(trial)
@@ -205,6 +204,12 @@ class ClusterHyperParamScanner(AbstractClusterHyperParamScanner):
     def _evaluate(self) -> dict[str, float]:
         """Evaluate all metrics (on all sectors and given graphs) for the best
         parameters that we just found."""
+        logger.debug("Evaluating all metrics for best clustering")
+        with timing("Evaluating all metrics"):
+            return self.__evaluate()
+
+    def __evaluate(self) -> dict[str, float]:
+        assert self._study is not None  # mypy
         params = self._study.best_params
         metric_values = defaultdict(list)
         for graph, truth, sectors in zip(self.graphs, self.truth, self.sectors):

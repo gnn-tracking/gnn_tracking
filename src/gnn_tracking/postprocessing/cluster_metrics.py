@@ -1,7 +1,12 @@
 from __future__ import annotations
 
+from typing import Callable, Union
+
 import numpy as np
 import pandas as pd
+from sklearn import metrics
+
+metric_type = Callable[[np.ndarray, np.ndarray], Union[float, dict[str, float]]]
 
 
 def custom_metrics(labels: np.ndarray, truth: np.ndarray) -> dict[str, float]:
@@ -35,3 +40,14 @@ def custom_metrics(labels: np.ndarray, truth: np.ndarray) -> dict[str, float]:
         "double_majority": sum(double_majority) / total,
         "lhc": sum(lhc_match) / total,
     }
+
+
+common_metrics: dict[str, metric_type] = {
+    "v_measure": metrics.v_measure_score,
+    "homogeneity": metrics.homogeneity_score,
+    "completeness": metrics.completeness_score,
+    "custom": custom_metrics,
+    "adjusted_rand": metrics.adjusted_rand_score,
+    "fowlkes_mallows": metrics.fowlkes_mallows_score,
+    "adjusted_mutual_info": metrics.adjusted_mutual_info_score,
+}
