@@ -10,7 +10,7 @@ from gnn_tracking.postprocessing.clusterscanner import (
     ClusterScanResult,
 )
 
-__all__ = ["DBSCANHyperParamScanner"]
+__all__ = ["DBSCANHyperParamScanner", "dbscan_scan"]
 
 
 def dbscan(graphs: np.ndarray, eps, min_samples) -> np.ndarray:
