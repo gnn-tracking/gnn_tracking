@@ -189,7 +189,7 @@ class GraphTCN(nn.Module):
         edge_attrs_ec = [edge_attr_ec]
         for layer in self.ec_layers:
             delta_h_ec, new_edge_attr_ec = layer(h_ec, edge_index, edge_attr_ec)
-            h_ec = self.alpha_ec * h_ec + (1 - self.alpha_ec) * delta_h_ec
+            h_ec = self.alpha_ec * h_ec + (1 - self.alpha_ec) * self.relu(delta_h_ec)
             edge_attrs_ec.append(new_edge_attr_ec)
             edge_attr_ec = new_edge_attr_ec
 
@@ -211,7 +211,7 @@ class GraphTCN(nn.Module):
         edge_attrs_hc = [edge_attr_hc]
         for layer in self.hc_layers:
             delta_h_hc, new_edge_attr_hc = layer(h_hc, edge_index, edge_attr_hc)
-            h_hc = self.alpha_hc * h_hc + (1 - self.alpha_hc) * delta_h_hc
+            h_hc = self.alpha_hc * h_hc + (1 - self.alpha_hc) * self.relu(delta_h_hc)
             edge_attrs_hc.append(new_edge_attr_hc)
             edge_attr_hc = new_edge_attr_hc
 
