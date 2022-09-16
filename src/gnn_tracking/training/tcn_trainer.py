@@ -302,7 +302,8 @@ class TCNTrainer:
         losses = {k: np.nanmean(v) for k, v in losses.items()}
         for f in self.clustering_functions.values():
             cluster_result = f(graphs, truths, sectors, epoch=self._epoch)
-            losses.update(cluster_result.metrics)
+            if cluster_result is not None:
+                losses.update(cluster_result.metrics)
         self._log_losses(losses["total"], losses, header=f"Test {self._epoch}: ")
         self.test_loss.append(pd.DataFrame(losses, index=[self._epoch]))
         for hook in self._test_hooks:

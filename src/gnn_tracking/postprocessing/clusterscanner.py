@@ -3,7 +3,7 @@ from __future__ import annotations
 import dataclasses
 from abc import ABC, abstractmethod
 from collections import defaultdict
-from typing import Any, Callable, Protocol
+from typing import Any, Callable, Mapping, Protocol, Union
 
 import numpy as np
 import optuna
@@ -12,7 +12,7 @@ from gnn_tracking.utils.earlystopping import no_early_stopping
 from gnn_tracking.utils.log import logger
 from gnn_tracking.utils.timing import timing
 
-metric_type = Callable[[np.ndarray, np.ndarray], float]
+metric_type = Callable[[np.ndarray, np.ndarray], Union[float, dict[str, float]]]
 
 
 @dataclasses.dataclass
@@ -67,14 +67,14 @@ class ClusterHyperParamScanner(AbstractClusterHyperParamScanner):
             graphs:
             truth: Truth labels for clustering
             guide: Name of expensive metric that is taken as a figure of merit
-                for the overall performance: Callable that takes truth and predicted
-                labels
+                for the overall performance. If the corresponding metric function
+                returns a dict, the key should be key.subkey.
             metrics: Dictionary of metrics to evaluate. Each metric is a function that
                 takes truth and predicted labels as numpy arrays and returns a float.
             sectors: List of 1D arrays of sector indices (answering which sector each
                 hit from each graph belongs to). If None, all hits are assumed to be
                 from the same sector.
-            guide_proxy: Faster proxy for guiding metric
+            guide_proxy: Faster proxy for guiding metric. See
             early_stopping: Instance that can be called and has a reset method
 
         Example:
@@ -107,6 +107,8 @@ class ClusterHyperParamScanner(AbstractClusterHyperParamScanner):
         assert [len(g) for g in graphs] == [len(t) for t in truth]
         self.graphs: list[np.ndarray] = graphs
         self.truth: list[np.ndarray] = truth
+        if any(["." in k for k in metrics]):
+            raise ValueError("Metric names must not contain dots")
         self.metrics: dict[str, metric_type] = metrics
         if sectors is None:
             self.sectors: list[np.ndarray] = [np.ones(t, dtype=int) for t in self.truth]
@@ -120,7 +122,10 @@ class ClusterHyperParamScanner(AbstractClusterHyperParamScanner):
         self._graph_to_sector: dict[int, int] = {}
 
     def _get_sector_to_study(self, i_graph: int):
-        """Return index of sector to study for graph $i_graph"""
+        """Return index of sector to study for graph $i_graph.
+        Takes a random one the first time, but then remembers the sector so that we
+        get the same one for the same graph.
+        """
         try:
             return self._graph_to_sector[i_graph]
         except KeyError:
@@ -133,6 +138,16 @@ class ClusterHyperParamScanner(AbstractClusterHyperParamScanner):
         choice = np.random.choice(available).item()
         self._graph_to_sector[i_graph] = choice
         return choice
+
+    def _get_explicit_metric(
+        self, name: str, *, predicted: np.ndarray, truth: np.ndarray
+    ) -> float:
+        """Get metric value from dict of metrics."""
+        if "." in name:
+            metric, subkey = name.split(".")
+            return self.metrics[metric](truth, predicted)[subkey]
+        else:
+            return self.metrics[name](truth, predicted)
 
     def _objective(self, trial: optuna.trial.Trial) -> float:
         params = self.suggest(trial)
@@ -148,10 +163,13 @@ class ClusterHyperParamScanner(AbstractClusterHyperParamScanner):
             truth = truth[sector_mask]
             labels = self.algorithm(graph, **params)
             all_labels.append(labels)
-            maybe_cheap_metric: metric_type = self.metrics[
-                self._cheap_metric or self._expensive_metric
-            ]
-            cheap_foms.append(maybe_cheap_metric(truth, labels))
+            cheap_foms.append(
+                self._get_explicit_metric(
+                    self._cheap_metric or self._expensive_metric,
+                    truth=truth,
+                    predicted=labels,
+                )
+            )
             if i_graph >= 2:
                 v = np.nanmean(cheap_foms).item()
                 trial.report(v, i_graph)
@@ -165,7 +183,12 @@ class ClusterHyperParamScanner(AbstractClusterHyperParamScanner):
             # If we haven't stopped early, do a second run, looking at the expensive
             # metric
             for i_labels, (labels, truth) in enumerate(zip(all_labels, self.truth)):
-                expensive_fom = self.metrics[self._expensive_metric](truth, labels)
+                sector = self._get_sector_to_study(i_labels)
+                sector_mask = self.sectors[i_labels] == sector
+                truth = truth[sector_mask]
+                expensive_fom = self._get_explicit_metric(
+                    self._expensive_metric, truth=truth, predicted=labels
+                )
                 expensive_foms.append(expensive_fom)
                 if i_labels >= 2:
                     trial.report(
@@ -196,7 +219,12 @@ class ClusterHyperParamScanner(AbstractClusterHyperParamScanner):
                 sector_truth = truth[sector_mask]
                 labels = self.algorithm(sector_graph, **params)
                 for name, metric in self.metrics.items():
-                    metric_values[name].append(metric(sector_truth, labels))
+                    r = metric(sector_truth, labels)
+                    if not isinstance(r, Mapping):
+                        metric_values[name].append(r)
+                    else:
+                        for k, v in r.items():
+                            metric_values[f"{name}.{k}"].append(v)
         return {k: np.nanmean(v).item() for k, v in metric_values.items() if v}
 
     def _scan(self, **kwargs) -> ClusterScanResult:
@@ -211,4 +239,4 @@ class ClusterHyperParamScanner(AbstractClusterHyperParamScanner):
             self._objective,
             **kwargs,
         )
-        return ClusterScanResult(study=self._study, all_metrics=self._evaluate())
+        return ClusterScanResult(study=self._study, metrics=self._evaluate())

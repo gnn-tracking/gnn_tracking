@@ -13,7 +13,6 @@ __all__ = ["DBSCANHyperParamScanner"]
 
 
 def dbscan(graph: np.ndarray, eps, min_samples) -> np.ndarray:
-    print(graph.shape)
     return DBSCAN(eps=eps, min_samples=min_samples).fit_predict(graph)
 
 
