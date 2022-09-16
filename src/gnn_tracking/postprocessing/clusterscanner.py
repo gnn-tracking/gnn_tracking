@@ -53,10 +53,10 @@ class ClusterHyperParamScanner(AbstractClusterHyperParamScanner):
         suggest: Callable[[optuna.trial.Trial], dict[str, Any]],
         graphs: list[np.ndarray],
         truth: list[np.ndarray],
-        guiding_metric: metric_type,
+        guiding_metric: str,
+        metrics: dict[str, metric_type],
         sectors: list[np.ndarray] | None = None,
-        cheap_guiding_metric: metric_type | None = None,
-        extra_metrics: dict[str, metric_type] | None = None,
+        cheap_guiding_metric="",
         early_stopping=no_early_stopping,
     ):
         """Class to scan hyperparameters of a clustering algorithm.
@@ -66,8 +66,11 @@ class ClusterHyperParamScanner(AbstractClusterHyperParamScanner):
             suggest: Function that suggest parameters to optuna
             graphs:
             truth: Truth labels for clustering
-            guiding_metric: Expensive metric that is taken as a figure of merit for the
-                overall performance: Callable that takes truth and predicted labels
+            guiding_metric: Name of expensive metric that is taken as a figure of merit
+                for the overall performance: Callable that takes truth and predicted
+                labels
+            metrics: Dictionary of metrics to evaluate. Each metric is a function that
+                takes truth and predicted labels as numpy arrays and returns a float.
             sectors: List of 1D arrays of sector indices (answering which sector each
                 hit from each graph belongs to). If None, all hits are assumed to be
                 from the same sector.
@@ -104,9 +107,7 @@ class ClusterHyperParamScanner(AbstractClusterHyperParamScanner):
         assert [len(g) for g in graphs] == [len(t) for t in truth]
         self.graphs: list[np.ndarray] = graphs
         self.truth: list[np.ndarray] = truth
-        if extra_metrics is None:
-            extra_metrics = {}
-        self.extra_metrics: dict[str, metric_type] = extra_metrics
+        self.metrics: dict[str, metric_type] = metrics
         if sectors is None:
             self.sectors: list[np.ndarray] = [np.ones(t, dtype=int) for t in self.truth]
         else:
@@ -147,16 +148,16 @@ class ClusterHyperParamScanner(AbstractClusterHyperParamScanner):
             truth = truth[sector_mask]
             labels = self.algorithm(graph, **params)
             all_labels.append(labels)
-            maybe_cheap_metric: metric_type = (
+            maybe_cheap_metric: metric_type = self.metrics[
                 self._cheap_metric or self._expensive_metric
-            )
+            ]
             cheap_foms.append(maybe_cheap_metric(truth, labels))
             if i_graph >= 2:
                 v = np.nanmean(cheap_foms).item()
                 trial.report(v, i_graph)
             if trial.should_prune():
                 raise optuna.TrialPruned()
-        if self._cheap_metric is None:
+        if not self._cheap_metric:
             # What we just evaluated is actually already the expensive metric
             expensive_foms = cheap_foms
         else:
@@ -164,7 +165,7 @@ class ClusterHyperParamScanner(AbstractClusterHyperParamScanner):
             # If we haven't stopped early, do a second run, looking at the expensive
             # metric
             for i_labels, (labels, truth) in enumerate(zip(all_labels, self.truth)):
-                expensive_fom = self._expensive_metric(truth, labels)
+                expensive_fom = self.metrics[self._expensive_metric](truth, labels)
                 expensive_foms.append(expensive_fom)
                 if i_labels >= 2:
                     trial.report(
@@ -177,17 +178,6 @@ class ClusterHyperParamScanner(AbstractClusterHyperParamScanner):
             logger.info("Stopped early")
             trial.study.stop()
         return global_fom
-
-    @property
-    def _all_metrics(self) -> dict[str, metric_type]:
-        """List of all metrics with names"""
-        ms = {
-            "Expensive guide": self._expensive_metric,
-            **self.extra_metrics,
-        }
-        if self._cheap_metric is not None:
-            ms["Cheap guide"] = self._cheap_metric
-        return ms
 
     def _evaluate(self) -> dict[str, float]:
         """Evaluate all metrics (on all sectors and given graphs) for the best
@@ -205,7 +195,7 @@ class ClusterHyperParamScanner(AbstractClusterHyperParamScanner):
                 sector_graph = graph[sector_mask]
                 sector_truth = truth[sector_mask]
                 labels = self.algorithm(sector_graph, **params)
-                for name, metric in self._all_metrics.items():
+                for name, metric in self.metrics.items():
                     metric_values[name].append(metric(sector_truth, labels))
         return {k: np.nanmean(v).item() for k, v in metric_values.items() if v}
 
