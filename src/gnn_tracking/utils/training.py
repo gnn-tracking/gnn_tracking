@@ -61,6 +61,14 @@ class BinaryClassificationStats:
     def TNR(self) -> float:
         return zero_divide(self.TN, self.TN + self.FP)
 
+    @cached_property
+    def FPR(self) -> float:
+        return zero_divide(self.FP, self.FP + self.TN)
+
+    @cached_property
+    def FNR(self) -> float:
+        return zero_divide(self.FN, self.FN + self.TP)
+
 
 _P = TypeVar("_P")
 
