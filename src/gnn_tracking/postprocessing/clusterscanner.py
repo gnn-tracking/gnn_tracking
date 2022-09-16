@@ -53,10 +53,10 @@ class ClusterHyperParamScanner(AbstractClusterHyperParamScanner):
         suggest: Callable[[optuna.trial.Trial], dict[str, Any]],
         graphs: list[np.ndarray],
         truth: list[np.ndarray],
-        guiding_metric: str,
+        guide: str,
         metrics: dict[str, metric_type],
         sectors: list[np.ndarray] | None = None,
-        cheap_guiding_metric="",
+        guide_proxy="",
         early_stopping=no_early_stopping,
     ):
         """Class to scan hyperparameters of a clustering algorithm.
@@ -66,7 +66,7 @@ class ClusterHyperParamScanner(AbstractClusterHyperParamScanner):
             suggest: Function that suggest parameters to optuna
             graphs:
             truth: Truth labels for clustering
-            guiding_metric: Name of expensive metric that is taken as a figure of merit
+            guide: Name of expensive metric that is taken as a figure of merit
                 for the overall performance: Callable that takes truth and predicted
                 labels
             metrics: Dictionary of metrics to evaluate. Each metric is a function that
@@ -74,7 +74,7 @@ class ClusterHyperParamScanner(AbstractClusterHyperParamScanner):
             sectors: List of 1D arrays of sector indices (answering which sector each
                 hit from each graph belongs to). If None, all hits are assumed to be
                 from the same sector.
-            cheap_guiding_metric: Faster proxy for guiding metric
+            guide_proxy: Faster proxy for guiding metric
             early_stopping: Instance that can be called and has a reset method
 
         Example:
@@ -92,12 +92,12 @@ class ClusterHyperParamScanner(AbstractClusterHyperParamScanner):
                 return dict(eps=eps, min_samples=min_samples)
 
             chps = ClusterHyperParamScanner(
-                dbscan,
-                suggest,
-                graphs,
-                truths,
-                expensive_metric,
-                cheap_metric=metrics.v_measure_score,
+                algorithm=dbscan,
+                suggest=suggest,
+                graphs=graphs,
+                truth=truths,
+                guide="v_measure_score",
+                metrics=dict(v_measure_score=metrics.v_measure_score),
             )
             study = chps.scan(n_trials=100)
             print(study.best_params)
@@ -115,8 +115,8 @@ class ClusterHyperParamScanner(AbstractClusterHyperParamScanner):
             self.sectors = sectors
         self._es = early_stopping
         self._study = None
-        self._cheap_metric = cheap_guiding_metric
-        self._expensive_metric = guiding_metric
+        self._cheap_metric = guide_proxy
+        self._expensive_metric = guide
         self._graph_to_sector: dict[int, int] = {}
 
     def _get_sector_to_study(self, i_graph: int):
