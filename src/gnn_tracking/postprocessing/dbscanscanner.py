@@ -1,19 +1,19 @@
 from __future__ import annotations
 
 import numpy as np
-import optuna
 from sklearn.cluster import DBSCAN
 
 from gnn_tracking.postprocessing.clusterscanner import (
     AbstractClusterHyperParamScanner,
     ClusterHyperParamScanner,
-    metric_type,
+    ClusterScanResult,
 )
 
 __all__ = ["DBSCANHyperParamScanner"]
 
 
 def dbscan(graph: np.ndarray, eps, min_samples) -> np.ndarray:
+    print(graph.shape)
     return DBSCAN(eps=eps, min_samples=min_samples).fit_predict(graph)
 
 
@@ -21,10 +21,6 @@ class DBSCANHyperParamScanner(AbstractClusterHyperParamScanner):
     def __init__(
         self,
         *,
-        graphs: list[np.ndarray],
-        truth: list[np.ndarray],
-        sectors: list[np.ndarray],
-        metric: metric_type,
         eps_range: tuple[float, float] = (1e-5, 1.0),
         min_samples_range: tuple[int, int] = (1, 50),
         **kwargs,
@@ -49,12 +45,8 @@ class DBSCANHyperParamScanner(AbstractClusterHyperParamScanner):
         self.chps = ClusterHyperParamScanner(
             algorithm=dbscan,
             suggest=suggest,
-            graphs=graphs,
-            truth=truth,
-            sectors=sectors,
-            guiding_metric=metric,
             **kwargs,
         )
 
-    def _scan(self, **kwargs) -> optuna.Study:
+    def _scan(self, **kwargs) -> ClusterScanResult:
         return self.chps._scan(**kwargs)
