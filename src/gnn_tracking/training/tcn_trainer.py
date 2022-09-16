@@ -13,12 +13,12 @@ from torch.optim import Adam
 from torch_geometric.data import Data
 from torch_geometric.loader import DataLoader
 
+from gnn_tracking.postprocessing.clusterscanner import ClusterScanResult
 from gnn_tracking.utils.log import get_logger
 from gnn_tracking.utils.training import BinaryClassificationStats
 
 hook_type = Callable[[torch.nn.Module, dict[str, Tensor]], None]
 loss_fct_type = Callable[..., Tensor]
-cluster_type = Callable[[list[np.ndarray], list[np.ndarray]], Tensor]
 
 
 class ClusterFctType(Protocol):
@@ -28,7 +28,7 @@ class ClusterFctType(Protocol):
         truth: list[np.ndarray],
         sectors: list[np.ndarray],
         epoch=None,
-    ) -> float:
+    ) -> ClusterScanResult:
         ...
 
 
@@ -281,7 +281,6 @@ class TCNTrainer:
             loader = self.val_loader if val else self.test_loader
             for _batch_idx, data in enumerate(loader):
                 data = data.to(self.device)
-                sectors.append(data.sector.detach().cpu().numpy())
                 model_output = self.evaluate_model(data, mask_pids_reco=False)
                 batch_loss, batch_losses = self.get_batch_losses(model_output)
 
@@ -302,10 +301,13 @@ class TCNTrainer:
                 if _batch_idx <= self.max_batches_for_clustering:
                     graphs.append(model_output["x"].detach().cpu().numpy())
                     truths.append(model_output["particle_id"].detach().cpu().numpy())
+                    sectors.append(data.sector.detach().cpu().numpy())
 
         losses = {k: np.nanmean(v) for k, v in losses.items()}
-        for k, f in self.clustering_functions.items():
-            losses[k] = f(graphs, truths, sectors, epoch=self._epoch)
+        for f in self.clustering_functions.values():
+            cluster_result = f(graphs, truths, sectors, epoch=self._epoch)
+            if cluster_result is not None:
+                losses.update(cluster_result.metrics)
         self._log_losses(losses["total"], losses, header=f"Test {self._epoch}: ")
         self.test_loss.append(pd.DataFrame(losses, index=[self._epoch]))
         for hook in self._test_hooks:

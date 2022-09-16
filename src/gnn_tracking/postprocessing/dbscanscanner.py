@@ -1,30 +1,26 @@
 from __future__ import annotations
 
 import numpy as np
-import optuna
 from sklearn.cluster import DBSCAN
 
+from gnn_tracking.postprocessing.cluster_metrics import common_metrics
 from gnn_tracking.postprocessing.clusterscanner import (
     AbstractClusterHyperParamScanner,
     ClusterHyperParamScanner,
-    metric_type,
+    ClusterScanResult,
 )
 
-__all__ = ["DBSCANHyperParamScanner"]
+__all__ = ["DBSCANHyperParamScanner", "dbscan_scan"]
 
 
-def dbscan(graph: np.ndarray, eps, min_samples) -> np.ndarray:
-    return DBSCAN(eps=eps, min_samples=min_samples).fit_predict(graph)
+def dbscan(graphs: np.ndarray, eps, min_samples) -> np.ndarray:
+    return DBSCAN(eps=eps, min_samples=min_samples).fit_predict(graphs)
 
 
 class DBSCANHyperParamScanner(AbstractClusterHyperParamScanner):
     def __init__(
         self,
         *,
-        graphs: list[np.ndarray],
-        truth: list[np.ndarray],
-        sectors: list[np.ndarray],
-        metric: metric_type,
         eps_range: tuple[float, float] = (1e-5, 1.0),
         min_samples_range: tuple[int, int] = (1, 50),
         **kwargs,
@@ -49,12 +45,27 @@ class DBSCANHyperParamScanner(AbstractClusterHyperParamScanner):
         self.chps = ClusterHyperParamScanner(
             algorithm=dbscan,
             suggest=suggest,
-            graphs=graphs,
-            truth=truth,
-            sectors=sectors,
-            metric=metric,
             **kwargs,
         )
 
-    def _scan(self, **kwargs) -> optuna.Study:
+    def _scan(self, **kwargs) -> ClusterScanResult:
         return self.chps._scan(**kwargs)
+
+
+def dbscan_scan(
+    graphs: np.ndarray,
+    truth: np.ndarray,
+    sectors: np.ndarray,
+    n_jobs=1,
+    n_trials=100,
+    guide="v_measure",
+    **kwargs,
+) -> ClusterScanResult:
+    dbss = DBSCANHyperParamScanner(
+        graphs=graphs,
+        truth=truth,
+        sectors=sectors,
+        guide=guide,
+        metrics=common_metrics,
+    )
+    return dbss.scan(n_jobs=n_jobs, n_trials=n_trials, **kwargs)
