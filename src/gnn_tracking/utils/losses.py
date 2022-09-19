@@ -90,11 +90,11 @@ class EdgeWeightFocalLoss(EdgeWeightLoss):
 
 
 class PotentialLoss(torch.nn.Module):
-    def __init__(self, q_min=0.01, device="cpu"):
+    def __init__(self, q_min=0.01, radius_threshold=10.0, device="cpu"):
         super().__init__()
         self.q_min = q_min
         self.device = device
-        self.radius_threshold = 10.0
+        self.radius_threshold = radius_threshold
 
     def condensation_loss(self, *, beta: T, x: T, particle_id: T) -> dict[str, T]:
         pids = torch.unique(particle_id[particle_id > 0])
