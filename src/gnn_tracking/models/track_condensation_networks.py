@@ -67,15 +67,25 @@ class INConvBlock(nn.Module):
 class PointCloudTCN(nn.Module):
     def __init__(
         self,
-        node_indim,
-        h_dim=10,  # node dimension in latent space
-        e_dim=10,  # edge dimension in latent space
-        h_outdim=5,  # output dimension in clustering space
-        hidden_dim=100,  # hidden with of all nn.Linear layers
-        N_blocks=3,  # number of edge_conv + IN blocks
-        L=3,  # message passing depth in each block
-        # k=2,  # number of neighbors to connect in latent space
+        node_indim: int,
+        h_dim=10,
+        e_dim=10,
+        h_outdim=5,
+        hidden_dim=100,
+        N_blocks=3,
+        L=3,
     ):
+        """
+
+        Args:
+            node_indim:
+            h_dim:   node dimension in latent space
+            e_dim: edge dimension in latent space
+            h_outdim:  output dimension in clustering space
+            hidden_dim:  hidden with of all nn.Linear layers
+            N_blocks:  number of edge_conv + IN blocks
+            L: message passing depth in each block
+        """
         super(PointCloudTCN, self).__init__()
         self.h_dim = h_dim
         self.e_dim = e_dim
@@ -94,7 +104,7 @@ class PointCloudTCN(nn.Module):
         self,
         data: Data,
         alpha: float = 0.5,
-    ) -> Tensor:
+    ) -> dict[str, Tensor]:
 
         # apply the edge classifier to generate edge weights
         h = data.x
@@ -112,17 +122,31 @@ class PointCloudTCN(nn.Module):
 class GraphTCN(nn.Module):
     def __init__(
         self,
-        node_indim,
-        edge_indim,
-        h_dim=5,  # node dimension in latent space
-        e_dim=4,  # edge dimension in latent space
-        h_outdim=2,  # output dimension in clustering space
-        hidden_dim=40,  # hidden with of all nn.Linear layers
-        L_ec=3,  # message passing depth for edge classifier
-        L_hc=3,  # message passing depth for track condenser
-        alpha_ec: float = 0.5,  # strength of residual connection for EC
-        alpha_hc: float = 0.5,  # strength of residual connection for HC
+        node_indim: int,
+        edge_indim: int,
+        h_dim=5,
+        e_dim=4,
+        h_outdim=2,
+        hidden_dim=40,
+        L_ec=3,
+        L_hc=3,
+        alpha_ec: float = 0.5,
+        alpha_hc: float = 0.5,
     ):
+        """
+
+        Args:
+            node_indim:
+            edge_indim:
+            h_dim: node dimension in latent space
+            e_dim:  edge dimension in latent space
+            h_outdim: output dimension in clustering space
+            hidden_dim: hidden with of all nn.Linear layers
+            L_ec: message passing depth for edge classifier
+            L_hc: message passing depth for track condenser
+            alpha_ec: strength of residual connection for EC
+            alpha_hc: strength of residual connection for HC
+        """
         super(GraphTCN, self).__init__()
         self.h_dim = h_dim
         self.e_dim = e_dim
@@ -180,7 +204,7 @@ class GraphTCN(nn.Module):
     def forward(
         self,
         data: Data,
-    ) -> Tensor:
+    ) -> dict[str, Tensor]:
 
         # apply the edge classifier to generate edge weights
         x, edge_index, edge_attr = data.x, data.edge_index, data.edge_attr
