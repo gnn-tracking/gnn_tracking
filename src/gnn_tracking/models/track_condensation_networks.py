@@ -20,7 +20,7 @@ class INConvBlock(nn.Module):
         k,
         hidden_dim=100,
     ):
-        super(INConvBlock, self).__init__()
+        super().__init__()
         self.indim = indim
         self.h_dim = h_dim
         self.e_dim = e_dim
@@ -86,7 +86,7 @@ class PointCloudTCN(nn.Module):
             N_blocks:  number of edge_conv + IN blocks
             L: message passing depth in each block
         """
-        super(PointCloudTCN, self).__init__()
+        super().__init__()
         self.h_dim = h_dim
         self.e_dim = e_dim
         self.relu = nn.ReLU()
@@ -139,7 +139,7 @@ class GraphTCN(nn.Module):
             node_indim:
             edge_indim:
             h_dim: node dimension in latent space
-            e_dim:  edge dimension in latent space
+            e_dim: edge dimension in latent space
             h_outdim: output dimension in clustering space
             hidden_dim: hidden with of all nn.Linear layers
             L_ec: message passing depth for edge classifier
@@ -147,7 +147,7 @@ class GraphTCN(nn.Module):
             alpha_ec: strength of residual connection for EC
             alpha_hc: strength of residual connection for HC
         """
-        super(GraphTCN, self).__init__()
+        super().__init__()
         self.h_dim = h_dim
         self.e_dim = e_dim
         self.relu = nn.ReLU()
