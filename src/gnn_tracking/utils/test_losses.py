@@ -53,8 +53,10 @@ def get_condensation_loss(td: MockData) -> float:
 
 
 def get_background_loss(td: MockData) -> float:
-    return BackgroundLoss(sb=0.1).background_loss(
-        beta=td.beta, particle_id=td.particle_id
+    return (
+        BackgroundLoss(sb=0.1)
+        .background_loss(beta=td.beta, particle_id=td.particle_id)
+        .item()
     )
 
 
