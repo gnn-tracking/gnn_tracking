@@ -139,7 +139,7 @@ class GraphTCN(nn.Module):
             node_indim:
             edge_indim:
             h_dim: node dimension in latent space
-            e_dim:  edge dimension in latent space
+            e_dim: edge dimension in latent space
             h_outdim: output dimension in clustering space
             hidden_dim: hidden with of all nn.Linear layers
             L_ec: message passing depth for edge classifier
@@ -148,8 +148,6 @@ class GraphTCN(nn.Module):
             alpha_hc: strength of residual connection for HC
         """
         super(GraphTCN, self).__init__()
-        self.h_dim = h_dim
-        self.e_dim = e_dim
         self.relu = nn.ReLU()
         self.alpha_ec = alpha_ec
         self.alpha_hc = alpha_hc

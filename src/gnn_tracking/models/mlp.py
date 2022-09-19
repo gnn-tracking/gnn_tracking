@@ -4,9 +4,8 @@ import torch.nn as nn
 
 
 class MLP(nn.Module):
-    def __init__(self, input_size, output_size, hidden_dim, L=3):
-        super(MLP, self).__init__()
-
+    def __init__(self, input_size: int, output_size: int, hidden_dim: int, L=3):
+        super().__init__()
         layers = []
         layers.append(nn.Linear(input_size, hidden_dim))
         for _l in range(1, L - 1):
