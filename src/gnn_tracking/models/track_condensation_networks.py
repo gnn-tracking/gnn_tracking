@@ -141,7 +141,7 @@ class GraphTCN(nn.Module):
             h_dim: node dimension in latent space
             e_dim: edge dimension in latent space
             h_outdim: output dimension in clustering space
-            hidden_dim: hidden with of all nn.Linear layers
+            hidden_dim: width of hidden layers in all perceptrons
             L_ec: message passing depth for edge classifier
             L_hc: message passing depth for track condenser
             alpha_ec: strength of residual connection for EC
