@@ -104,6 +104,7 @@ class ClusterHyperParamScanner(AbstractClusterHyperParamScanner):
         self.algorithm = algorithm
         self.suggest = suggest
         assert [len(g) for g in graphs] == [len(t) for t in truth]
+        assert len(graphs) > 0
         self.graphs: list[np.ndarray] = graphs
         self.truth: list[np.ndarray] = truth
         if any(["." in k for k in metrics]):
