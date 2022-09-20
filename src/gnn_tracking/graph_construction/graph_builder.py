@@ -331,10 +331,11 @@ class GraphBuilder:
         Returns:
             Event id, sector Id
         """
-        evtid_s = name.split(".")[0][4:]
-        evtid = int(evtid_s[:5])
-        s = int(evtid_s.split("_s")[-1])
-        return evtid, s
+        number_s = name.split(".")[0][len("data") :]
+        evtid_s, sectorid_s = number_s.split("_s")
+        evtid = int(evtid_s)
+        sectorid = int(sectorid_s)
+        return evtid, sectorid
 
     def process(self, n=10**6):
         infiles = os.listdir(self.indir)
