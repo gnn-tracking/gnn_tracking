@@ -59,6 +59,7 @@ def dbscan_scan(
     n_jobs=1,
     n_trials=100,
     guide="v_measure",
+    epoch=None,
     **kwargs,
 ) -> ClusterScanResult:
     dbss = DBSCANHyperParamScanner(
