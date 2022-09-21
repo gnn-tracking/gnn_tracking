@@ -12,6 +12,9 @@ class ResIN(nn.Module):
         network that returns a node feature tensor and an edge feature tensor should
         work.
 
+        Note that a ReLu activation function is applied to the node result of the
+        layer.
+
         Args:
             layers: List of layers
             alpha: Strength of the residual connection
@@ -27,7 +30,7 @@ class ResIN(nn.Module):
         n_layers=1,
         **kwargs,
     ) -> ResIN:
-        """Create a ResIN with identical layers interaction network layers
+        """Create a ResIN with identical layers of interaction networks
 
         Args:
             alpha: Strength of the residual connection
