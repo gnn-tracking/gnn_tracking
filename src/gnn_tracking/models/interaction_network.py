@@ -7,7 +7,6 @@ from torch_geometric.nn import MessagePassing
 from gnn_tracking.models.mlp import MLP
 
 
-# fixme: Missing abstract methods!
 class InteractionNetwork(MessagePassing):
     def __init__(
         self,

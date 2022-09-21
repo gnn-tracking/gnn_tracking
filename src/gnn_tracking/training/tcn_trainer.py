@@ -270,7 +270,7 @@ class TCNTrainer:
         for hook in self._train_hooks:
             hook(self.model, losses)
 
-    def test_step(self, thld=0.5, val=True):
+    def test_step(self, thld=0.5, val=True) -> dict[str, float]:
         self.model.eval()
         losses = collections.defaultdict(list)
 
@@ -312,6 +312,7 @@ class TCNTrainer:
         self.test_loss.append(pd.DataFrame(losses, index=[self._epoch]))
         for hook in self._test_hooks:
             hook(self.model, losses)
+        return losses
 
     def train(self, epochs=1000, max_batches: int | None = None):
         """

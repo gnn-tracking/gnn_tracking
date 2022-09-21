@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from functools import partial
 
+from pytest import approx
 from torch_geometric.loader import DataLoader
 
 from gnn_tracking.models.track_condensation_networks import GraphTCN
@@ -61,4 +62,28 @@ def test_train(built_graphs):
     )
 
     trainer.train(epochs=1, max_batches=1)
-    trainer.test_step()
+    result = trainer.test_step()
+    assert result == approx(
+        {
+            "acc": 0.667654028436019,
+            "TPR": 0.13602150537634408,
+            "TNR": 0.8697874080130826,
+            "FPR": 0.13021259198691743,
+            "FNR": 0.863978494623656,
+            "total": 46.57383346557617,
+            "edge": 0.6902721524238586,
+            "potential_attractive": 7.787227514199913e-05,
+            "potential_repulsive": 42.47319030761719,
+            "background": 0.6485034823417664,
+            "v_measure": 0.0,
+            "homogeneity": 0.0,
+            "completeness": 1.0,
+            "custom.total": 122.0,
+            "custom.perfect": 0.0,
+            "custom.double_majority": 0.0,
+            "custom.lhc": 1.0,
+            "adjusted_rand": 0.0,
+            "fowlkes_mallows": 0.09654130313668478,
+            "adjusted_mutual_info": 8.65042156952295e-17,
+        }
+    )
