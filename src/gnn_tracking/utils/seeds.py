@@ -11,3 +11,4 @@ def fix_seeds() -> None:
     torch.manual_seed(0)
     np.random.seed(0)
     random.seed(0)
+    torch.use_deterministic_algorithms(True)
