@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import collections
 import logging
+from pathlib import PurePath
 from typing import Any, Callable, DefaultDict, Mapping, Protocol
 
 import numpy as np
@@ -330,3 +331,21 @@ class TCNTrainer:
             self.test_step(thld=0.5, val=True)
             if self._lr_scheduler:
                 self._lr_scheduler.step()
+
+    def save_checkpoint(self, path: str | PurePath) -> None:
+        """Save state of model, optimizer and more for later resuming of training."""
+        torch.save(
+            {
+                "epoch": self._epoch,
+                "model_state_dict": self.model.state_dict(),
+                "optimizer_state_dict": self.optimizer.state_dict(),
+            },
+            path,
+        )
+
+    def load_checkpoint(self, path: str | PurePath) -> None:
+        """Resume training from checkpoint"""
+        checkpoint = torch.load(path)
+        self.model.load_state_dict(checkpoint["model_state_dict"])
+        self.optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
+        self._epoch = checkpoint["epoch"]
