@@ -8,6 +8,7 @@ from torch_geometric.data import Data
 from gnn_tracking.models.dynamic_edge_conv import DynamicEdgeConv
 from gnn_tracking.models.interaction_network import InteractionNetwork as IN
 from gnn_tracking.models.mlp import MLP
+from gnn_tracking.models.resin import ResIN
 
 
 class INConvBlock(nn.Module):
@@ -157,36 +158,30 @@ class GraphTCN(nn.Module):
         # specify the edge classifier
         self.ec_node_encoder = MLP(node_indim, self.h_dim, hidden_dim=hidden_dim, L=1)
         self.ec_edge_encoder = MLP(edge_indim, self.e_dim, hidden_dim=hidden_dim, L=1)
-        ec_layers = []
-        for _ in range(L_ec):
-            ec_layers.append(
-                IN(
-                    self.h_dim,
-                    self.e_dim,
-                    node_outdim=self.h_dim,
-                    edge_outdim=self.e_dim,
-                    node_hidden_dim=hidden_dim,
-                    edge_hidden_dim=hidden_dim,
-                )
-            )
-        self.ec_layers = nn.ModuleList(ec_layers)
+        self.ec_resin = ResIN.identical_in_layers(
+            node_indim=self.h_dim,
+            edge_indim=self.e_dim,
+            node_outdim=self.h_dim,
+            edge_outdim=self.e_dim,
+            node_hidden_dim=hidden_dim,
+            edge_hidden_dim=hidden_dim,
+            alpha=alpha_ec,
+            n_layers=L_ec,
+        )
 
         # specify the track condenser
         self.hc_node_encoder = MLP(node_indim, self.h_dim, hidden_dim=hidden_dim, L=1)
         self.hc_edge_encoder = MLP(edge_indim, self.e_dim, hidden_dim=hidden_dim, L=1)
-        hc_layers = []
-        for _ in range(L_hc):
-            hc_layers.append(
-                IN(
-                    self.h_dim,
-                    self.e_dim,
-                    node_outdim=self.h_dim,
-                    edge_outdim=self.e_dim,
-                    node_hidden_dim=hidden_dim,
-                    edge_hidden_dim=hidden_dim,
-                )
-            )
-        self.hc_layers = nn.ModuleList(hc_layers)
+        self.hc_resin = ResIN.identical_in_layers(
+            node_indim=self.h_dim,
+            edge_indim=self.e_dim,
+            node_outdim=self.h_dim,
+            edge_outdim=self.e_dim,
+            node_hidden_dim=hidden_dim,
+            edge_hidden_dim=hidden_dim,
+            alpha=alpha_hc,
+            n_layers=L_hc,
+        )
 
         # modules to predict outputs
         self.W = MLP(self.e_dim * (L_ec + 1), 1, hidden_dim, L=1)
@@ -205,17 +200,11 @@ class GraphTCN(nn.Module):
         self,
         data: Data,
     ) -> dict[str, Tensor]:
-
         # apply the edge classifier to generate edge weights
         x, edge_index, edge_attr = data.x, data.edge_index, data.edge_attr
         h_ec = self.relu(self.ec_node_encoder(x))
         edge_attr_ec = self.relu(self.ec_edge_encoder(edge_attr))
-        edge_attrs_ec = [edge_attr_ec]
-        for layer in self.ec_layers:
-            delta_h_ec, new_edge_attr_ec = layer(h_ec, edge_index, edge_attr_ec)
-            h_ec = self.alpha_ec * h_ec + (1 - self.alpha_ec) * self.relu(delta_h_ec)
-            edge_attrs_ec.append(new_edge_attr_ec)
-            edge_attr_ec = new_edge_attr_ec
+        h_ec, _, edge_attrs_ec = self.ec_resin(h_ec, edge_index, edge_attr_ec)
 
         # append edge weights as new edge features
         edge_attrs_ec = torch.cat(edge_attrs_ec, dim=1)
@@ -232,13 +221,7 @@ class GraphTCN(nn.Module):
         # apply the track condenser
         h_hc = self.relu(self.hc_node_encoder(x))
         edge_attr_hc = self.relu(self.hc_edge_encoder(edge_attr))
-        edge_attrs_hc = [edge_attr_hc]
-        for layer in self.hc_layers:
-            delta_h_hc, new_edge_attr_hc = layer(h_hc, edge_index, edge_attr_hc)
-            h_hc = self.alpha_hc * h_hc + (1 - self.alpha_hc) * self.relu(delta_h_hc)
-            edge_attrs_hc.append(new_edge_attr_hc)
-            edge_attr_hc = new_edge_attr_hc
-
+        h_hc, _, edge_attrs_hc = self.hc_resin(h_hc, edge_index, edge_attr_hc)
         beta = torch.sigmoid(self.B(h_hc))
         # protect against nans
         beta = beta + torch.ones_like(beta) * 10e-6
