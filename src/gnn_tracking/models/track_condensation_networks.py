@@ -149,20 +149,16 @@ class GraphTCN(nn.Module):
             alpha_hc: strength of residual connection for HC
         """
         super().__init__()
-        self.h_dim = h_dim
-        self.e_dim = e_dim
         self.relu = nn.ReLU()
-        self.alpha_ec = alpha_ec
-        self.alpha_hc = alpha_hc
 
         # specify the edge classifier
-        self.ec_node_encoder = MLP(node_indim, self.h_dim, hidden_dim=hidden_dim, L=1)
-        self.ec_edge_encoder = MLP(edge_indim, self.e_dim, hidden_dim=hidden_dim, L=1)
+        self.ec_node_encoder = MLP(node_indim, h_dim, hidden_dim=hidden_dim, L=1)
+        self.ec_edge_encoder = MLP(edge_indim, e_dim, hidden_dim=hidden_dim, L=1)
         self.ec_resin = ResIN.identical_in_layers(
-            node_indim=self.h_dim,
-            edge_indim=self.e_dim,
-            node_outdim=self.h_dim,
-            edge_outdim=self.e_dim,
+            node_indim=h_dim,
+            edge_indim=e_dim,
+            node_outdim=h_dim,
+            edge_outdim=e_dim,
             node_hidden_dim=hidden_dim,
             edge_hidden_dim=hidden_dim,
             alpha=alpha_ec,
@@ -170,13 +166,13 @@ class GraphTCN(nn.Module):
         )
 
         # specify the track condenser
-        self.hc_node_encoder = MLP(node_indim, self.h_dim, hidden_dim=hidden_dim, L=1)
-        self.hc_edge_encoder = MLP(edge_indim, self.e_dim, hidden_dim=hidden_dim, L=1)
+        self.hc_node_encoder = MLP(node_indim, h_dim, hidden_dim=hidden_dim, L=1)
+        self.hc_edge_encoder = MLP(edge_indim, e_dim, hidden_dim=hidden_dim, L=1)
         self.hc_resin = ResIN.identical_in_layers(
-            node_indim=self.h_dim,
-            edge_indim=self.e_dim,
-            node_outdim=self.h_dim,
-            edge_outdim=self.e_dim,
+            node_indim=h_dim,
+            edge_indim=e_dim,
+            node_outdim=h_dim,
+            edge_outdim=e_dim,
             node_hidden_dim=hidden_dim,
             edge_hidden_dim=hidden_dim,
             alpha=alpha_hc,
@@ -184,12 +180,12 @@ class GraphTCN(nn.Module):
         )
 
         # modules to predict outputs
-        self.W = MLP(self.e_dim * (L_ec + 1), 1, hidden_dim, L=1)
-        self.B = MLP(self.h_dim, 1, hidden_dim, L=1)
-        self.X = MLP(self.h_dim, h_outdim, hidden_dim, L=1)
+        self.W = MLP(e_dim * (L_ec + 1), 1, hidden_dim, L=1)
+        self.B = MLP(h_dim, 1, hidden_dim, L=1)
+        self.X = MLP(h_dim, h_outdim, hidden_dim, L=1)
         self.P = IN(
-            self.h_dim,
-            self.e_dim * (L_hc + 1),
+            h_dim,
+            e_dim * (L_hc + 1),
             node_outdim=1,
             edge_outdim=1,
             node_hidden_dim=hidden_dim,
