@@ -11,7 +11,7 @@ from gnn_tracking.utils.losses import BackgroundLoss, EdgeWeightBCELoss, Potenti
 from gnn_tracking.utils.seeds import fix_seeds
 
 
-def test_train(built_graphs):
+def test_train(tmp_path, built_graphs):
     fix_seeds()
     _, graph_builder = built_graphs
     g = graph_builder.data_list[0]
@@ -62,3 +62,5 @@ def test_train(built_graphs):
 
     trainer.train(epochs=1, max_batches=1)
     trainer.test_step()
+    trainer.save_checkpoint(tmp_path / "model.pt")
+    trainer.load_checkpoint(tmp_path / "model.pt")
