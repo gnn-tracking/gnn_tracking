@@ -62,5 +62,6 @@ def test_train(tmp_path, built_graphs):
 
     trainer.train(epochs=1, max_batches=1)
     trainer.test_step()
-    trainer.save_checkpoint(tmp_path / "model.pt")
-    trainer.load_checkpoint(tmp_path / "model.pt")
+    trainer.checkpoint_dir = tmp_path
+    trainer.save_checkpoint("model.pt")
+    trainer.load_checkpoint("model.pt")
