@@ -275,7 +275,7 @@ class TCNTrainer:
         for hook in self._train_hooks:
             hook(self.model, losses)
 
-    def test_step(self, thld=0.5, val=True):
+    def test_step(self, thld=0.5, val=True) -> dict[str, float]:
         self.model.eval()
         losses = collections.defaultdict(list)
 
@@ -317,6 +317,21 @@ class TCNTrainer:
         self.test_loss.append(pd.DataFrame(losses, index=[self._epoch]))
         for hook in self._test_hooks:
             hook(self.model, losses)
+        return losses
+
+    def step(self, max_batches: int | None = None) -> dict[str, float]:
+        """Train one epoch and test
+
+        Args:
+            max_batches: See train_step
+        """
+        self._epoch += 1
+        self.logger.info(f"---- Epoch {self._epoch} ----")
+        self.train_step(max_batches=max_batches)
+        results = self.test_step(thld=0.5, val=True)
+        if self._lr_scheduler:
+            self._lr_scheduler.step()
+        return results
 
     def train(self, epochs=1000, max_batches: int | None = None):
         """Train the model.
@@ -330,17 +345,14 @@ class TCNTrainer:
         """
         for _ in range(1, epochs + 1):
             try:
-                self._epoch += 1
-                self.logger.info(f"---- Epoch {self._epoch} ----")
-                self.train_step(max_batches=max_batches)
-                self.test_step(thld=0.5, val=True)
-                if self._lr_scheduler:
-                    self._lr_scheduler.step()
+                self.step(max_batches=max_batches)
             except KeyboardInterrupt:
                 self.logger.warning("Keyboard interrupt")
                 self.save_checkpoint()
                 raise
+        self.save_checkpoint()
 
+    # noinspection PyMethodMayBeStatic
     def get_checkpoint_name(self) -> str:
         """Generate name of checkpoint file based on current time."""
         now = datetime.now()
