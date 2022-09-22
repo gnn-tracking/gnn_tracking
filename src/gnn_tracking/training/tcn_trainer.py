@@ -319,7 +319,7 @@ class TCNTrainer:
             hook(self.model, losses)
         return losses
 
-    def step(self, max_batches: int | None = None) -> dict[str, float]:
+    def step(self, *, max_batches: int | None = None) -> dict[str, float]:
         """Train one epoch and test
 
         Args:
