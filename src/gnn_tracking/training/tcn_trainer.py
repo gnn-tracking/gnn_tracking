@@ -339,6 +339,7 @@ class TCNTrainer:
             except KeyboardInterrupt:
                 self.logger.warning("Keyboard interrupt")
                 self.save_checkpoint()
+                raise
 
     def get_checkpoint_name(self) -> str:
         """Generate name of checkpoint file based on current time."""
