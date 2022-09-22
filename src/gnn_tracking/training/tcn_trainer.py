@@ -326,7 +326,6 @@ class TCNTrainer:
             max_batches: See train_step
         """
         self._epoch += 1
-        self.logger.info(f"---- Epoch {self._epoch} ----")
         self.train_step(max_batches=max_batches)
         results = self.test_step(thld=0.5, val=True)
         if self._lr_scheduler:
