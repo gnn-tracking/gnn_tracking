@@ -36,7 +36,7 @@ def test_train(tmp_path, built_graphs):
 
     q_min, sb = 0.01, 0.1
     loss_functions = {
-        "edge": EdgeWeightBCELoss().to(),
+        "edge": EdgeWeightBCELoss(),
         "potential": PotentialLoss(q_min=q_min),
         "background": BackgroundLoss(sb=sb),
     }
