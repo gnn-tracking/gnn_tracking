@@ -21,18 +21,13 @@ def test_train(tmp_path, built_graphs):
     graphs = graph_builder.data_list
     n_graphs = len(graphs)
     assert n_graphs == 2
-    params = {"batch_size": 1, "shuffle": True, "num_workers": 1}
-    train_graphs = DataLoader([graphs[0]], **params)
-    test_graphs = DataLoader([graphs[1]], **params)
-    val_graphs = DataLoader([graphs[1]], **params)
+    params = {"batch_size": 1, "num_workers": 1}
 
-    train_loader = DataLoader(list(train_graphs), **params)
-
-    params = {"batch_size": 2, "shuffle": False, "num_workers": 2}
-    test_loader = DataLoader(list(test_graphs), **params)
-    val_loader = DataLoader(list(val_graphs), **params)
-    loaders = {"train": train_loader, "test": test_loader, "val": val_loader}
-    print("Loader sizes:", [(k, len(v)) for k, v in loaders.items()])
+    loaders = {
+        "train": DataLoader([graphs[0]], **params, shuffle=True),
+        "test": DataLoader([graphs[1]], **params),
+        "val": DataLoader([graphs[1]], **params),
+    }
 
     q_min, sb = 0.01, 0.1
     loss_functions = {
@@ -57,7 +52,7 @@ def test_train(tmp_path, built_graphs):
         loss_functions=loss_functions,
         lr=0.0001,
         loss_weights=loss_weights,
-        cluster_functions={"dbscan": partial(dbscan_scan, n_trials=1)},
+        cluster_functions={"dbscan": partial(dbscan_scan, n_trials=1)},  # type: ignore
     )
 
     trainer.train(epochs=1, max_batches=1)
