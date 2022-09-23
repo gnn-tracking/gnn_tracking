@@ -17,6 +17,7 @@ from torch_geometric.data import Data
 from torch_geometric.loader import DataLoader
 
 from gnn_tracking.postprocessing.clusterscanner import ClusterScanResult
+from gnn_tracking.utils.device import guess_device
 from gnn_tracking.utils.log import get_logger
 from gnn_tracking.utils.timing import timing
 from gnn_tracking.utils.training import BinaryClassificationStats
@@ -50,7 +51,7 @@ class TCNTrainer:
         loaders: dict[str, DataLoader],
         loss_functions: dict[str, loss_fct_type],
         *,
-        device="cpu",
+        device=None,
         lr: Any = 5 * 10**-4,
         lr_scheduler: None | Callable = None,
         loss_weights: dict[str, float] = None,
@@ -76,14 +77,14 @@ class TCNTrainer:
                 clustering)
         """
         #: Checkpoints are saved to this directory by default
+        self.device = guess_device(device)
         self.checkpoint_dir = Path(".")
         self.model = model.to(device)
         self.train_loader = loaders["train"]
         self.test_loader = loaders["test"]
         self.val_loader = loaders["val"]
-        self.device = device
 
-        self.loss_functions = loss_functions
+        self.loss_functions = {k: v.to(device) for k, v in loss_functions.items()}
         if cluster_functions is None:
             cluster_functions = {}
         self.clustering_functions = cluster_functions
