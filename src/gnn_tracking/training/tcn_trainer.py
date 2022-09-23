@@ -78,13 +78,14 @@ class TCNTrainer:
         """
         #: Checkpoints are saved to this directory by default
         self.device = guess_device(device)
+        del device
         self.checkpoint_dir = Path(".")
-        self.model = model.to(device)
+        self.model = model.to(self.device)
         self.train_loader = loaders["train"]
         self.test_loader = loaders["test"]
         self.val_loader = loaders["val"]
 
-        self.loss_functions = {k: v.to(device) for k, v in loss_functions.items()}
+        self.loss_functions = {k: v.to(self.device) for k, v in loss_functions.items()}
         if cluster_functions is None:
             cluster_functions = {}
         self.clustering_functions = cluster_functions
