@@ -18,6 +18,7 @@ from torch_geometric.loader import DataLoader
 
 from gnn_tracking.postprocessing.clusterscanner import ClusterScanResult
 from gnn_tracking.utils.log import get_logger
+from gnn_tracking.utils.timing import timing
 from gnn_tracking.utils.training import BinaryClassificationStats
 
 hook_type = Callable[[torch.nn.Module, dict[str, Tensor]], None]
@@ -326,11 +327,12 @@ class TCNTrainer:
             max_batches: See train_step
         """
         self._epoch += 1
-        self.train_step(max_batches=max_batches)
-        results = self.test_step(thld=0.5, val=True)
-        if self._lr_scheduler:
-            self._lr_scheduler.step()
-        return results
+        with timing(f"Training for epoch {self._epoch}"):
+            self.train_step(max_batches=max_batches)
+            results = self.test_step(thld=0.5, val=True)
+            if self._lr_scheduler:
+                self._lr_scheduler.step()
+            return results
 
     def train(self, epochs=1000, max_batches: int | None = None):
         """Train the model.
