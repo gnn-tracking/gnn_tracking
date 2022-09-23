@@ -54,9 +54,9 @@ def test_train(tmp_path, built_graphs):
         loss_weights=loss_weights,
         cluster_functions={"dbscan": partial(dbscan_scan, n_trials=1)},  # type: ignore
     )
+    trainer.checkpoint_dir = tmp_path
 
     trainer.train(epochs=1, max_batches=1)
     trainer.test_step()
-    trainer.checkpoint_dir = tmp_path
     trainer.save_checkpoint("model.pt")
     trainer.load_checkpoint("model.pt")
