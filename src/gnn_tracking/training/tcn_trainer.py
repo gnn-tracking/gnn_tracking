@@ -76,9 +76,11 @@ class TCNTrainer:
                 during testing and report additional figures of merits (e.g.,
                 clustering)
         """
-        #: Checkpoints are saved to this directory by default
+        self.logger = get_logger("TCNTrainer", level=logging.INFO)
         self.device = guess_device(device)
         del device
+        self.logger.info("Using device %s", self.device)
+        #: Checkpoints are saved to this directory by default
         self.checkpoint_dir = Path(".")
         self.model = model.to(self.device)
         self.train_loader = loaders["train"]
@@ -104,8 +106,6 @@ class TCNTrainer:
 
         self._train_hooks: list[hook_type] = []
         self._test_hooks: list[hook_type] = []
-
-        self.logger = get_logger("TCNTrainer", level=logging.INFO)
 
         # output quantities
         self.train_loss: list[pd.DataFrame] = []
