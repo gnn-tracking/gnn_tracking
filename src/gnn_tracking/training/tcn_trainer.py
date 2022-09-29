@@ -33,6 +33,7 @@ class ClusterFctType(Protocol):
         truth: list[np.ndarray],
         sectors: list[np.ndarray],
         epoch=None,
+        start_params: dict[str, Any] | None = None,
     ) -> ClusterScanResult:
         ...
 
@@ -106,6 +107,9 @@ class TCNTrainer:
 
         self._train_hooks: list[hook_type] = []
         self._test_hooks: list[hook_type] = []
+
+        #: Mapping of cluster function name to best parameter
+        self._best_cluster_params: dict[str, dict[str, Any] | None] = {}
 
         # output quantities
         self.train_loss: list[pd.DataFrame] = []
@@ -312,10 +316,17 @@ class TCNTrainer:
                     sectors.append(data.sector.detach().cpu().numpy())
 
         losses = {k: np.nanmean(v) for k, v in losses.items()}
-        for f in self.clustering_functions.values():
-            cluster_result = f(graphs, truths, sectors, epoch=self._epoch)
+        for k, f in self.clustering_functions.items():
+            cluster_result = f(
+                graphs,
+                truths,
+                sectors,
+                epoch=self._epoch,
+                start_params=self._best_cluster_params[k],
+            )
             if cluster_result is not None:
                 losses.update(cluster_result.metrics)
+                self._best_cluster_params[k] = cluster_result.best_params
         self._log_losses(losses["total"], losses, header=f"Test {self._epoch}: ")
         self.test_loss.append(pd.DataFrame(losses, index=[self._epoch]))
         for hook in self._test_hooks:

@@ -236,7 +236,9 @@ class ClusterHyperParamScanner(AbstractClusterHyperParamScanner):
                             metric_values[f"{name}.{k}"].append(v)
         return {k: np.nanmean(v).item() for k, v in metric_values.items() if v}
 
-    def _scan(self, **kwargs) -> ClusterScanResult:
+    def _scan(
+        self, start_params: dict[str, Any] | None = None, **kwargs
+    ) -> ClusterScanResult:
         """Run the scan."""
         self._es.reset()
         if self._study is None:
@@ -245,6 +247,8 @@ class ClusterHyperParamScanner(AbstractClusterHyperParamScanner):
                 direction="maximize",
             )
         assert self._study is not None  # for mypy
+        if start_params is not None:
+            self._study.enqueue_trial(start_params)
         self._study.optimize(
             self._objective,
             **kwargs,

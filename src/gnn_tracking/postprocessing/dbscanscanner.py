@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from typing import Any
+
 import numpy as np
 from sklearn.cluster import DBSCAN
 
@@ -60,6 +62,7 @@ def dbscan_scan(
     n_trials=100,
     guide="v_measure",
     epoch=None,
+    start_params: dict[str, Any] | None = None,
 ) -> ClusterScanResult:
     """Convenience function for scanning of dbscan hyperparameters
 
@@ -71,6 +74,7 @@ def dbscan_scan(
         n_trials: Number of trials for optimization
         guide: See ClusterHyperParamScanner
         epoch: Epoch that is currently being processed
+        start_params: Start here
 
     Returns:
         ClusterScanResult
