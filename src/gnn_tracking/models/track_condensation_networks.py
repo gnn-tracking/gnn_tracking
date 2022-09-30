@@ -152,8 +152,12 @@ class GraphTCN(nn.Module):
         self.relu = nn.ReLU()
 
         # specify the edge classifier
-        self.ec_node_encoder = MLP(node_indim, h_dim, hidden_dim=hidden_dim, L=1)
-        self.ec_edge_encoder = MLP(edge_indim, e_dim, hidden_dim=hidden_dim, L=1)
+        self.ec_node_encoder = MLP(
+            node_indim, h_dim, hidden_dim=hidden_dim, L=2, bias=False
+        )
+        self.ec_edge_encoder = MLP(
+            edge_indim, e_dim, hidden_dim=hidden_dim, L=2, bias=False
+        )
         self.ec_resin = ResIN.identical_in_layers(
             node_indim=h_dim,
             edge_indim=e_dim,
@@ -166,8 +170,12 @@ class GraphTCN(nn.Module):
         )
 
         # specify the track condenser
-        self.hc_node_encoder = MLP(node_indim, h_dim, hidden_dim=hidden_dim, L=1)
-        self.hc_edge_encoder = MLP(edge_indim, e_dim, hidden_dim=hidden_dim, L=1)
+        self.hc_node_encoder = MLP(
+            node_indim, h_dim, hidden_dim=hidden_dim, L=2, bias=False
+        )
+        self.hc_edge_encoder = MLP(
+            edge_indim, e_dim, hidden_dim=hidden_dim, L=2, bias=False
+        )
         self.hc_resin = ResIN.identical_in_layers(
             node_indim=h_dim,
             edge_indim=e_dim,
@@ -180,9 +188,9 @@ class GraphTCN(nn.Module):
         )
 
         # modules to predict outputs
-        self.W = MLP(e_dim * (L_ec + 1), 1, hidden_dim, L=1)
-        self.B = MLP(h_dim, 1, hidden_dim, L=1)
-        self.X = MLP(h_dim, h_outdim, hidden_dim, L=1)
+        self.W = MLP(e_dim * (L_ec + 1), 1, hidden_dim, L=3)
+        self.B = MLP(h_dim, 1, hidden_dim, L=3)
+        self.X = MLP(h_dim, h_outdim, hidden_dim, L=3)
         self.P = IN(
             h_dim,
             e_dim * (L_hc + 1),
@@ -220,7 +228,7 @@ class GraphTCN(nn.Module):
         h_hc, _, edge_attrs_hc = self.hc_resin(h_hc, edge_index, edge_attr_hc)
         beta = torch.sigmoid(self.B(h_hc))
         # protect against nans
-        beta = beta + torch.ones_like(beta) * 10e-6
+        beta = beta + torch.ones_like(beta) * 10e-9
 
         h = self.X(h_hc)
         track_params, _ = self.P(h_hc, edge_index, torch.cat(edge_attrs_hc, dim=1))
