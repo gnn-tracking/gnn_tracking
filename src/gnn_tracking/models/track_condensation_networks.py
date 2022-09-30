@@ -8,6 +8,7 @@ from torch_geometric.data import Data
 from gnn_tracking.models.dynamic_edge_conv import DynamicEdgeConv
 from gnn_tracking.models.interaction_network import InteractionNetwork as IN
 from gnn_tracking.models.mlp import MLP
+from gnn_tracking.models.resin import ResIN
 
 
 class INConvBlock(nn.Module):
@@ -20,7 +21,7 @@ class INConvBlock(nn.Module):
         k,
         hidden_dim=100,
     ):
-        super(INConvBlock, self).__init__()
+        super().__init__()
         self.indim = indim
         self.h_dim = h_dim
         self.e_dim = e_dim
@@ -67,16 +68,26 @@ class INConvBlock(nn.Module):
 class PointCloudTCN(nn.Module):
     def __init__(
         self,
-        node_indim,
-        h_dim=10,  # node dimension in latent space
-        e_dim=10,  # edge dimension in latent space
-        h_outdim=5,  # output dimension in clustering space
-        hidden_dim=100,  # hidden with of all nn.Linear layers
-        N_blocks=3,  # number of edge_conv + IN blocks
-        L=3,  # message passing depth in each block
-        # k=2,  # number of neighbors to connect in latent space
+        node_indim: int,
+        h_dim=10,
+        e_dim=10,
+        h_outdim=5,
+        hidden_dim=100,
+        N_blocks=3,
+        L=3,
     ):
-        super(PointCloudTCN, self).__init__()
+        """
+
+        Args:
+            node_indim:
+            h_dim:   node dimension in latent space
+            e_dim: edge dimension in latent space
+            h_outdim:  output dimension in clustering space
+            hidden_dim:  hidden with of all nn.Linear layers
+            N_blocks:  number of edge_conv + IN blocks
+            L: message passing depth in each block
+        """
+        super().__init__()
         self.h_dim = h_dim
         self.e_dim = e_dim
         self.relu = nn.ReLU()
@@ -94,7 +105,7 @@ class PointCloudTCN(nn.Module):
         self,
         data: Data,
         alpha: float = 0.5,
-    ) -> Tensor:
+    ) -> dict[str, Tensor]:
 
         # apply the edge classifier to generate edge weights
         h = data.x
@@ -112,65 +123,69 @@ class PointCloudTCN(nn.Module):
 class GraphTCN(nn.Module):
     def __init__(
         self,
-        node_indim,
-        edge_indim,
-        h_dim=5,  # node dimension in latent space
-        e_dim=4,  # edge dimension in latent space
-        h_outdim=2,  # output dimension in clustering space
-        hidden_dim=40,  # hidden with of all nn.Linear layers
-        L_ec=3,  # message passing depth for edge classifier
-        L_hc=3,  # message passing depth for track condenser
-        alpha_ec: float = 0.5,  # strength of residual connection for EC
-        alpha_hc: float = 0.5,  # strength of residual connection for HC
+        node_indim: int,
+        edge_indim: int,
+        h_dim=5,
+        e_dim=4,
+        h_outdim=2,
+        hidden_dim=40,
+        L_ec=3,
+        L_hc=3,
+        alpha_ec: float = 0.5,
+        alpha_hc: float = 0.5,
     ):
-        super(GraphTCN, self).__init__()
-        self.h_dim = h_dim
-        self.e_dim = e_dim
+        """
+
+        Args:
+            node_indim:
+            edge_indim:
+            h_dim: node dimension in latent space
+            e_dim: edge dimension in latent space
+            h_outdim: output dimension in clustering space
+            hidden_dim: width of hidden layers in all perceptrons
+            L_ec: message passing depth for edge classifier
+            L_hc: message passing depth for track condenser
+            alpha_ec: strength of residual connection for EC
+            alpha_hc: strength of residual connection for HC
+        """
+        super().__init__()
         self.relu = nn.ReLU()
-        self.alpha_ec = alpha_ec
-        self.alpha_hc = alpha_hc
 
         # specify the edge classifier
-        self.ec_node_encoder = MLP(node_indim, self.h_dim, hidden_dim=hidden_dim, L=1)
-        self.ec_edge_encoder = MLP(edge_indim, self.e_dim, hidden_dim=hidden_dim, L=1)
-        ec_layers = []
-        for _ in range(L_ec):
-            ec_layers.append(
-                IN(
-                    self.h_dim,
-                    self.e_dim,
-                    node_outdim=self.h_dim,
-                    edge_outdim=self.e_dim,
-                    node_hidden_dim=hidden_dim,
-                    edge_hidden_dim=hidden_dim,
-                )
-            )
-        self.ec_layers = nn.ModuleList(ec_layers)
+        self.ec_node_encoder = MLP(node_indim, h_dim, hidden_dim=hidden_dim, L=1)
+        self.ec_edge_encoder = MLP(edge_indim, e_dim, hidden_dim=hidden_dim, L=1)
+        self.ec_resin = ResIN.identical_in_layers(
+            node_indim=h_dim,
+            edge_indim=e_dim,
+            node_outdim=h_dim,
+            edge_outdim=e_dim,
+            node_hidden_dim=hidden_dim,
+            edge_hidden_dim=hidden_dim,
+            alpha=alpha_ec,
+            n_layers=L_ec,
+        )
 
         # specify the track condenser
-        self.hc_node_encoder = MLP(node_indim, self.h_dim, hidden_dim=hidden_dim, L=1)
-        self.hc_edge_encoder = MLP(edge_indim, self.e_dim, hidden_dim=hidden_dim, L=1)
-        hc_layers = []
-        for _ in range(L_hc):
-            hc_layers.append(
-                IN(
-                    self.h_dim,
-                    self.e_dim,
-                    node_outdim=self.h_dim,
-                    edge_outdim=self.e_dim,
-                    node_hidden_dim=hidden_dim,
-                    edge_hidden_dim=hidden_dim,
-                )
-            )
-        self.hc_layers = nn.ModuleList(hc_layers)
+        self.hc_node_encoder = MLP(node_indim, h_dim, hidden_dim=hidden_dim, L=1)
+        self.hc_edge_encoder = MLP(edge_indim, e_dim, hidden_dim=hidden_dim, L=1)
+        self.hc_resin = ResIN.identical_in_layers(
+            node_indim=h_dim,
+            edge_indim=e_dim,
+            node_outdim=h_dim,
+            edge_outdim=e_dim,
+            node_hidden_dim=hidden_dim,
+            edge_hidden_dim=hidden_dim,
+            alpha=alpha_hc,
+            n_layers=L_hc,
+        )
 
         # modules to predict outputs
-        self.W = MLP(self.e_dim * (L_ec + 1), 1, hidden_dim, L=1)
-        self.B = MLP(self.h_dim, 1, hidden_dim, L=1)
-        self.X = MLP(self.h_dim, h_outdim, hidden_dim, L=1)
+        self.W = MLP(e_dim * (L_ec + 1), 1, hidden_dim, L=1)
+        self.B = MLP(h_dim, 1, hidden_dim, L=1)
+        self.X = MLP(h_dim, h_outdim, hidden_dim, L=1)
         self.P = IN(
-            self.h_dim,
-            self.e_dim * (L_hc + 1),
+            h_dim,
+            e_dim * (L_hc + 1),
             node_outdim=1,
             edge_outdim=1,
             node_hidden_dim=hidden_dim,
@@ -180,18 +195,12 @@ class GraphTCN(nn.Module):
     def forward(
         self,
         data: Data,
-    ) -> Tensor:
-
+    ) -> dict[str, Tensor]:
         # apply the edge classifier to generate edge weights
         x, edge_index, edge_attr = data.x, data.edge_index, data.edge_attr
         h_ec = self.relu(self.ec_node_encoder(x))
         edge_attr_ec = self.relu(self.ec_edge_encoder(edge_attr))
-        edge_attrs_ec = [edge_attr_ec]
-        for layer in self.ec_layers:
-            delta_h_ec, new_edge_attr_ec = layer(h_ec, edge_index, edge_attr_ec)
-            h_ec = self.alpha_ec * h_ec + (1 - self.alpha_ec) * self.relu(delta_h_ec)
-            edge_attrs_ec.append(new_edge_attr_ec)
-            edge_attr_ec = new_edge_attr_ec
+        h_ec, _, edge_attrs_ec = self.ec_resin(h_ec, edge_index, edge_attr_ec)
 
         # append edge weights as new edge features
         edge_attrs_ec = torch.cat(edge_attrs_ec, dim=1)
@@ -208,13 +217,7 @@ class GraphTCN(nn.Module):
         # apply the track condenser
         h_hc = self.relu(self.hc_node_encoder(x))
         edge_attr_hc = self.relu(self.hc_edge_encoder(edge_attr))
-        edge_attrs_hc = [edge_attr_hc]
-        for layer in self.hc_layers:
-            delta_h_hc, new_edge_attr_hc = layer(h_hc, edge_index, edge_attr_hc)
-            h_hc = self.alpha_hc * h_hc + (1 - self.alpha_hc) * self.relu(delta_h_hc)
-            edge_attrs_hc.append(new_edge_attr_hc)
-            edge_attr_hc = new_edge_attr_hc
-
+        h_hc, _, edge_attrs_hc = self.hc_resin(h_hc, edge_index, edge_attr_hc)
         beta = torch.sigmoid(self.B(h_hc))
         # protect against nans
         beta = beta + torch.ones_like(beta) * 10e-6

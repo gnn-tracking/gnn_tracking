@@ -11,15 +11,15 @@ from gnn_tracking.models.mlp import MLP
 class InteractionNetwork(MessagePassing):
     def __init__(
         self,
-        node_indim,
-        edge_indim,
+        node_indim: int,
+        edge_indim: int,
         node_outdim=3,
         edge_outdim=4,
         node_hidden_dim=40,
         edge_hidden_dim=40,
         aggr="add",
     ):
-        super(InteractionNetwork, self).__init__(aggr=aggr, flow="source_to_target")
+        super().__init__(aggr=aggr, flow="source_to_target")
         self.relational_model = MLP(
             2 * node_indim + edge_indim,
             edge_outdim,
@@ -31,8 +31,9 @@ class InteractionNetwork(MessagePassing):
             node_hidden_dim,
         )
 
-    def forward(self, x: Tensor, edge_index: Tensor, edge_attr: Tensor) -> Tensor:
-        # propagate_type: (x: Tensor, edge_attr: Tensor)
+    def forward(
+        self, x: Tensor, edge_index: Tensor, edge_attr: Tensor
+    ) -> tuple[Tensor, Tensor]:
         x_tilde = self.propagate(edge_index, x=x, edge_attr=edge_attr, size=None)
         return x_tilde, self.E_tilde
 

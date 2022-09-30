@@ -59,8 +59,22 @@ def dbscan_scan(
     n_jobs=1,
     n_trials=100,
     guide="v_measure",
-    **kwargs,
+    epoch=None,
 ) -> ClusterScanResult:
+    """Convenience function for scanning of dbscan hyperparameters
+
+    Args:
+        graphs: See ClusterHyperParamScanner
+        truth: See ClusterHyperParamScanner
+        sectors: See ClusterHyperParamScanner
+        n_jobs: Number of threads to run in parallel
+        n_trials: Number of trials for optimization
+        guide: See ClusterHyperParamScanner
+        epoch: Epoch that is currently being processed
+
+    Returns:
+        ClusterScanResult
+    """
     dbss = DBSCANHyperParamScanner(
         graphs=graphs,
         truth=truth,
@@ -68,4 +82,7 @@ def dbscan_scan(
         guide=guide,
         metrics=common_metrics,
     )
-    return dbss.scan(n_jobs=n_jobs, n_trials=n_trials, **kwargs)
+    return dbss.scan(
+        n_jobs=n_jobs,
+        n_trials=n_trials,
+    )

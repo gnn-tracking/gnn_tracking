@@ -276,14 +276,14 @@ class GraphBuilder:
         return edge_index, edge_attr, y, edge_pt
 
     def to_pyg_data(self, graph, edge_index, edge_attr, y, evtid=-1, s=-1):
-        x = torch.tensor(graph.x / self.feature_scale).float()
+        x = (graph.x.clone() / self.feature_scale).float()
         edge_index = torch.tensor(edge_index).long()
         edge_attr = torch.from_numpy(edge_attr).float()
-        pt = torch.tensor(graph.pt).float()
-        particle_id = torch.tensor(graph.particle_id).long()
+        pt = graph.pt.clone().float()
+        particle_id = graph.particle_id.clone().long()
         y = torch.tensor(y).float()
-        reconstructable = torch.tensor(graph.reconstructable).long()
-        sector = torch.tensor(graph.sector).long()
+        reconstructable = graph.reconstructable.clone().long()
+        sector = graph.sector.clone().long()
         evtid = torch.tensor([evtid]).long()  # event label
         s = torch.tensor([s]).long()  # sector label
 
@@ -331,10 +331,11 @@ class GraphBuilder:
         Returns:
             Event id, sector Id
         """
-        evtid_s = name.split(".")[0][4:]
-        evtid = int(evtid_s[:5])
-        s = int(evtid_s.split("_s")[-1])
-        return evtid, s
+        number_s = name.split(".")[0][len("data") :]
+        evtid_s, sectorid_s = number_s.split("_s")
+        evtid = int(evtid_s)
+        sectorid = int(sectorid_s)
+        return evtid, sectorid
 
     def process(self, n=10**6):
         infiles = os.listdir(self.indir)

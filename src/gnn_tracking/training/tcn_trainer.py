@@ -2,6 +2,9 @@ from __future__ import annotations
 
 import collections
 import logging
+import os
+from datetime import datetime
+from pathlib import Path, PurePath
 from typing import Any, Callable, DefaultDict, Mapping, Protocol
 
 import numpy as np
@@ -14,7 +17,9 @@ from torch_geometric.data import Data
 from torch_geometric.loader import DataLoader
 
 from gnn_tracking.postprocessing.clusterscanner import ClusterScanResult
+from gnn_tracking.utils.device import guess_device
 from gnn_tracking.utils.log import get_logger
+from gnn_tracking.utils.timing import timing
 from gnn_tracking.utils.training import BinaryClassificationStats
 
 hook_type = Callable[[torch.nn.Module, dict[str, Tensor]], None]
@@ -46,7 +51,7 @@ class TCNTrainer:
         loaders: dict[str, DataLoader],
         loss_functions: dict[str, loss_fct_type],
         *,
-        device="cpu",
+        device=None,
         lr: Any = 5 * 10**-4,
         lr_scheduler: None | Callable = None,
         loss_weights: dict[str, float] = None,
@@ -71,13 +76,18 @@ class TCNTrainer:
                 during testing and report additional figures of merits (e.g.,
                 clustering)
         """
-        self.model = model.to(device)
+        self.logger = get_logger("TCNTrainer", level=logging.INFO)
+        self.device = guess_device(device)
+        del device
+        self.logger.info("Using device %s", self.device)
+        #: Checkpoints are saved to this directory by default
+        self.checkpoint_dir = Path(".")
+        self.model = model.to(self.device)
         self.train_loader = loaders["train"]
         self.test_loader = loaders["test"]
         self.val_loader = loaders["val"]
-        self.device = device
 
-        self.loss_functions = loss_functions
+        self.loss_functions = {k: v.to(self.device) for k, v in loss_functions.items()}
         if cluster_functions is None:
             cluster_functions = {}
         self.clustering_functions = cluster_functions
@@ -96,8 +106,6 @@ class TCNTrainer:
 
         self._train_hooks: list[hook_type] = []
         self._test_hooks: list[hook_type] = []
-
-        self.logger = get_logger("TCNTrainer", level=logging.INFO)
 
         # output quantities
         self.train_loss: list[pd.DataFrame] = []
@@ -270,7 +278,7 @@ class TCNTrainer:
         for hook in self._train_hooks:
             hook(self.model, losses)
 
-    def test_step(self, thld=0.5, val=True):
+    def test_step(self, thld=0.5, val=True) -> dict[str, float]:
         self.model.eval()
         losses = collections.defaultdict(list)
 
@@ -312,9 +320,24 @@ class TCNTrainer:
         self.test_loss.append(pd.DataFrame(losses, index=[self._epoch]))
         for hook in self._test_hooks:
             hook(self.model, losses)
+        return losses
+
+    def step(self, *, max_batches: int | None = None) -> dict[str, float]:
+        """Train one epoch and test
+
+        Args:
+            max_batches: See train_step
+        """
+        self._epoch += 1
+        with timing(f"Training for epoch {self._epoch}"):
+            self.train_step(max_batches=max_batches)
+            results = self.test_step(thld=0.5, val=True)
+            if self._lr_scheduler:
+                self._lr_scheduler.step()
+            return results
 
     def train(self, epochs=1000, max_batches: int | None = None):
-        """
+        """Train the model.
 
         Args:
             epochs:
@@ -324,9 +347,44 @@ class TCNTrainer:
 
         """
         for _ in range(1, epochs + 1):
-            self._epoch += 1
-            self.logger.info(f"---- Epoch {self._epoch} ----")
-            self.train_step(max_batches=max_batches)
-            self.test_step(thld=0.5, val=True)
-            if self._lr_scheduler:
-                self._lr_scheduler.step()
+            try:
+                self.step(max_batches=max_batches)
+            except KeyboardInterrupt:
+                self.logger.warning("Keyboard interrupt")
+                self.save_checkpoint()
+                raise
+        self.save_checkpoint()
+
+    # noinspection PyMethodMayBeStatic
+    def get_checkpoint_name(self) -> str:
+        """Generate name of checkpoint file based on current time."""
+        now = datetime.now()
+        return f"{now:%y%m%d_%H%M%S}_model.pt"
+
+    def get_checkpoint_path(self, path: str | PurePath = "") -> Path:
+        """Get checkpoint path based on user input."""
+        if not path:
+            return self.checkpoint_dir / self.get_checkpoint_name()
+        if isinstance(path, str) and os.sep not in path:
+            return self.checkpoint_dir / path
+        return Path(path)
+
+    def save_checkpoint(self, path: str | PurePath = "") -> None:
+        """Save state of model, optimizer and more for later resuming of training."""
+        path = self.get_checkpoint_path(path)
+        self.logger.info(f"Saving checkpoint to {path}")
+        torch.save(
+            {
+                "epoch": self._epoch,
+                "model_state_dict": self.model.state_dict(),
+                "optimizer_state_dict": self.optimizer.state_dict(),
+            },
+            path,
+        )
+
+    def load_checkpoint(self, path: str | PurePath) -> None:
+        """Resume training from checkpoint"""
+        checkpoint = torch.load(self.get_checkpoint_path(path))
+        self.model.load_state_dict(checkpoint["model_state_dict"])
+        self.optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
+        self._epoch = checkpoint["epoch"]

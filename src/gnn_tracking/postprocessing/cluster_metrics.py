@@ -46,7 +46,7 @@ common_metrics: dict[str, metric_type] = {
     "v_measure": metrics.v_measure_score,
     "homogeneity": metrics.homogeneity_score,
     "completeness": metrics.completeness_score,
-    "custom": custom_metrics,
+    "trk": custom_metrics,
     "adjusted_rand": metrics.adjusted_rand_score,
     "fowlkes_mallows": metrics.fowlkes_mallows_score,
     "adjusted_mutual_info": metrics.adjusted_mutual_info_score,

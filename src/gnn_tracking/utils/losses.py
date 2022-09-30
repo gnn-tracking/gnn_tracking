@@ -90,11 +90,10 @@ class EdgeWeightFocalLoss(EdgeWeightLoss):
 
 
 class PotentialLoss(torch.nn.Module):
-    def __init__(self, q_min=0.01, device="cpu"):
+    def __init__(self, q_min=0.01, radius_threshold=10.0):
         super().__init__()
         self.q_min = q_min
-        self.device = device
-        self.radius_threshold = 10.0
+        self.radius_threshold = radius_threshold
 
     def condensation_loss(self, *, beta: T, x: T, particle_id: T) -> dict[str, T]:
         pids = torch.unique(particle_id[particle_id > 0])
@@ -103,8 +102,8 @@ class PotentialLoss(torch.nn.Module):
 
         q = torch.arctanh(beta) ** 2 + self.q_min
         alphas = torch.argmax(q[:, None] * pid_masks, dim=0)
-        x_alphas = x[alphas].transpose(0, 1).to(self.device)
-        q_alphas = q[alphas][None, None, :].to(self.device)
+        x_alphas = x[alphas].transpose(0, 1)
+        q_alphas = q[alphas][None, None, :]
 
         diff = x[:, :, None] - x_alphas[None, :, :]
         norm_sq = torch.sum(diff**2, dim=1)
@@ -131,11 +130,10 @@ class PotentialLoss(torch.nn.Module):
 
 
 class BackgroundLoss(torch.nn.Module):
-    def __init__(self, sb=0.1, device="cpu"):
+    def __init__(self, sb=0.1):
         super().__init__()
         #: Strength of noise suppression
         self.sb = sb
-        self.device = device
 
     def background_loss(self, *, beta: T, particle_id: T) -> T:
         pids = torch.unique(particle_id[particle_id > 0])
@@ -153,10 +151,9 @@ class BackgroundLoss(torch.nn.Module):
 
 
 class ObjectLoss(torch.nn.Module):
-    def __init__(self, device="cpu", mode="efficiency"):
+    def __init__(self, mode="efficiency"):
         super().__init__()
         #: Strength of noise suppression
-        self.device = device
         self.mode = mode
 
     def MSE(self, *, pred, truth):
