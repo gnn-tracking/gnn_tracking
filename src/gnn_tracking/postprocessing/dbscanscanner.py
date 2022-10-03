@@ -89,4 +89,5 @@ def dbscan_scan(
     return dbss.scan(
         n_jobs=n_jobs,
         n_trials=n_trials,
+        start_params=start_params,
     )

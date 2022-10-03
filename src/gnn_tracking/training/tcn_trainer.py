@@ -322,7 +322,7 @@ class TCNTrainer:
                 truths,
                 sectors,
                 epoch=self._epoch,
-                start_params=self._best_cluster_params[k],
+                start_params=self._best_cluster_params.get(k, None),
             )
             if cluster_result is not None:
                 losses.update(cluster_result.metrics)

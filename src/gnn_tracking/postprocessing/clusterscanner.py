@@ -30,10 +30,17 @@ class ClusterScanResult:
 
 class AbstractClusterHyperParamScanner(ABC):
     @abstractmethod
-    def _scan(self, **kwargs):
+    def _scan(
+        self,
+        start_params: dict[str, Any] | None = None,
+    ) -> ClusterScanResult:
         pass
 
-    def scan(self, **kwargs) -> ClusterScanResult:
+    def scan(
+        self, start_params: dict[str, Any] | None = None, **kwargs
+    ) -> ClusterScanResult:
+        if start_params is not None:
+            logger.debug("Starting from params: %s", start_params)
         logger.info("Starting hyperparameter scan for clustering")
         with timing("Clustering hyperparameter scan"):
             return self._scan(**kwargs)
