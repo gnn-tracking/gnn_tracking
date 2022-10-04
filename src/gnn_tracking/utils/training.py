@@ -69,6 +69,15 @@ class BinaryClassificationStats:
     def FNR(self) -> float:
         return zero_divide(self.FN, self.FN + self.TP)
 
+    def get_all(self) -> dict[str, float]:
+        return {
+            "acc": self.acc,
+            "TPR": self.TPR,
+            "TNR": self.TNR,
+            "FPR": self.FPR,
+            "FNR": self.FNR,
+        }
+
 
 _P = TypeVar("_P")
 
