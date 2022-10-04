@@ -117,6 +117,8 @@ class TCNTrainer:
 
         self.max_batches_for_clustering = 10
 
+        self.pt_thlds = [0.0, 1.5]
+
     def add_hook(self, hook: hook_type, called_at: str) -> None:
         """Add a hook to training/test step
 
@@ -159,6 +161,7 @@ class TCNTrainer:
             "y": data.y,
             "particle_id": pid_field,
             "track_params": data.pt,
+            "pt": data.pt,
             "reconstructable": data.reconstructable.long(),
             "pred": out["P"],
         }
@@ -225,7 +228,7 @@ class TCNTrainer:
         if style == "table":
             report_str += "\n"
         table_items: list[tuple[str, float]] = [("Total", batch_loss.item())]
-        for k, v in batch_losses.items():
+        for k, v in sorted(batch_losses.items()):
             if k.casefold() == "total":
                 continue
             if k in self._loss_weights:
@@ -282,7 +285,28 @@ class TCNTrainer:
         for hook in self._train_hooks:
             hook(self.model, losses)
 
-    def test_step(self, thld=0.5, val=True) -> dict[str, float]:
+    def _denote_pt(self, name: str, pt_min=0.0) -> str:
+        """Suffix to append to designate pt threshold"""
+        if np.isclose(pt_min, 0.0):
+            return name
+        return f"{name}_pt{pt_min:.1f}"
+
+    def _edge_pt_mask(self, edge_index: Tensor, pt: Tensor, pt_min=0.0) -> Tensor:
+        pt_a = pt[edge_index[0]]
+        pt_b = pt[edge_index[1]]
+        return (pt_a > pt_min) | (pt_b > pt_min)
+
+    def _test_step(self, thld=0.5, val=True, pt_min=0.0) -> dict[str, float]:
+        """Test the model on the validation or test set
+
+        Args:
+            thld: Threshold for edges
+            val: Use validation dataset rather than test dataset
+            pt_min: Minimum pt for tracks to be considered
+
+        Returns:
+            Dictionary of metrics
+        """
         self.model.eval()
         losses = collections.defaultdict(list)
 
@@ -296,21 +320,28 @@ class TCNTrainer:
                 model_output = self.evaluate_model(data, mask_pids_reco=False)
                 batch_loss, batch_losses = self.get_batch_losses(model_output)
 
+                pt_mask = model_output["pt"] > pt_min
+                edge_pt_mask = self._edge_pt_mask(data.edge_index, data.pt, pt_min)
+
                 if model_output["w"] is not None:
                     bcs = BinaryClassificationStats(
-                        output=model_output["w"], y=model_output["y"].long(), thld=thld
+                        output=model_output["w"][edge_pt_mask],
+                        y=model_output["y"][edge_pt_mask].long(),
+                        thld=thld,
                     )
                     for k, v in bcs.get_all().items():
-                        losses[k].append(v)
+                        losses[self._denote_pt(k, pt_min)].append(v)
 
-                losses["total"].append(batch_loss.item())
+                losses[self._denote_pt("total", pt_min)].append(batch_loss.item())
                 for key, loss in batch_losses.items():
-                    losses[key].append(loss.item())
+                    losses[self._denote_pt(key, pt_min)].append(loss.item())
 
                 if _batch_idx <= self.max_batches_for_clustering:
-                    graphs.append(model_output["x"].detach().cpu().numpy())
-                    truths.append(model_output["particle_id"].detach().cpu().numpy())
-                    sectors.append(data.sector.detach().cpu().numpy())
+                    graphs.append(model_output["x"][pt_mask].detach().cpu().numpy())
+                    truths.append(
+                        model_output["particle_id"][pt_mask].detach().cpu().numpy()
+                    )
+                    sectors.append(data.sector[pt_mask].detach().cpu().numpy())
 
         losses = {k: np.nanmean(v) for k, v in losses.items()}
         for k, f in self.clustering_functions.items():
@@ -319,12 +350,33 @@ class TCNTrainer:
                 truths,
                 sectors,
                 epoch=self._epoch,
-                start_params=self._best_cluster_params.get(k, None),
+                start_params=self._best_cluster_params.get(
+                    self._denote_pt(k, pt_min), None
+                ),
             )
             if cluster_result is not None:
-                losses.update(cluster_result.metrics)
-                self._best_cluster_params[k] = cluster_result.best_params
-        self._log_losses(losses["total"], losses, header=f"Test {self._epoch}: ")
+                losses.update(
+                    {
+                        self._denote_pt(k, pt_min): v
+                        for k, v in cluster_result.metrics.items()
+                    }
+                )
+                self._best_cluster_params[
+                    self._denote_pt(k, pt_min)
+                ] = cluster_result.best_params
+        return losses
+
+    def test_step(
+        self, thld=0.5, val=True, pt_thlds: list[float] | None = None
+    ) -> dict[str, float]:
+        if pt_thlds is None:
+            pt_thlds = self.pt_thlds
+        losses = {}
+        for pt_min in pt_thlds:
+            losses.update(self._test_step(thld=thld, val=val, pt_min=pt_min))
+        self._log_losses(
+            losses.get("total", np.nan), losses, header=f"Test {self._epoch}: "
+        )
         self.test_loss.append(pd.DataFrame(losses, index=[self._epoch]))
         for hook in self._test_hooks:
             hook(self.model, losses)
