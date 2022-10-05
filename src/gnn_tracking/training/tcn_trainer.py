@@ -115,8 +115,12 @@ class TCNTrainer:
         self.train_loss: list[pd.DataFrame] = []
         self.test_loss: list[pd.DataFrame] = []
 
+        #: Number of batches that are being used for the clustering functions and the
+        #: evaluation of the related metrics.
         self.max_batches_for_clustering = 10
 
+        #: pT thresholds that are being used in the evaluation of metrics in the test
+        #: step
         self.pt_thlds = [0.0, 1.5]
 
     def add_hook(self, hook: hook_type, called_at: str) -> None:
@@ -369,6 +373,16 @@ class TCNTrainer:
     def test_step(
         self, thld=0.5, val=True, pt_thlds: list[float] | None = None
     ) -> dict[str, float]:
+        """Test the model on the validation or test set
+
+        Args:
+            thld: Threshold for edges
+            val: Use validation dataset rather than test dataset
+            pt_thlds: pt thresholds that the metrics are being evaluated at
+
+        Returns:
+            Dictionary of metrics
+        """
         if pt_thlds is None:
             pt_thlds = self.pt_thlds
         losses = {}
@@ -442,9 +456,9 @@ class TCNTrainer:
             path,
         )
 
-    def load_checkpoint(self, path: str | PurePath) -> None:
+    def load_checkpoint(self, path: str | PurePath, device=None) -> None:
         """Resume training from checkpoint"""
-        checkpoint = torch.load(self.get_checkpoint_path(path))
+        checkpoint = torch.load(self.get_checkpoint_path(path), map_location=device)
         self.model.load_state_dict(checkpoint["model_state_dict"])
         self.optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
         self._epoch = checkpoint["epoch"]
