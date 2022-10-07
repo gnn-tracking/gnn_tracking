@@ -3,7 +3,6 @@ from __future__ import annotations
 import os
 import sys
 
-import numpy as np
 from point_cloud_builder import PointCloudBuilder
 
 sys.path.append("../")
@@ -12,8 +11,6 @@ sys.path.append("../")
 idx = int(os.environ["SLURM_ARRAY_TASK_ID"])
 indir = "/tigress/jdezoort/codalab/train_1"
 outdir = "/tigress/jdezoort/object_condensation/point_clouds"
-idxs = np.arange(0, 500, 1)
-start, stop = idxs[idx : idx + 1]
 
 pc_builder = PointCloudBuilder(
     indir=indir,
@@ -27,4 +24,4 @@ pc_builder = PointCloudBuilder(
     thld=0.9,
     log_level=0,
 )
-pc_builder.process(start=start, stop=stop)
+pc_builder.process(start=idx, stop=idx + 1)
