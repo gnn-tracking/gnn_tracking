@@ -199,7 +199,9 @@ class TCNTrainer:
             else:
                 individual_losses[key] = loss
 
-        loss_weights = self._loss_weight_setter.step(individual_losses)
+        loss_weights = self._loss_weight_setter.step(
+            {k: v.detach().cpu() for k, v in individual_losses.items()}
+        )
 
         total = sum(
             loss_weights[k] * individual_losses[k] for k in individual_losses.keys()
