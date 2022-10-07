@@ -5,7 +5,7 @@ import logging
 import os
 from datetime import datetime
 from pathlib import Path, PurePath
-from typing import Any, Callable, DefaultDict, Mapping, Protocol
+from typing import Any, Callable, Mapping, Protocol
 
 import numpy as np
 import pandas as pd
@@ -17,6 +17,10 @@ from torch_geometric.data import Data
 from torch_geometric.loader import DataLoader
 
 from gnn_tracking.postprocessing.clusterscanner import ClusterScanResult
+from gnn_tracking.training.dynamiclossweights import (
+    ConstantLossWeights,
+    DynamicLossWeights,
+)
 from gnn_tracking.utils.device import guess_device
 from gnn_tracking.utils.log import get_logger
 from gnn_tracking.utils.timing import timing
@@ -55,7 +59,7 @@ class TCNTrainer:
         device=None,
         lr: Any = 5 * 10**-4,
         lr_scheduler: None | Callable = None,
-        loss_weights: dict[str, float] = None,
+        loss_weights: dict[str, float] | DynamicLossWeights | None = None,
         cluster_functions: dict[str, ClusterFctType] | None = None,
     ):
         """
@@ -68,9 +72,11 @@ class TCNTrainer:
             lr: Learning rate
             lr_scheduler: Learning rate scheduler. If it needs parameters, apply
                 functools.partial first
-            loss_weights: Weight different loss functions. If a key is left out, the
-                weight is set to 1.0. The weights will be normalized to sum to 1.0
-                before use.
+            loss_weights: Weight different loss functions.
+                Either `DynamicLossWeights` object or a dictionary of weights keyed by
+                loss name.
+                If a dictionary and a key is left out, the weight is set to 1.0.
+                The weights will be normalized to sum to 1.0 before use.
                 If one of the loss functions called ``l`` returns a dictionary with keys
                 k, the keys for loss_weights should be ``k_l``.
             cluster_functions: Dictionary of functions that take the output of the model
@@ -93,11 +99,12 @@ class TCNTrainer:
             cluster_functions = {}
         self.clustering_functions = cluster_functions
 
-        self._loss_weights: DefaultDict[str, float] = collections.defaultdict(
-            lambda: 1.0
-        )
-        if loss_weights is not None:
-            self._loss_weights.update(loss_weights)
+        if isinstance(loss_weights, DynamicLossWeights):
+            self._loss_weight_setter = loss_weights
+        elif isinstance(loss_weights, dict) or loss_weights is None:
+            self._loss_weight_setter = ConstantLossWeights(loss_weights=loss_weights)
+        else:
+            raise ValueError("Invalid value for loss_weights.")
 
         self.optimizer = Adam(self.model.parameters(), lr=lr)
         self._lr_scheduler = lr_scheduler(self.optimizer) if lr_scheduler else None
@@ -192,17 +199,10 @@ class TCNTrainer:
             else:
                 individual_losses[key] = loss
 
-        assert set(self._loss_weights).issubset(set(individual_losses))
-
-        # Note that we take the keys from individual_losses and not from
-        # self._loss_weights (because that is a defaultdict and might not have all keys,
-        # yet).
-        # total_weight = sum(self._loss_weights[k] for k in individual_losses)
+        loss_weights = self._loss_weight_setter.step(individual_losses)
 
         total = sum(
-            # self._loss_weights[k] / total_weight * individual_losses[k]
-            self._loss_weights[k] * individual_losses[k]
-            for k in individual_losses.keys()
+            loss_weights[k] * individual_losses[k] for k in individual_losses.keys()
         )
         return total, individual_losses
 
@@ -233,12 +233,8 @@ class TCNTrainer:
             report_str += "\n"
         table_items: list[tuple[str, float]] = [("Total", batch_loss.item())]
         for k, v in sorted(batch_losses.items()):
-            if k.casefold() == "total":
-                continue
-            if k in self._loss_weights:
-                table_items.append((k, float(v) * self._loss_weights[k]))
-            else:
-                table_items.append((k, float(v)))
+            weight = self._loss_weight_setter[k]
+            table_items.append((k, float(v) * weight))
         if style == "table":
             report_str += tabulate.tabulate(
                 table_items, tablefmt="fancy_grid", floatfmt=".5f"
