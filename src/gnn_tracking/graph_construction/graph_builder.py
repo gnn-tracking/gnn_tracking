@@ -337,9 +337,9 @@ class GraphBuilder:
         sectorid = int(sectorid_s)
         return evtid, sectorid
 
-    def process(self, n=10**6):
+    def process(self, start=0, stop=1):
         infiles = os.listdir(self.indir)
-        for f in infiles[:n]:
+        for f in infiles[start:stop]:
             if f.split(".")[-1] != "pt":
                 continue
             name = f.split("/")[-1]
