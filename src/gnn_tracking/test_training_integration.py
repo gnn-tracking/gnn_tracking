@@ -2,16 +2,19 @@ from __future__ import annotations
 
 from functools import partial
 
+import pytest
 from torch_geometric.loader import DataLoader
 
 from gnn_tracking.models.track_condensation_networks import GraphTCN
 from gnn_tracking.postprocessing.dbscanscanner import dbscan_scan
+from gnn_tracking.training.dynamiclossweights import NormalizeEvery
 from gnn_tracking.training.tcn_trainer import TCNTrainer
 from gnn_tracking.utils.losses import BackgroundLoss, EdgeWeightBCELoss, PotentialLoss
 from gnn_tracking.utils.seeds import fix_seeds
 
 
-def test_train(tmp_path, built_graphs):
+@pytest.mark.parametrize("loss_weights", [("default"), ("auto")])
+def test_train(tmp_path, built_graphs, loss_weights: str) -> None:
     fix_seeds()
     _, graph_builder = built_graphs
     g = graph_builder.data_list[0]
@@ -36,23 +39,24 @@ def test_train(tmp_path, built_graphs):
         "background": BackgroundLoss(sb=sb),
     }
 
-    loss_weights = {
-        "edge": 5,
-        "potential_attractive": 10,
-        "potential_repulsive": 1,
-        "background": 1,
-    }
-
     # set up a model and trainer
     model = GraphTCN(node_indim, edge_indim, h_dim=2, hidden_dim=64)
+
+    _loss_weights = None
+    if loss_weights == "default":
+        _loss_weights = None
+    elif loss_weights == "auto":
+        _loss_weights = NormalizeEvery(every=1)
+    else:
+        raise ValueError()
 
     trainer = TCNTrainer(
         model=model,
         loaders=loaders,
         loss_functions=loss_functions,
         lr=0.0001,
-        loss_weights=loss_weights,
         cluster_functions={"dbscan": partial(dbscan_scan, n_trials=1)},  # type: ignore
+        loss_weights=_loss_weights,
     )
     trainer.checkpoint_dir = tmp_path
 
