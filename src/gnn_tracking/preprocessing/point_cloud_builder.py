@@ -257,7 +257,7 @@ class PointCloudBuilder:
             output[var + "_err"] = stds[var]
         return output
 
-    def process(self, n: int | None = None):
+    def process(self, start: int | None = None, stop: int | None = None):
         """Process input files from self.input_files and write output files to
         self.output_files
 
@@ -268,7 +268,7 @@ class PointCloudBuilder:
         Returns:
 
         """
-        for f in self.prefixes[:n]:
+        for f in self.prefixes[start:stop]:
             self.logger.debug(f"Processing {f}")
 
             evtid = int(f[-9:])
