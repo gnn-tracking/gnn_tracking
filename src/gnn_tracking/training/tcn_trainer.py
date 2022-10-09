@@ -243,7 +243,7 @@ class TCNTrainer:
             report_str += ", ".join(f"{k}={v:>9.5f}" for k, v in table_items)
         self.logger.info(report_str)
 
-    def train_step(self, *, max_batches: int | None = None):
+    def train_step(self, *, max_batches: int | None = None) -> dict[str, float]:
         """
 
         Args:
@@ -284,6 +284,7 @@ class TCNTrainer:
         self.train_loss.append(pd.DataFrame(losses, index=[self._epoch]))
         for hook in self._train_hooks:
             hook(self.model, losses)
+        return losses
 
     def _denote_pt(self, name: str, pt_min=0.0) -> str:
         """Suffix to append to designate pt threshold"""
@@ -404,8 +405,12 @@ class TCNTrainer:
         """
         self._epoch += 1
         with timing(f"Training for epoch {self._epoch}"):
-            self.train_step(max_batches=max_batches)
-            results = self.test_step(thld=0.5, val=True)
+            train_losses = self.train_step(max_batches=max_batches)
+            test_results = self.test_step(thld=0.5, val=True)
+            results = {
+                **{f"train_{k}": v for k, v in train_losses.items()},
+                **test_results,
+            }
             if self._lr_scheduler:
                 self._lr_scheduler.step()
             return results
