@@ -234,12 +234,13 @@ class TCNTrainer:
         if style == "table":
             report_str += "\n"
         table_items: list[tuple[str, float]] = [("Total", batch_loss.item())]
-        for k, v in sorted(batch_losses.items()):
-            weight = self._loss_weight_setter[k]
-            table_items.append((k, float(v) * weight))
+        table_items.extend(sorted(batch_losses.items()))
         if style == "table":
             report_str += tabulate.tabulate(
-                table_items, tablefmt="fancy_grid", floatfmt=".5f"
+                table_items,
+                tablefmt="outline",
+                floatfmt=".5f",
+                headers=["Metric", "Value"],
             )
         else:
             report_str += ", ".join(f"{k}={v:>9.5f}" for k, v in table_items)
@@ -336,7 +337,11 @@ class TCNTrainer:
 
                 losses[self._denote_pt("total", pt_min)].append(batch_loss.item())
                 for key, loss in batch_losses.items():
-                    losses[self._denote_pt(key, pt_min)].append(loss.item())
+                    loss_key = self._denote_pt(key, pt_min)
+                    losses[loss_key].append(loss.item())
+                    losses[f"{loss_key}_weighted"].append(
+                        loss.item() * self._loss_weight_setter[key]
+                    )
 
                 if _batch_idx <= self.max_batches_for_clustering:
                     graphs.append(model_output["x"][pt_mask].detach().cpu().numpy())
