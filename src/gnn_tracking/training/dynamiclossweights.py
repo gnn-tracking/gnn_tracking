@@ -80,7 +80,11 @@ class NormalizeEvery(DynamicLossWeights):
         if np.isclose(v, 0.0):
             logger.warning("Loss is 0, not scaling")
             v = 1
-        return 1 / v
+        scale = 1 / v
+        assert scale > 0
+        if np.isnan(scale):
+            logger.critical("Scaling is NaN!!")
+        return scale
 
     def _step(self, losses: dict[str, float]) -> dict[str, float]:
         self._n_epoch += 1

@@ -280,7 +280,7 @@ class TCNTrainer:
                 _losses[key].append(loss.item())
 
         losses = {k: np.nanmean(v) for k, v in _losses.items()}
-        self._loss_weight_setter.step({k: v.detach().cpu() for k, v in losses.items()})
+        self._loss_weight_setter.step(losses)
         self.train_loss.append(pd.DataFrame(losses, index=[self._epoch]))
         for hook in self._train_hooks:
             hook(self.model, losses)
