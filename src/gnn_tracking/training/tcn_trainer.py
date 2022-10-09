@@ -199,12 +199,9 @@ class TCNTrainer:
             else:
                 individual_losses[key] = loss
 
-        loss_weights = self._loss_weight_setter.step(
-            {k: v.detach().cpu() for k, v in individual_losses.items()}
-        )
-
         total = sum(
-            loss_weights[k] * individual_losses[k] for k in individual_losses.keys()
+            self._loss_weight_setter[k] * individual_losses[k]
+            for k in individual_losses.keys()
         )
         return total, individual_losses
 
@@ -257,7 +254,6 @@ class TCNTrainer:
 
         """
         self.model.train()
-
         _losses = collections.defaultdict(list)
         for batch_idx, data in enumerate(self.train_loader):
             data = data.to(self.device)
@@ -284,6 +280,7 @@ class TCNTrainer:
                 _losses[key].append(loss.item())
 
         losses = {k: np.nanmean(v) for k, v in _losses.items()}
+        self._loss_weight_setter.step({k: v.detach().cpu() for k, v in losses.items()})
         self.train_loss.append(pd.DataFrame(losses, index=[self._epoch]))
         for hook in self._train_hooks:
             hook(self.model, losses)
