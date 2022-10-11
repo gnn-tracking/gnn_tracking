@@ -5,6 +5,8 @@ from abc import ABC, abstractmethod
 import torch
 from torch.nn.functional import binary_cross_entropy, mse_loss, relu
 
+from gnn_tracking.utils.log import logger
+
 T = torch.Tensor
 
 
@@ -19,6 +21,7 @@ def binary_focal_loss(
     gamma: float = 2.0,
     reduction: str = "mean",
     pos_weight: T | None = None,
+    mask_outliers=False,
 ) -> T:
     """Binary Focal Loss, following https://arxiv.org/abs/1708.02002.
 
@@ -29,12 +32,27 @@ def binary_focal_loss(
         gamma: Focusing parameter
         reduction: 'none', 'mean', 'sum'
         pos_weight: Can be used to balance precision/recall
+        mask_outliers: Mask 0s and 1s in input.
     """
     assert gamma >= 0.0
     assert 0 <= alpha <= 1
 
     if pos_weight is None:
         pos_weight = torch.ones(inpt.shape[-1], device=inpt.device, dtype=inpt.dtype)
+
+    if mask_outliers:
+        mask = torch.isclose(inpt, torch.Tensor(0.0)) | torch.isclose(
+            inpt, torch.Tensor(1.0)
+        )
+        mask = mask.bool()
+        n_outliers = mask.sum()
+        if n_outliers:
+            logger.warning("Masking %d outliers in focal loss", n_outliers)
+    else:
+        mask = torch.full_like(inpt, True).bool()
+
+    inpt = inpt[mask]
+    target = target[mask]
 
     probs_pos = inpt
     probs_neg = 1 - inpt
