@@ -128,7 +128,7 @@ class TCNTrainer:
 
         #: pT thresholds that are being used in the evaluation of metrics in the test
         #: step
-        self.pt_thlds = [0.0, 1.5]
+        self.pt_thlds = [0.9, 1.5]
 
     def add_hook(self, hook: hook_type, called_at: str) -> None:
         """Add a hook to training/test step
