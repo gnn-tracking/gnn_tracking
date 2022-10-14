@@ -142,7 +142,7 @@ class PotentialLoss(torch.nn.Module):
             "repulsive": torch.sum(torch.mean(vr, dim=0)),
         }
 
-    # noinspection PyUnusedVariable
+    # noinspection PyUnusedLocal
     def forward(self, *, beta: T, x: T, particle_id: T, **kwargs) -> dict[str, T]:
         return self._condensation_loss(beta=beta, x=x, particle_id=particle_id)
 
@@ -164,6 +164,7 @@ class BackgroundLoss(torch.nn.Module):
             loss = loss + self.sb * torch.mean(beta[noise_mask])
         return loss
 
+    # noinspection PyUnusedLocal
     def forward(self, *, beta, particle_id, **kwargs):
         return self._background_loss(beta=beta, particle_id=particle_id)
 
@@ -201,7 +202,7 @@ class ObjectLoss(torch.nn.Module):
         else:
             raise ValueError("Unknown mode: {mode}")
 
-    # noinspection PyUnusedVariable
+    # noinspection PyUnusedLocal
     def forward(
         self, *, beta, pred, particle_id, track_params, reconstructable, **kwargs
     ):
