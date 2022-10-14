@@ -4,6 +4,7 @@ import collections
 import logging
 import os
 from os.path import join
+from typing import Any
 
 import numpy as np
 import pandas as pd
@@ -45,7 +46,7 @@ class PointCloudBuilder:
             feature_names: Names of features that are passed on to pyg data
             feature_scale: Scaling of features given by ``feature_names``
             measurement_mode:
-            thld: pt threshold
+            thld: pt threshold for reconstructable particles
             remove_noise:
             write_output:
             log_level:
@@ -66,7 +67,7 @@ class PointCloudBuilder:
         self.thld = thld
         self.stats = {}
         self.remove_noise = remove_noise
-        self.measurements = []
+        self.measurements: list[dict[str, Any]] = []
         self.write_output = write_output
 
         suffix = "-hits.csv.gz"
