@@ -1,0 +1,3 @@
+[submodule "ContractNet"]
+    path = studies/ContractNet
+    url = git@github.com:GageDeZoort/ContractNet.git

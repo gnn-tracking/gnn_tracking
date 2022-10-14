@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import os
 from os.path import join as join
 
@@ -7,6 +8,8 @@ import numpy as np
 import pandas as pd
 import torch
 from torch_geometric.data import Data
+
+from gnn_tracking.utils.log import get_logger
 
 
 class GraphBuilder:
@@ -19,26 +22,41 @@ class GraphBuilder:
         phi_slope_max=0.005,
         z0_max=200,
         dR_max=1.7,
-        uv_approach_max=0.0015,
-        feature_names=["r", "phi", "z", "eta_rz", "u", "v"],
-        feature_scale=np.array([1000.0, np.pi, 1000.0, 1, 1 / 1000.0, 1 / 1000.0]),
         directed=False,
         measurement_mode=False,
+        write_output=True,
+        log_level=0,
     ):
         self.indir = indir
+        os.makedirs(outdir, exist_ok=True)
         self.outdir = outdir
         self.pixel_only = pixel_only
         self.redo = redo
         self.phi_slope_max = phi_slope_max
         self.z0_max = z0_max
         self.dR_max = dR_max
-        self.uv_approach_max = uv_approach_max
-        self.feature_names = feature_names
-        self.feature_scale = feature_scale
+        self.feature_names = ["r", "phi", "z", "eta_rz", "u", "v"]
+        self.feature_scale = np.array(
+            [1000.0, np.pi, 1000.0, 1, 1 / 1000.0, 1 / 1000.0]
+        )
         self.data_list = []
         self.outfiles = os.listdir(outdir)
         self.directed = directed
         self.measurement_mode = measurement_mode
+        self.write_output = write_output
+        self.measurements = []
+        level = logging.DEBUG if log_level > 0 else logging.INFO
+        self.logger = get_logger("GraphBuilder", level)
+
+    def get_measurements(self):
+        measurements = pd.DataFrame(self.measurements)
+        means = measurements.mean()
+        stds = measurements.std()
+        output = {}
+        for var in means.index:
+            output[var] = means[var]
+            output[var + "_err"] = stds[var]
+        return output
 
     def calc_dphi(self, phi1: np.ndarray, phi2: np.ndarray) -> np.ndarray:
         """Computes phi2-phi1 given in range [-pi,pi]"""
@@ -76,15 +94,6 @@ class GraphBuilder:
         eta_2 = self.calc_eta(hit_pairs.r_2, hit_pairs.z_2)
         deta = eta_2 - eta_1
         dR = np.sqrt(deta**2 + dphi**2)
-        du = hit_pairs.u_2 - hit_pairs.u_1
-        dv = hit_pairs.v_2 - hit_pairs.v_1
-        m = dv / du
-        b = hit_pairs.v_1 - m * hit_pairs.u_1
-        u_approach = -m * b / (1 + m**2)
-        v_approach = u_approach * m + b
-
-        # restrict the distance of closest approach in the uv plane
-        uv_approach = np.sqrt(u_approach**2 + v_approach**2)
 
         # restrict phi_slope and z0
         phi_slope = dphi / dr
@@ -106,7 +115,6 @@ class GraphBuilder:
             (phi_slope.abs() < self.phi_slope_max)
             & (z0.abs() < self.z0_max)  # geometric
             & (dR < self.dR_max)
-            & (uv_approach < self.uv_approach_max)
             & (~intersected_layer)
         )
 
@@ -163,10 +171,9 @@ class GraphBuilder:
         # loop over particle_id, particle_hits,
         # count extra transition edges as n_incorrect
         n_corrected = 0
-        for p, particle_hits in hits_by_particle:
+        for p, _ in hits_by_particle:
             if p == 0:
                 continue
-            # particle_hit_ids = np.arange(len(hits))  # = particle_hits["hit_id"].values
 
             # grab true segment indices for particle p
             relevant_indices = (particle_ids == p) & (y == 1)
@@ -192,8 +199,10 @@ class GraphBuilder:
                     n_corrected += len(relabel_idx)
 
         if n_corrected > 0:
-            print(f"Relabeled {n_corrected} edges crossing from barrel to endcaps.")
-            print(f"Updated y has {int(np.sum(y))}/{len(y)} true edges.")
+            self.logger.debug(
+                f"Relabeled {n_corrected} edges crossing from barrel to endcaps."
+            )
+            self.logger.debug(f"Updated y has {int(np.sum(y))}/{len(y)} true edges.")
         return y, n_corrected
 
     def build_edges(self, hits):
@@ -267,14 +276,14 @@ class GraphBuilder:
         return edge_index, edge_attr, y, edge_pt
 
     def to_pyg_data(self, graph, edge_index, edge_attr, y, evtid=-1, s=-1):
-        x = torch.from_numpy(graph.x / self.feature_scale).float()
+        x = (graph.x.clone() / self.feature_scale).float()
         edge_index = torch.tensor(edge_index).long()
         edge_attr = torch.from_numpy(edge_attr).float()
-        pt = torch.from_numpy(graph.pt).float()
-        particle_id = torch.from_numpy(graph.particle_id).long()
-        y = torch.from_numpy(y).float()
-        reconstructable = torch.from_numpy(graph.reconstructable).long()
-        sector = torch.from_numpy(graph.sector).long()
+        pt = graph.pt.clone().float()
+        particle_id = graph.particle_id.clone().long()
+        y = torch.tensor(y).float()
+        reconstructable = graph.reconstructable.clone().long()
+        sector = graph.sector.clone().long()
         evtid = torch.tensor([evtid]).long()  # event label
         s = torch.tensor([s]).long()  # sector label
 
@@ -302,11 +311,6 @@ class GraphBuilder:
         data.edge_attr = data.edge_attr.T
         return data
 
-    def get_hits_per_particle(self, graph):
-        sector, particle_id = graph.sector, graph.particle_id
-        layer = graph.layer
-        in_sector = (particle_id > 0) & (sector > 0)
-
     def get_n_truth_edges(self, df):
         grouped = df[["particle_id", "layer", "pt"]].groupby("particle_id")
         n_truth_edges = {0: 0, 0.1: 0, 0.5: 0, 0.9: 0, 1.0: 0}
@@ -321,21 +325,33 @@ class GraphBuilder:
                     n_truth_edges[pt_thld] += n_segs
         return n_truth_edges
 
-    def process(self, n=10**6, verbose=False):
+    @staticmethod
+    def get_event_id_sector_from_str(name: str) -> tuple[int, int]:
+        """
+        Returns:
+            Event id, sector Id
+        """
+        number_s = name.split(".")[0][len("data") :]
+        evtid_s, sectorid_s = number_s.split("_s")
+        evtid = int(evtid_s)
+        sectorid = int(sectorid_s)
+        return evtid, sectorid
+
+    def process(self, start=0, stop=1):
         infiles = os.listdir(self.indir)
-        self.edge_purities = []
-        self.edge_efficiencies = {0: [], 0.1: [], 0.5: [], 0.9: [], 1.0: []}
-        for f in infiles:
+        for f in infiles[start:stop]:
+            if f.split(".")[-1] != "pt":
+                continue
             name = f.split("/")[-1]
             if f in self.outfiles and not self.redo:
                 graph = torch.load(join(self.outdir, name))
                 self.data_list.append(graph)
             else:
-                evtid_s = name.split(".")[0][4:]
-                evtid = int(evtid_s[:5])
-                s = int(evtid_s.split("_s")[-1])
-                if verbose:
-                    print(f"Processing {f}")
+                try:
+                    evtid, s = self.get_event_id_sector_from_str(name)
+                except (ValueError, KeyError) as e:
+                    raise ValueError(f"{name} is not a valid file name") from e
+                self.logger.debug(f"Processing {f}")
                 f = join(self.indir, f)
                 graph = torch.load(f)
                 df = self.get_dataframe(graph, evtid)
@@ -344,28 +360,33 @@ class GraphBuilder:
                 if self.measurement_mode:
                     n_truth_edges = self.get_n_truth_edges(df)
                     edge_purity = sum(y) / len(y)
-                    self.edge_purities.append(edge_purity)
+                    edge_efficiencies = {}
                     for pt, denominator in n_truth_edges.items():
                         numerator = sum(y[edge_pt > pt])
-                        self.edge_efficiencies[pt].append(numerator / denominator)
+                        edge_efficiencies[f"edge_efficiency_{pt}"] = (
+                            numerator / denominator
+                        )
+                    n_truth_edges = {
+                        f"n_truth_edge_{pt}": n for pt, n in n_truth_edges.items()
+                    }
+                    measurements = {
+                        "n_edges": len(y),
+                        "n_true_edges": sum(y),
+                        "n_false_edges": len(y) - sum(y),
+                        **n_truth_edges,
+                        "edge_purity": edge_purity,
+                        **edge_efficiencies,
+                    }
+                    self.measurements.append(measurements)
 
                 graph = self.to_pyg_data(
                     graph, edge_index, edge_attr, y, evtid=evtid, s=s
                 )
                 outfile = join(self.outdir, name)
-                if verbose:
-                    print(f"Writing {outfile}")
-                torch.save(graph, outfile)
+                self.logger.debug(f"Writing {outfile}")
+                if self.write_output:
+                    torch.save(graph, outfile)
                 self.data_list.append(graph)
 
-        print("Summary Statistics:")
-        print(
-            f" - Edge Purity: {np.mean(self.edge_purities)} "
-            + f"+/- {np.std(self.edge_purities)}"
-        )
-        for pt, eff in self.edge_efficiencies.items():
-            print(
-                f" - Edge Efficiency (pt > {pt} GeV): "
-                + f"{np.mean(self.edge_efficiencies[pt])} +/- "
-                + f"{np.std(self.edge_efficiencies[pt])}"
-            )
+        if self.measurement_mode:
+            self.logger.info(self.get_measurements())

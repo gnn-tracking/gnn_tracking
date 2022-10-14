@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import collections
+import logging
 import os
 from os.path import join
 from typing import Any
@@ -9,6 +11,8 @@ import pandas as pd
 import torch
 from torch_geometric.data import Data
 from trackml.dataset import load_event
+
+from gnn_tracking.utils.log import get_logger
 
 pd.options.mode.chained_assignment = None  # default='warn'
 
@@ -20,22 +24,22 @@ class PointCloudBuilder:
         indir: str,
         n_sectors: int,
         redo=True,
-        pixel_only=False,
+        pixel_only=True,
         sector_di=0.0001,
         sector_ds=1.1,
-        feature_names=None,
-        feature_scale=np.array([1, 1, 1, 1, 1, 1]),
         measurement_mode=False,
         thld=0.5,
         remove_noise=False,
+        write_output=True,
+        log_level=logging.INFO,
     ):
         """
 
         Args:
-            outdir: Direectory for the output files
+            outdir: Directory for the output files
             indir: Directory of input files
-            n_sectors:
-            redo:
+            n_sectors: Total number of sectors
+            redo: Force recompute of point cloud building
             pixel_only: Construct tracks only from pixel layers
             sector_di:
             sector_ds:
@@ -44,24 +48,27 @@ class PointCloudBuilder:
             measurement_mode:
             thld: pt threshold for reconstructable particles
             remove_noise:
+            write_output:
+            log_level:
         """
-        if feature_names is None:
-            feature_names = (["r", "phi", "z", "eta_rz", "u", "v"],)
+        # create outdir if necessary
+        os.makedirs(outdir, exist_ok=True)
         self.outdir = outdir
+
         self.indir = indir
         self.n_sectors = n_sectors
         self.redo = redo
         self.pixel_only = pixel_only
         self.sector_di = sector_di
         self.sector_ds = sector_ds
-        self.feature_names = feature_names
-        self.feature_scale = feature_scale  # !! important
+        self.feature_names = ["r", "phi", "z", "eta_rz", "u", "v"]
+        self.feature_scale = np.array([1, 1, 1, 1, 1, 1])
         self.measurement_mode = measurement_mode
         self.thld = thld
         self.stats = {}
         self.remove_noise = remove_noise
-        self.particle_id_counts = None
         self.measurements: list[dict[str, Any]] = []
+        self.write_output = write_output
 
         suffix = "-hits.csv.gz"
         self.prefixes: list[str] = []
@@ -78,24 +85,33 @@ class PointCloudBuilder:
                 self.prefixes.append(join(indir, prefix))
 
         self.data_list: list[Data] = []
+        self.logger = get_logger("PointCloudBuilder", level=log_level)
 
     def calc_eta(self, r, z):
         theta = np.arctan2(r, z)
         return -1.0 * np.log(np.tan(theta / 2.0))
 
-    def restrict_to_pixel(self, hits: pd.DataFrame) -> pd.DataFrame:
-        pixel_barrel = [(8, 2), (8, 4), (8, 6), (8, 8)]
-        pixel_LEC = [(7, 14), (7, 12), (7, 10), (7, 8), (7, 6), (7, 4), (7, 2)]
-        pixel_REC = [(9, 2), (9, 4), (9, 6), (9, 8), (9, 10), (9, 12), (9, 14)]
-        pixel_layers = pixel_barrel + pixel_REC + pixel_LEC
-        n_layers = len(pixel_layers)
-
+    def restrict_to_subdetectors(self, hits: pd.DataFrame) -> pd.DataFrame:
         # select barrel layers and assign convenient layer number [0-9]
+        if self.pixel_only:
+            pixel_barrel = [(8, 2), (8, 4), (8, 6), (8, 8)]
+            pixel_LEC = [(7, 14), (7, 12), (7, 10), (7, 8), (7, 6), (7, 4), (7, 2)]
+            pixel_REC = [(9, 2), (9, 4), (9, 6), (9, 8), (9, 10), (9, 12), (9, 14)]
+            allowed_layers = pixel_barrel + pixel_REC + pixel_LEC
+        else:
+            allowed_layers = None
+
         hit_layer_groups = hits.groupby(["volume_id", "layer_id"])
+        if allowed_layers is not None:
+            available_allowed_layers = sorted(
+                set(hit_layer_groups.groups.keys()) & set(allowed_layers)
+            )
+        else:
+            available_allowed_layers = sorted(hit_layer_groups.groups.keys())
         hits = pd.concat(
             [
-                hit_layer_groups.get_group(pixel_layers[i]).assign(layer=i)
-                for i in range(n_layers)
+                hit_layer_groups.get_group(layer).assign(layer=i)
+                for i, layer in enumerate(available_allowed_layers)
             ]
         )
         return hits
@@ -141,8 +157,11 @@ class PointCloudBuilder:
         ].merge(truth[["hit_id", "particle_id", "pt", "eta_pt"]], on="hit_id")
         return hits
 
-    def sector_hits(self, hits: pd.DataFrame, s) -> pd.DataFrame:
+    def sector_hits(
+        self, hits: pd.DataFrame, s, particle_id_counts: dict[int, int]
+    ) -> pd.DataFrame:
         if self.n_sectors == 1:
+            hits["sector"] = 0
             return hits
         # build sectors in each 2*np.pi/self.n_sectors window
         theta = np.pi / self.n_sectors
@@ -159,13 +178,14 @@ class PointCloudBuilder:
         ]
 
         # assign when the majority of the particle's hits are in a sector
+        particle_id_sectors = collections.defaultdict(lambda: -1)
         for pid in np.unique(sector.particle_id.values):
             if pid == 0:
                 continue
             hits_in_sector = len(sector[sector.particle_id == pid])
-            hits_for_pid = self.particle_id_counts[pid]
+            hits_for_pid = particle_id_counts[pid]
             if (hits_in_sector / hits_for_pid) > 0.5:
-                self.particle_id_sectors[pid] = s
+                particle_id_sectors[pid] = s
 
         lower_bound = -self.sector_ds * slope * hits.ur - self.sector_di
         upper_bound = self.sector_ds * slope * hits.ur + self.sector_di
@@ -173,19 +193,19 @@ class PointCloudBuilder:
             ((hits.vr > lower_bound) & (hits.vr < upper_bound) & (hits.ur > 0))
         ]
         extended_sector["sector"] = extended_sector["particle_id"].map(
-            self.particle_id_sectors
+            particle_id_sectors
         )
 
         measurements = {}
         if self.measurement_mode:
-            measurements["sector_size"] = len(sector)
-            measurements["extended_sector_size"] = len(extended_sector)
+            measurements["n_hits"] = len(sector)
+            measurements["n_hits_ext"] = len(extended_sector)
             if len(sector) > 0:
-                measurements["sector_size_ratio"] = len(extended_sector) / len(sector)
+                measurements["n_hits_ratio"] = len(extended_sector) / len(sector)
             else:
-                measurements["sector_size_ratio"] = 0
+                measurements["n_hits_ratio"] = 0
 
-            measurements["unique_pids"] = len(
+            measurements["n_unique_pids"] = len(
                 np.unique(extended_sector.particle_id.values)
             )
 
@@ -199,7 +219,7 @@ class PointCloudBuilder:
                     & (group.vr > -slope * group.ur)
                     & (group.pt >= self.thld)
                 )
-                n_total = self.particle_id_counts[pid]
+                n_total = particle_id_counts[pid]
                 if sum(in_sector) / n_total < 0.5:
                     continue
                 in_ext_sector = (
@@ -209,7 +229,7 @@ class PointCloudBuilder:
                 )
                 majority_contained.append(sum(in_ext_sector) == n_total)
                 efficiency = sum(majority_contained) / len(majority_contained)
-                measurements[f"majority_contained_{self.thld}GeV"] = efficiency
+                measurements["majority_contained"] = efficiency
                 self.measurements.append(measurements)
 
         return extended_sector
@@ -217,16 +237,28 @@ class PointCloudBuilder:
     def to_pyg_data(self, hits: pd.DataFrame) -> Data:
         """Build the output data structure"""
         data = Data(
-            x=hits[self.feature_names].values / self.feature_scale,
-            layer=hits.layer.values,
-            particle_id=hits["particle_id"].values,
-            pt=hits["pt"].values,
-            reconstructable=hits["reconstructable"].values,
-            sector=hits["sector"].values,
+            x=torch.from_numpy(
+                hits[self.feature_names].values / self.feature_scale
+            ).float(),
+            layer=torch.from_numpy(hits.layer.values).long(),
+            particle_id=torch.from_numpy(hits["particle_id"].values).long(),
+            pt=torch.from_numpy(hits["pt"].values).float(),
+            reconstructable=torch.from_numpy(hits["reconstructable"].values).long(),
+            sector=torch.from_numpy(hits["sector"].values).long(),
         )
         return data
 
-    def process(self, n: int | None = None, verbose=False):
+    def get_measurements(self):
+        measurements = pd.DataFrame(self.measurements)
+        means = measurements.mean()
+        stds = measurements.std()
+        output = {}
+        for var in means.index:
+            output[var] = means[var]
+            output[var + "_err"] = stds[var]
+        return output
+
+    def process(self, start: int | None = None, stop: int | None = None):
         """Process input files from self.input_files and write output files to
         self.output_files
 
@@ -237,20 +269,17 @@ class PointCloudBuilder:
         Returns:
 
         """
-        for i, f in enumerate(self.prefixes[:n]):
-            print(f"Processing {f}")
+        for f in self.prefixes[start:stop]:
+            self.logger.debug(f"Processing {f}")
 
             evtid = int(f[-9:])
             hits, particles, truth = load_event(f, parts=["hits", "particles", "truth"])
 
-            if self.pixel_only:
-                hits = self.restrict_to_pixel(hits)
+            hits = self.restrict_to_subdetectors(hits)
             hits = self.append_features(hits, particles, truth)
             hits_by_pid = hits.groupby("particle_id")
 
-            self.particle_id_counts = {
-                pid: len(hit_group) for pid, hit_group in hits_by_pid
-            }
+            particle_id_counts = {pid: len(hit_group) for pid, hit_group in hits_by_pid}
             pid_layers_hit = {
                 pid: len(np.unique(hit_group.layer)) for pid, hit_group in hits_by_pid
             }
@@ -259,9 +288,6 @@ class PointCloudBuilder:
                 for pid, counts in pid_layers_hit.items()
             }
             hits["reconstructable"] = hits.particle_id.map(self.reconstructable)
-            self.particle_id_sectors = {
-                pid: -1 for pid in self.particle_id_counts.keys()
-            }
 
             n_particles = len(np.unique(hits.particle_id.values))
             n_hits = len(hits)
@@ -273,18 +299,19 @@ class PointCloudBuilder:
                 if self.exists[name] and not self.redo:
                     data = torch.load(join(self.outdir, name))
                     self.data_list.append(data)
-                    if verbose:
-                        print("skipping {name}")
+                    self.logger.debug(f"skipping {name}")
                 else:
-                    sector = self.sector_hits(hits, s)
+                    sector = self.sector_hits(
+                        hits, s, particle_id_counts=particle_id_counts
+                    )
                     n_sector_hits += len(sector)
                     n_sector_particles += len(np.unique(sector.particle_id.values))
                     sector = self.to_pyg_data(sector)
                     outfile = join(self.outdir, name)
-                    torch.save(sector, outfile)
+                    if self.write_output:
+                        torch.save(sector, outfile)
                     self.data_list.append(sector)
-                    if verbose:
-                        print(f"wrote {outfile}")
+                    self.logger.debug(f"wrote {outfile}")
 
             self.stats[evtid] = {
                 "n_hits": n_hits,
@@ -294,10 +321,10 @@ class PointCloudBuilder:
                 "n_sector_particles": n_sector_particles,
             }
 
-        print("Output statistics:", self.stats[evtid])
+        self.logger.debug("Output statistics:", self.stats[evtid])
         if self.measurement_mode:
             measurements = pd.DataFrame(self.measurements)
             means = measurements.mean()
             stds = measurements.std()
             for var in stds.index:
-                print(f"{var}: {means[var]:.4f}+/-{stds[var]:.4f}")
+                self.logger.debug(f"{var}: {means[var]:.4f}+/-{stds[var]:.4f}")

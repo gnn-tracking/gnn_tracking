@@ -1,20 +1,13 @@
 from __future__ import annotations
 
-import logging
 from collections import Counter
 
 import numpy as np
 import pandas as pd
 from tabulate import tabulate
 
+from gnn_tracking.utils.log import logger
 from gnn_tracking.utils.preprocessing import relabel_pids as relabel_pid_func
-
-
-def initialize_logger(verbose=False):
-    log_format = "%(asctime)s %(levelname)s %(message)s"
-    log_level = logging.DEBUG if verbose else logging.INFO
-    logging.basicConfig(level=log_level, format=log_format)
-    logging.info("Initializing")
 
 
 def calc_dphi(phi1: np.ndarray, phi2: np.ndarray) -> np.ndarray:
@@ -142,7 +135,7 @@ def split_detector_sectors(
             # 'nhits': len(sec_hits)}
 
             if verbose:
-                logging.info(
+                logger.info(
                     f"Sector ({i},{j}):\n"
                     + f"...eta_range=({eta_min:.3f},{eta_max:.3f})\n"
                     f"...phi_range=({phi_min:.3f},{phi_max:.3f})"
@@ -337,7 +330,7 @@ def correct_truth_labels(hits, edges, y, particle_ids):
     - [y] = n_edges
     - [particle_ids] = n_edges
     """
-    logging.info(f"Initially {int(np.sum(y))}/{len(y)} true edges.")
+    logger.info(f"Initially {int(np.sum(y))}/{len(y)} true edges.")
 
     # layer indices for barrel-to-endcap edges
     barrel_to_endcaps = {
@@ -394,8 +387,8 @@ def correct_truth_labels(hits, edges, y, particle_ids):
                 y[relabel_idx] = 0
                 n_corrected += len(relabel_idx)
 
-    logging.info(f"Relabeled {n_corrected} edges crossing from barrel to endcaps.")
-    logging.info(f"Updated y has {int(np.sum(y))}/{len(y)} true edges.")
+    logger.info(f"Relabeled {n_corrected} edges crossing from barrel to endcaps.")
+    logger.info(f"Updated y has {int(np.sum(y))}/{len(y)} true edges.")
     return y, n_corrected
 
 
@@ -539,7 +532,7 @@ def graph_summary(
         "boundary_fraction": boundary_fraction,
     }
 
-    logging.info(
+    logger.info(
         f"Graph summary statistics for event {evtid}\n"
         + tabulate(info_dict.items(), floatfmt=".5f", tablefmt="fancy_grid")
     )

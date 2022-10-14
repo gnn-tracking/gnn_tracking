@@ -61,7 +61,7 @@ class EventPlotter:
         hits = self.append_coordinates(hits, truth, particles)
         return hits, prefix
 
-    def plot_ep_rv_uv(self, evtid=None):
+    def plot_ep_rv_uv(self, evtid=None, savefig=False, filename=""):
         hits, prefix = self.get_hits(evtid)
         fig, axs = plt.subplots(nrows=1, ncols=3, dpi=200, figsize=(24, 8))
         axs[0].plot(hits["eta"], hits["phi"], "b.", lw=0, ms=0.1)
@@ -75,6 +75,8 @@ class EventPlotter:
         axs[2].set_ylabel(r"v")
         axs[1].set_title(prefix)
         plt.tight_layout()
+        if savefig:
+            plt.savefig(filename, dpi=1200, format="pdf")
         plt.show()
 
 
@@ -90,7 +92,7 @@ class PointCloudPlotter:
         phi, eta = x[:, 1], x[:, 3]
         r, z = x[:, 0], x[:, 2]
         u, v = x[:, 4], x[:, 5]
-        kwargs = {"lw": 0, "ms": 0.1, "color": self.colors[i]}
+        kwargs = {"marker": ".", "lw": 0, "ms": 0.1, "color": self.colors[i]}
         axs[0].plot(eta, phi, **kwargs)
         axs[0].set_xlabel(r"$\eta$")
         axs[0].set_ylabel(r"$\phi$")
@@ -105,17 +107,31 @@ class PointCloudPlotter:
             plt.tight_layout()
             plt.show()
 
-    def plot_ep_rv_uv_all_sectors(self, evtid: int):
+    def plot_ep_rv_uv_all_sectors(self, evtid: int, savefig=False, filename=""):
         fig, axs = plt.subplots(nrows=1, ncols=3, dpi=200, figsize=(24, 8))
         sector_files = [join(self.indir, f) for f in self.infiles if str(evtid) in f]
         prefix = f"event{evtid}"
         for i, s in enumerate(sector_files):
             self.plot_ep_rv_uv(i, s, axs=axs, display=False)
         axs[1].set_title(prefix)
+        if savefig:
+            plt.savefig(filename, dpi=1200, format="pdf")
         plt.tight_layout()
         plt.show()
 
-    def plot_ep_rv_uv_with_boundary(self, evtid: int, sector: int, di, ds):
+    def plot_ep_rv_uv_with_boundary(
+        self,
+        evtid: int,
+        sector: int,
+        di,
+        ds,
+        ulim_low=0,
+        ulim_high=0.035,
+        vlim_low=-0.004,
+        vlim_high=0.004,
+        savefig=False,
+        filename="",
+    ):
         fig, axs = plt.subplots(nrows=1, ncols=3, dpi=200, figsize=(24, 8))
         f = join(self.indir, f"data{evtid}_s{sector}.pt")
         x = torch.load(f).x
@@ -142,22 +158,162 @@ class PointCloudPlotter:
         axs[2].plot(xr, -slope * xr, "k-")
         axs[2].plot(xr, ds * slope * xr + di, "k--", label="Extended Sector")
         axs[2].plot(xr, -ds * slope * xr - di, "k--")
-        axs[2].set_xlim([0, 0.035])
-        axs[2].set_ylim([-0.002, 0.002])
+        axs[2].set_xlim([ulim_low, ulim_high])
+        axs[2].set_ylim([vlim_low, vlim_high])
         plt.legend(loc="best")
         plt.tight_layout()
+        if savefig:
+            plt.savefig(filename, dpi=1200, format="pdf")
         plt.show()
 
 
 class GraphPlotter:
-    def __init__(self, style="seaborn-paper"):
+    def __init__(self, indir="", n_sectors=64, style="seaborn-paper"):
+        self.indir = indir
         self.style = style
+        self.n_sectors = n_sectors
 
     def configure_plt(self):
         plt.style.use(self.style)
         rcParams.update({"figure.autolayout": True})
 
-    def plot_rz(self, graph: Data, name: str, scale=np.array([1, 1, 1]), savefig=False):
+    def plot_ep_rz_uv(
+        self,
+        graph: Data,
+        sector: int,
+        name: str,
+        savefig=False,
+        filename="",
+    ):
+        fig, axs = plt.subplots(nrows=1, ncols=3, dpi=200, figsize=(24, 8))
+        f = join(self.indir, f"{name}.pt")
+        graph = torch.load(f)
+        x, edge_index, y = graph.x, graph.edge_index, graph.y
+        phi, eta = x[:, 1], x[:, 3]
+        r, z = x[:, 0], x[:, 2]
+
+        # rotate u, v onto the u axis
+        u, v = x[:, 4], x[:, 5]
+        theta = np.pi / self.n_sectors
+        ur = u * np.cos(2 * sector * theta) - v * np.sin(2 * sector * theta)
+        vr = u * np.sin(2 * sector * theta) + v * np.cos(2 * sector * theta)
+
+        # plot single_particles
+        particle_id = graph.particle_id
+        colors = ["red", "green", "purple", "yellow", "orange"]
+        for i in range(len(colors)):
+            particle_id = graph.particle_id
+            mask = particle_id == np.random.choice(
+                particle_id[particle_id != 0], size=None
+            )
+            kwargs = {"marker": ".", "ms": 8, "zorder": 100, "color": colors[i]}
+            axs[0].plot(eta[mask], phi[mask] * np.pi, **kwargs)
+            axs[1].plot(z[mask] * 1000.0, r[mask] * 1000.0, **kwargs)
+            axs[2].plot(ur[mask] / 1000.0, vr[mask] / 1000.0, **kwargs)
+
+        # plot others
+        self.plot_2d(
+            np.stack((eta, phi * np.pi), axis=1),
+            y,
+            edge_index,
+            x1_label=r"$\eta$",
+            x2_label=r"$\phi$",
+            ax=axs[0],
+        )
+        self.plot_2d(
+            np.stack((z * 1000.0, r * 1000.0), axis=1),
+            y,
+            edge_index,
+            x1_label=r"$z$ [mm]",
+            x2_label=r"$r$ [mm]",
+            ax=axs[1],
+        )
+        self.plot_2d(
+            np.stack((ur / 1000.0, vr / 1000.0), axis=1),
+            y,
+            edge_index,
+            x1_label=r"$u$ [1/mm]",
+            x2_label="$v$ [1/mm]",
+            ax=axs[2],
+        )
+        axs[1].set_title(name)
+        plt.tight_layout()
+        if savefig:
+            plt.savefig(filename, dpi=1200, format="pdf")
+        plt.show()
+
+    def plot_2d(
+        self,
+        X,
+        y,
+        edge_index,
+        name="",
+        savefig=False,
+        filename="",
+        ax=None,
+        sector=-1,
+        x1_label="",
+        x2_label="",
+        single_particle=False,
+    ):
+        true_x1_o = X[edge_index[0, :]][(y > 0.5)][:, 0]
+        false_x1_o = X[edge_index[0, :]][(y < 0.5)][:, 0]
+        true_x1_i = X[edge_index[1, :]][(y > 0.5)][:, 0]
+        false_x1_i = X[edge_index[1, :]][(y < 0.5)][:, 0]
+        true_x2_o = X[edge_index[0, :]][(y > 0.5)][:, 1]
+        false_x2_o = X[edge_index[0, :]][(y < 0.5)][:, 1]
+        true_x2_i = X[edge_index[1, :]][(y > 0.5)][:, 1]
+        false_x2_i = X[edge_index[1, :]][(y < 0.5)][:, 1]
+
+        show_plot = False
+        if ax is None:
+            show_plot = True
+            fig, ax = plt.subplots(dpi=200, figsize=(12, 12))
+        ax.plot(X[:, 0], X[:, 1], "b.", lw=0, ms=0.5)
+
+        # plot true edges
+        for i in range(len(true_x1_o)):
+            ax.plot(
+                (true_x1_o[i], true_x1_i[i]),
+                (true_x2_o[i], true_x2_i[i]),
+                marker="o",
+                ls="-",
+                color="blue" if not single_particle else "green",
+                lw=0.25 if not single_particle else 1,
+                ms=0.1 if not single_particle else 0.5,
+                alpha=1,
+            )
+
+        # plot false edges
+        for i in range(len(false_x1_o)):
+            ax.plot(
+                (false_x1_o[i], false_x1_i[i]),
+                (false_x2_o[i], false_x2_i[i]),
+                marker="o",
+                ls="-",
+                color="black" if not single_particle else "red",
+                lw=0.05 if not single_particle else 0.5,
+                ms=0.1 if not single_particle else 0.5,
+                alpha=0.2,
+            )
+
+        ax.set_xlabel(x1_label)
+        ax.set_ylabel(x2_label)
+
+        if show_plot:
+            plt.title(name)
+            plt.tight_layout()
+            plt.show()
+
+    def plot_rz(
+        self,
+        graph: Data,
+        name="",
+        scale=None,
+        savefig=False,
+        filename="",
+        ax=None,
+    ):
         x = graph.x[:, :3] / scale
         y = graph.y
         edge_index = graph.edge_index
@@ -168,7 +324,10 @@ class GraphPlotter:
         false_edges_o = feats_o[y < 0.5]
         false_edges_i = feats_i[y < 0.5]
 
-        fig, ax = plt.subplots(dpi=200, figsize=(12, 12))
+        show_plot = False
+        if ax is None:
+            show_plot = True
+            fig, ax = plt.subplots(dpi=200, figsize=(12, 12))
         for i in range(len(true_edges_o)):
             ax.plot(
                 (true_edges_o[i][2], true_edges_i[i][2]),
@@ -194,14 +353,15 @@ class GraphPlotter:
 
         ax.set_ylabel("r [m]")
         ax.set_xlabel("z [m]")
-        plt.title(name)
-        if savefig:
-            plt.savefig(filename, dpi=1200)
-        plt.tight_layout()
-        plt.show()
+        if show_plot:
+            plt.tight_layout()
+            plt.title(name)
+            if savefig:
+                plt.savefig(filename, dpi=1200)
+            plt.show()
 
 
-def plot_rz(X, idxs, y, save_fig=False, filename="rz.png"):
+def plot_rz(X, idxs, y, savefig=False, filename="rz.png"):
     X = np.array(X)
     feats_o = X[idxs[0, :]]
     feats_i = X[idxs[1, :]]
@@ -240,13 +400,13 @@ def plot_rz(X, idxs, y, save_fig=False, filename="rz.png"):
     plt.ylabel("r [m]")
     plt.xlabel("z [m]")
     # plt.title(f'Sector: ({label[0]}, {label[1]})')
-    if save_fig:
+    if savefig:
         plt.savefig(filename, dpi=1200)
     plt.tight_layout()
     plt.show()
 
 
-def plot_3d(X, idxs, y, save_fig=False, filename="rz.png"):
+def plot_3d(X, idxs, y, savefig=False, filename="rz.png"):
     X = np.array(X)
     r, phi, z = X[:, 0], X[:, 1], X[:, 2]
     pred = y
@@ -258,7 +418,7 @@ def plot_3d(X, idxs, y, save_fig=False, filename="rz.png"):
     # feats_i = X[idxs[1,:]]
 
     ax = plt.axes(projection="3d")
-    for i in range(len(X)):
+    for _ in range(len(X)):
         ax.scatter3D(x, y, z, c="silver", marker="s", s=15)
         # plt.scatter(X[i][2], X[i][0], c='silver', linewidths=0, marker='s', s=8)
 

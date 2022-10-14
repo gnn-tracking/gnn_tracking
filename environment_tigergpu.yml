@@ -1,0 +1,18 @@
+name: gnn
+channels:
+  - pytorch
+  - pyg
+  - ostrokach-forge
+  - conda-forge
+dependencies:
+  - python==3.9
+  - cudatoolkit=11.6
+  - pytorch==1.12
+  - pip
+  - pip:
+      - -f https://data.pyg.org/whl/torch-1.12.0+cu116.html
+      - torch-sparse
+      - torch-scatter
+      - torch-cluster
+      - torch-geometric
+      - optuna

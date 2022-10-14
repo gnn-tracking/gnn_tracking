@@ -6,3 +6,4 @@ exclude =
     .git,
     __pycache__,
     notebooks,
+extend-immutable-calls = pathlib.Path, Path, np.array, array

@@ -1,20 +1,93 @@
 from __future__ import annotations
 
+from functools import cached_property
+from typing import TypeVar
+
 import torch
 
+from gnn_tracking.utils.types import assert_int
 
-def zero_divide(a, b):
+
+def zero_divide(a: float, b: float) -> float:
     if b == 0:
         return 0
     return a / b
 
 
-def binary_classification_stats(output, y, thld):
-    TP = torch.sum((y == 1) & (output > thld))
-    TN = torch.sum((y == 0) & (output < thld))
-    FP = torch.sum((y == 0) & (output > thld))
-    FN = torch.sum((y == 1) & (output < thld))
-    acc = zero_divide(TP + TN, TP + TN + FP + FN)
-    TPR = zero_divide(TP, TP + FN)
-    TNR = zero_divide(TN, TN + FP)
-    return acc, TPR, TNR
+class BinaryClassificationStats:
+    def __init__(
+        self, output: torch.Tensor, y: torch.Tensor, thld: torch.Tensor | float
+    ):
+        """
+
+        Args:
+            output:
+            y:
+            thld:
+
+        Returns:
+            accuracy, TPR, TNR
+        """
+        assert_int(y)
+        self._output = output
+        self._y = y
+        self._thld = thld
+
+    @cached_property
+    def TP(self) -> float:
+        return torch.sum((self._y == 1) & (self._output > self._thld)).item()
+
+    @cached_property
+    def TN(self) -> float:
+        return torch.sum((self._y == 0) & (self._output < self._thld)).item()
+
+    @cached_property
+    def FP(self) -> float:
+        return torch.sum((self._y == 0) & (self._output > self._thld)).item()
+
+    @cached_property
+    def FN(self) -> float:
+        return torch.sum((self._y == 1) & (self._output < self._thld)).item()
+
+    @cached_property
+    def acc(self) -> float:
+        return zero_divide(self.TP + self.TN, self.TP + self.TN + self.FP + self.FN)
+
+    @cached_property
+    def TPR(self) -> float:
+        return zero_divide(self.TP, self.TP + self.FN)
+
+    @cached_property
+    def TNR(self) -> float:
+        return zero_divide(self.TN, self.TN + self.FP)
+
+    @cached_property
+    def FPR(self) -> float:
+        return zero_divide(self.FP, self.FP + self.TN)
+
+    @cached_property
+    def FNR(self) -> float:
+        return zero_divide(self.FN, self.FN + self.TP)
+
+    def get_all(self) -> dict[str, float]:
+        return {
+            "acc": self.acc,
+            "TPR": self.TPR,
+            "TNR": self.TNR,
+            "FPR": self.FPR,
+            "FNR": self.FNR,
+        }
+
+
+_P = TypeVar("_P")
+
+
+def add_key_prefix(dct: dict[str, _P], prefix: str = "") -> dict[str, _P]:
+    """Return a copy of the dictionary with the prefix added to all keys."""
+    return {f"{prefix}{k}": v for k, v in dct.items()}
+
+
+def subdict_with_prefix_stripped(dct: dict[str, _P], prefix: str = "") -> dict[str, _P]:
+    """Return a copy of the dictionary for all keys that start with prefix
+    and with the prefix removed from all keys."""
+    return {k[len(prefix) :]: v for k, v in dct.items() if k.startswith(prefix)}
