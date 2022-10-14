@@ -113,7 +113,7 @@ class PotentialLoss(torch.nn.Module):
         self.q_min = q_min
         self.radius_threshold = radius_threshold
 
-    def condensation_loss(self, *, beta: T, x: T, particle_id: T) -> dict[str, T]:
+    def _condensation_loss(self, *, beta: T, x: T, particle_id: T) -> dict[str, T]:
         pids = torch.unique(particle_id[particle_id > 0])
         # n_nodes x n_pids
         pid_masks = particle_id[:, None] == pids[None, :]  # type: ignore
@@ -142,9 +142,9 @@ class PotentialLoss(torch.nn.Module):
             "repulsive": torch.sum(torch.mean(vr, dim=0)),
         }
 
-    # noinspection PyUnusedVariable
+    # noinspection PyUnusedLocal
     def forward(self, *, beta: T, x: T, particle_id: T, **kwargs) -> dict[str, T]:
-        return self.condensation_loss(beta=beta, x=x, particle_id=particle_id)
+        return self._condensation_loss(beta=beta, x=x, particle_id=particle_id)
 
 
 class BackgroundLoss(torch.nn.Module):
@@ -153,7 +153,7 @@ class BackgroundLoss(torch.nn.Module):
         #: Strength of noise suppression
         self.sb = sb
 
-    def background_loss(self, *, beta: T, particle_id: T) -> T:
+    def _background_loss(self, *, beta: T, particle_id: T) -> T:
         pids = torch.unique(particle_id[particle_id > 0])
         pid_masks = particle_id[:, None] == pids[None, :]
         alphas = torch.argmax(pid_masks * beta[:, None], dim=0)
@@ -164,8 +164,9 @@ class BackgroundLoss(torch.nn.Module):
             loss = loss + self.sb * torch.mean(beta[noise_mask])
         return loss
 
+    # noinspection PyUnusedLocal
     def forward(self, *, beta, particle_id, **kwargs):
-        return self.background_loss(beta=beta, particle_id=particle_id)
+        return self._background_loss(beta=beta, particle_id=particle_id)
 
 
 class ObjectLoss(torch.nn.Module):
@@ -174,12 +175,12 @@ class ObjectLoss(torch.nn.Module):
         #: Strength of noise suppression
         self.mode = mode
 
-    def MSE(self, *, pred, truth):
+    def _mse(self, *, pred, truth):
         return torch.sum(mse_loss(pred, truth, reduction="none"), dim=1)
 
     def object_loss(self, *, pred, beta, truth, particle_id):
         # shape: n_nodes
-        mse = self.MSE(pred=pred, truth=truth)
+        mse = self._mse(pred=pred, truth=truth)
         if self.mode == "purity":
             noise_mask = particle_id == 0
             # shape: n_nodes
@@ -201,7 +202,7 @@ class ObjectLoss(torch.nn.Module):
         else:
             raise ValueError("Unknown mode: {mode}")
 
-    # noinspection PyUnusedVariable
+    # noinspection PyUnusedLocal
     def forward(
         self, *, beta, pred, particle_id, track_params, reconstructable, **kwargs
     ):
