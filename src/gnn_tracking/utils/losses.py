@@ -108,10 +108,18 @@ class EdgeWeightFocalLoss(EdgeWeightLoss):
 
 
 class PotentialLoss(torch.nn.Module):
-    def __init__(self, q_min=0.01, radius_threshold=10.0):
+    def __init__(self, q_min=0.01, radius_threshold=10.0, pt_thld=0.9):
+        """
+
+        Args:
+            q_min: Minimal charge ``q``
+            radius_threshold: Parameter of repulsive potential
+            pt_thld: Truth-level threshold for hits/tracks to consider in loss [GeV]
+        """
         super().__init__()
         self.q_min = q_min
         self.radius_threshold = radius_threshold
+        self.pt_thld = pt_thld
 
     def _condensation_loss(self, *, beta: T, x: T, particle_id: T) -> dict[str, T]:
         pids = torch.unique(particle_id[particle_id > 0])
@@ -143,8 +151,20 @@ class PotentialLoss(torch.nn.Module):
         }
 
     # noinspection PyUnusedLocal
-    def forward(self, *, beta: T, x: T, particle_id: T, **kwargs) -> dict[str, T]:
-        return self._condensation_loss(beta=beta, x=x, particle_id=particle_id)
+    def forward(
+        self,
+        *,
+        beta: T,
+        x: T,
+        particle_id: T,
+        reconstructable: T,
+        track_params: T,
+        **kwargs,
+    ) -> dict[str, T]:
+        mask = (reconstructable > 0) & (track_params > self.pt_thld)
+        return self._condensation_loss(
+            beta=beta[mask], x=x[mask], particle_id=particle_id[mask]
+        )
 
 
 class BackgroundLoss(torch.nn.Module):
