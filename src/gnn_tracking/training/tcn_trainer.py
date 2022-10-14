@@ -390,7 +390,9 @@ class TCNTrainer:
         for pt_min in pt_thlds:
             losses.update(self._test_step(thld=thld, val=val, pt_min=pt_min))
         self._log_losses(
-            losses.get("total", np.nan), losses, header=f"Test {self._epoch}: "
+            losses.get("total", Tensor([np.nan])),
+            losses,
+            header=f"Test {self._epoch}: ",
         )
         self.test_loss.append(pd.DataFrame(losses, index=[self._epoch]))
         for hook in self._test_hooks:
