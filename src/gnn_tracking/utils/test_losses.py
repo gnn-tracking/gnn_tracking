@@ -45,7 +45,7 @@ td2 = generate_test_data(20, n_particles=3, rng=np.random.default_rng(seed=0))
 
 
 def get_condensation_loss(td: MockData) -> float:
-    loss_dct = PotentialLoss(q_min=0.01, radius_threshold=1).condensation_loss(
+    loss_dct = PotentialLoss(q_min=0.01, radius_threshold=1)._condensation_loss(
         beta=td.beta, x=td.x, particle_id=td.particle_id
     )
     assert len(loss_dct) == 2
@@ -55,7 +55,7 @@ def get_condensation_loss(td: MockData) -> float:
 def get_background_loss(td: MockData) -> float:
     return (
         BackgroundLoss(sb=0.1)
-        .background_loss(beta=td.beta, particle_id=td.particle_id)
+        ._background_loss(beta=td.beta, particle_id=td.particle_id)
         .item()
     )
 
