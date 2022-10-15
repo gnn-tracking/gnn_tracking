@@ -240,7 +240,7 @@ class TCNTrainer:
                 headers=["Metric", "Value"],
             )
         else:
-            report_str += ", ".join(f"{k}={v:>9.5f}" for k, v in table_items)
+            report_str += ", ".join(f"{k}={v:>10.5f}" for k, v in table_items)
         self.logger.info(report_str)
 
     def train_step(self, *, max_batches: int | None = None) -> dict[str, float]:
@@ -270,7 +270,7 @@ class TCNTrainer:
                 self._log_losses(
                     batch_loss,
                     batch_losses,
-                    header=f"Epoch {self._epoch} "
+                    header=f"Epoch {self._epoch:>2} "
                     f"({batch_idx:>5}/{len(self.train_loader)}): ",
                     style="inline",
                 )
