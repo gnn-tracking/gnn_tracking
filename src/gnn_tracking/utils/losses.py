@@ -108,20 +108,23 @@ class EdgeWeightFocalLoss(EdgeWeightLoss):
 
 
 class PotentialLoss(torch.nn.Module):
-    def __init__(self, q_min=0.01, radius_threshold=10.0, pt_thld=0.9):
-        """
+    def __init__(self, q_min=0.01, radius_threshold=10.0, attr_pt_thld=0.9):
+        """Potential/condensation loss
 
         Args:
             q_min: Minimal charge ``q``
             radius_threshold: Parameter of repulsive potential
-            pt_thld: Truth-level threshold for hits/tracks to consider in loss [GeV]
+            attr_pt_thld: Truth-level threshold for hits/tracks to consider in
+                attractive loss [GeV]
         """
         super().__init__()
         self.q_min = q_min
         self.radius_threshold = radius_threshold
-        self.pt_thld = pt_thld
+        self.pt_thld = attr_pt_thld
 
-    def _condensation_loss(self, *, beta: T, x: T, particle_id: T) -> dict[str, T]:
+    def _condensation_loss(
+        self, *, beta: T, x: T, particle_id: T, mask: T
+    ) -> dict[str, T]:
         pids = torch.unique(particle_id[particle_id > 0])
         # n_nodes x n_pids
         pid_masks = particle_id[:, None] == pids[None, :]  # type: ignore
@@ -146,7 +149,7 @@ class PotentialLoss(torch.nn.Module):
         )
 
         return {
-            "attractive": torch.sum(torch.mean(va, dim=0)),
+            "attractive": torch.sum(torch.mean(va[mask], dim=0)),
             "repulsive": torch.sum(torch.mean(vr, dim=0)),
         }
 
@@ -163,7 +166,7 @@ class PotentialLoss(torch.nn.Module):
     ) -> dict[str, T]:
         mask = (reconstructable > 0) & (track_params > self.pt_thld)
         return self._condensation_loss(
-            beta=beta[mask], x=x[mask], particle_id=particle_id[mask]
+            beta=beta, x=x, particle_id=particle_id, mask=mask
         )
 
 
