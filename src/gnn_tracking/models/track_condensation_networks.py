@@ -6,6 +6,7 @@ from torch import Tensor
 from torch_geometric.data import Data
 
 from gnn_tracking.models.dynamic_edge_conv import DynamicEdgeConv
+from gnn_tracking.models.edge_classifier import ECForGraphTCN
 from gnn_tracking.models.interaction_network import InteractionNetwork as IN
 from gnn_tracking.models.mlp import MLP
 from gnn_tracking.models.resin import ResIN
@@ -151,22 +152,14 @@ class GraphTCN(nn.Module):
         super().__init__()
         self.relu = nn.ReLU()
 
-        # specify the edge classifier
-        self.ec_node_encoder = MLP(
-            node_indim, h_dim, hidden_dim=hidden_dim, L=2, bias=False
-        )
-        self.ec_edge_encoder = MLP(
-            edge_indim, e_dim, hidden_dim=hidden_dim, L=2, bias=False
-        )
-        self.ec_resin = ResIN.identical_in_layers(
-            node_indim=h_dim,
-            edge_indim=e_dim,
-            node_outdim=h_dim,
-            edge_outdim=e_dim,
-            node_hidden_dim=hidden_dim,
-            edge_hidden_dim=hidden_dim,
-            alpha=alpha_ec,
-            n_layers=L_ec,
+        self.ec = ECForGraphTCN(
+            node_indim=node_indim,
+            edge_indim=edge_indim,
+            h_dim=h_dim,
+            e_dim=e_dim,
+            hidden_dim=hidden_dim,
+            L_ec=L_ec,
+            alpha_ec=alpha_ec,
         )
 
         # specify the track condenser
@@ -188,7 +181,6 @@ class GraphTCN(nn.Module):
         )
 
         # modules to predict outputs
-        self.W = MLP(e_dim * (L_ec + 1), 1, hidden_dim, L=3)
         self.B = MLP(h_dim, 1, hidden_dim, L=3)
         self.X = MLP(h_dim, h_outdim, hidden_dim, L=3)
         self.P = IN(
@@ -206,13 +198,8 @@ class GraphTCN(nn.Module):
     ) -> dict[str, Tensor]:
         # apply the edge classifier to generate edge weights
         x, edge_index, edge_attr = data.x, data.edge_index, data.edge_attr
-        h_ec = self.relu(self.ec_node_encoder(x))
-        edge_attr_ec = self.relu(self.ec_edge_encoder(edge_attr))
-        h_ec, _, edge_attrs_ec = self.ec_resin(h_ec, edge_index, edge_attr_ec)
 
-        # append edge weights as new edge features
-        edge_attrs_ec = torch.cat(edge_attrs_ec, dim=1)
-        edge_weights = torch.sigmoid(self.W(edge_attrs_ec))
+        edge_weights = self.ec(data)
         # edge_attr = torch.cat((edge_weights, edge_attr), dim=1)
 
         # apply edge weight threshold
