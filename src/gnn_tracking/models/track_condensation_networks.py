@@ -157,7 +157,7 @@ class GraphTCN(nn.Module):
             node_indim, h_dim, hidden_dim=hidden_dim, L=2, bias=False
         )
         self.hc_edge_encoder = MLP(
-            edge_indim, e_dim, hidden_dim=hidden_dim, L=2, bias=False
+            edge_indim + 1, e_dim, hidden_dim=hidden_dim, L=2, bias=False
         )
         self.hc_resin = ResIN.identical_in_layers(
             node_indim=h_dim,
@@ -197,7 +197,7 @@ class GraphTCN(nn.Module):
         mask = (edge_weights > 0.5).squeeze()
         row, col = row[mask], col[mask]
         edge_index = torch.stack([row, col], dim=0)
-        edge_attr = edge_attr[mask]
+        edge_attr = torch.stack([edge_attr[mask], edge_weights[mask]], dim=0)
 
         # apply the track condenser
         h_hc = self.relu(self.hc_node_encoder(x))
