@@ -6,6 +6,7 @@ import numpy as np
 import torch
 from pytest import approx
 from torch.nn.functional import binary_cross_entropy
+from typing_extensions import TypeAlias
 
 from gnn_tracking.utils.losses import (
     BackgroundLoss,
@@ -14,7 +15,7 @@ from gnn_tracking.utils.losses import (
     binary_focal_loss,
 )
 
-T = torch.tensor
+T: TypeAlias = torch.tensor
 
 
 @dataclass

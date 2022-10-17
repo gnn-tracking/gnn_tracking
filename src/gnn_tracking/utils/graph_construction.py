@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from collections import Counter
+from typing import Any
 
 import numpy as np
 import pandas as pd
@@ -43,7 +44,7 @@ def split_detector_sectors(
     verbose=False,
     phi_overlap=0.1,
     eta_overlaps=0.1,
-) -> tuple[dict[tuple[int, int], pd.DataFrame], dict[tuple[int, int], dict[str, any]]]:
+) -> tuple[dict[tuple[int, int], pd.DataFrame], dict[tuple[int, int], dict[str, Any]]]:
     """Split hits according to provided phi and eta boundaries."""
     hits_sectors = {}
     sector_info = {}
