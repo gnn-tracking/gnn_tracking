@@ -23,11 +23,12 @@ jobs:
 
     steps:
       - uses: actions/checkout@v3
-      - name: "Get conda"
-        uses: "conda-incubator/setup-miniconda@v2"
+      - name: Setup Mambaforge
+        uses: conda-incubator/setup-miniconda@v2
         with:
-          auto-update-conda: true
           miniforge-variant: Mambaforge
+          miniforge-version: latest
+          activate-environment: anaconda-client-env
           use-mamba: true
       - name: Get date for cache timestamp
         id: get-date
@@ -38,7 +39,7 @@ jobs:
         uses: actions/cache@v2
         with:
           path: ${{ env.CONDA }}/envs
-          key: conda-${{ runner.os }}--${{ runner.arch }}--${{ steps.get-date.outputs.today }}-${{ hashFiles('etc/example-environment-caching.yml') }}-${{ env.CACHE_NUMBER }}
+          key: conda-${{ runner.os }}--${{ runner.arch }}--${{ steps.get-date.outputs.today }}-${{ hashFiles('environments/testing.yml') }}-${{ env.CACHE_NUMBER }}
         env:
           # Increase this value to reset cache if etc/example-environment.yml has not changed
           CACHE_NUMBER: 0
