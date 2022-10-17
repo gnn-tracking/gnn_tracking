@@ -27,7 +27,7 @@ jobs:
         uses: mamba-org/provision-with-micromamba@main
         with:
           environment-name: test
-          environment-file: environment_testing.yml
+          environment-file: environments/testing.yml
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip

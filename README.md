@@ -7,7 +7,7 @@
 
 ## Setup and testing
 
-1. Set up a conda environment with one of the `environment_*.yml` files
+1. Set up a conda environment with one of the `environment/*.yml` files
 2. Run `pip3 install -e '.[testing]'`
 3. Run `pytest` to check if everything worked
 
