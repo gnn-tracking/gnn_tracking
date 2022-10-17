@@ -32,7 +32,7 @@ jobs:
           use-mamba: true
       - name: Get date for cache timestamp
         id: get-date
-        run: echo "today=$(/bin/date -u '+%Y%m%d')" >> $GITHUB_ENV
+        run: echo "today=$(/bin/date -u '+%Y%m%d')" >> $GITHUB_OUTPUT
         shell: bash
       - name: Cache Conda env
         id: cache
