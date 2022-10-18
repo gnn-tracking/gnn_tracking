@@ -4,10 +4,11 @@ from abc import ABC, abstractmethod
 
 import torch
 from torch.nn.functional import binary_cross_entropy, mse_loss, relu
+from typing_extensions import TypeAlias
 
 from gnn_tracking.utils.log import logger
 
-T = torch.Tensor
+T: TypeAlias = torch.Tensor
 
 
 # Follows the implementation in kornia at
@@ -75,7 +76,7 @@ def binary_focal_loss(
 
 class EdgeWeightLoss(torch.nn.Module, ABC):
     @abstractmethod
-    def forward(self, w, y, **kwargs) -> T:
+    def forward(self, *, w, y, **kwargs) -> T:
         pass
 
 

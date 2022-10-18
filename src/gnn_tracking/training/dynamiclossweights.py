@@ -30,7 +30,7 @@ class DynamicLossWeights(ABC):
         Returns:
             New loss weights
         """
-        self._current_loss_weights = self._step(losses)
+        self._current_loss_weights.update(self._step(losses))
         return self.get()
 
     @abstractmethod
@@ -72,7 +72,7 @@ class NormalizeEvery(DynamicLossWeights):
         if initial_weights is not None:
             self._current_loss_weights.update(initial_weights)
         self._n_epoch = 0
-        self._losses = collections.defaultdict(list)
+        self._losses: DefaultDict[str, list[float]] = collections.defaultdict(list)
         self._rolling = rolling
 
     def _get_scaling_config(self, losses: np.ndarray) -> float:

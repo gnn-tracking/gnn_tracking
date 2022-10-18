@@ -4,6 +4,7 @@ import collections
 import logging
 import os
 from os.path import join
+from pathlib import PurePath
 from typing import Any
 
 import numpy as np
@@ -20,8 +21,8 @@ pd.options.mode.chained_assignment = None  # default='warn'
 class PointCloudBuilder:
     def __init__(
         self,
-        outdir: str,
-        indir: str,
+        outdir: str | PurePath,
+        indir: str | PurePath,
         n_sectors: int,
         redo=True,
         pixel_only=True,

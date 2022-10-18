@@ -27,7 +27,14 @@ from gnn_tracking.utils.timing import timing
 from gnn_tracking.utils.training import BinaryClassificationStats
 
 hook_type = Callable[[torch.nn.Module, dict[str, Tensor]], None]
-loss_fct_type = Callable[..., Tensor]
+
+
+class LossFctType(Protocol):
+    def __call__(self, *args: Any, **kwargs: Any) -> Tensor:
+        ...
+
+    def to(self, device: torch.device) -> LossFctType:
+        ...
 
 
 class ClusterFctType(Protocol):
@@ -54,7 +61,7 @@ class TCNTrainer:
         self,
         model,
         loaders: dict[str, DataLoader],
-        loss_functions: dict[str, loss_fct_type],
+        loss_functions: dict[str, LossFctType],
         *,
         device=None,
         lr: Any = 5 * 10**-4,
@@ -309,17 +316,17 @@ class TCNTrainer:
             Dictionary of metrics
         """
         self.model.eval()
-        losses = collections.defaultdict(list)
 
         graphs: list[np.ndarray] = []
         truths: list[np.ndarray] = []
         sectors: list[np.ndarray] = []
+        batch_losses = collections.defaultdict(list)
         with torch.no_grad():
             loader = self.val_loader if val else self.test_loader
             for _batch_idx, data in enumerate(loader):
                 data = data.to(self.device)
                 model_output = self.evaluate_model(data, mask_pids_reco=False)
-                batch_loss, batch_losses = self.get_batch_losses(model_output)
+                batch_loss, these_batch_losses = self.get_batch_losses(model_output)
 
                 pt_mask = model_output["pt"] > pt_min
                 edge_pt_mask = self._edge_pt_mask(data.edge_index, data.pt, pt_min)
@@ -331,13 +338,13 @@ class TCNTrainer:
                         thld=thld,
                     )
                     for k, v in bcs.get_all().items():
-                        losses[self._denote_pt(k, pt_min)].append(v)
+                        batch_losses[self._denote_pt(k, pt_min)].append(v)
 
-                losses[self._denote_pt("total", pt_min)].append(batch_loss.item())
-                for key, loss in batch_losses.items():
+                batch_losses[self._denote_pt("total", pt_min)].append(batch_loss.item())
+                for key, loss in these_batch_losses.items():
                     loss_key = self._denote_pt(key, pt_min)
-                    losses[loss_key].append(loss.item())
-                    losses[f"{loss_key}_weighted"].append(
+                    batch_losses[loss_key].append(loss.item())
+                    batch_losses[f"{loss_key}_weighted"].append(
                         loss.item() * self._loss_weight_setter[key]
                     )
 
@@ -348,7 +355,7 @@ class TCNTrainer:
                     )
                     sectors.append(data.sector[pt_mask].detach().cpu().numpy())
 
-        losses = {k: np.nanmean(v) for k, v in losses.items()}
+        losses = {k: np.nanmean(v) for k, v in batch_losses.items()}
         for k, f in self.clustering_functions.items():
             cluster_result = f(
                 graphs,
