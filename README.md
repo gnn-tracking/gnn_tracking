@@ -2,6 +2,8 @@
 
 [![pre-commit.ci status](https://results.pre-commit.ci/badge/github/GageDeZoort/gnn_tracking/main.svg)](https://results.pre-commit.ci/latest/github/GageDeZoort/gnn_tracking/main)
 [![gh actions](https://github.com/GageDeZoort/gnn_tracking/actions/workflows/test.yaml/badge.svg)](https://github.com/GageDeZoort/gnn_tracking/actions)
+[![codecov](https://codecov.io/gh/GageDeZoort/gnn_tracking/branch/main/graph/badge.svg?token=3MKA387NOH)](https://codecov.io/gh/GageDeZoort/gnn_tracking)
+
 
 ![](readme_assets/banner.jpg)
 
