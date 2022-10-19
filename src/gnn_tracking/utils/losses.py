@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 
-import numpy as np
 import torch
 from torch.nn.functional import binary_cross_entropy, mse_loss, relu
 from typing_extensions import TypeAlias
@@ -72,7 +71,7 @@ def binary_focal_loss(
     else:
         raise NotImplementedError(f"Invalid reduction mode: {reduction}")
 
-    if np.isnan(loss):
+    if torch.isnan(loss).any():
         logger.error(
             "NaN loss in focal loss. Here's some more information: "
             "sum pos_term: {}, sum neg_term: {}, sum loss_tmp: {}, "
