@@ -18,7 +18,6 @@
 Install the pre-commit hooks with
 
 ```bash
-pip3 install pre-commit
-# cd to this directory
+pip3 install -e '.[testing,dev]'
 pre-commit install
 ```
