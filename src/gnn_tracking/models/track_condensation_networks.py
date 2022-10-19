@@ -197,7 +197,7 @@ class GraphTCN(nn.Module):
         mask = (edge_weights > 0.5).squeeze()
         row, col = row[mask], col[mask]
         edge_index = torch.stack([row, col], dim=0)
-        edge_attr = torch.stack([edge_attr[mask], edge_weights[mask]], dim=0)
+        edge_attr = torch.concat([edge_attr[mask], edge_weights[mask]], dim=1)
 
         # apply the track condenser
         h_hc = self.relu(self.hc_node_encoder(x))
