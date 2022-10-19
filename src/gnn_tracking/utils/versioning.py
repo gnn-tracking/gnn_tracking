@@ -16,10 +16,10 @@ def get_commit_hash(module: None | ModuleType | str | PathLike = None) -> str:
 
         module = gnn_tracking
     if isinstance(module, ModuleType):
-        base_path = str(module.__path__)
+        base_path = module.__path__[0]
     else:
         base_path = module
-    repo = git.Repo(path=base_path)
+    repo = git.Repo(path=base_path, search_parent_directories=True)
     if repo.is_dirty():
         logger.warning("Repository is dirty, commit hash may not be accurate.")
     return repo.head.object.hexsha
