@@ -65,6 +65,7 @@ class TCNTrainer:
         *,
         device=None,
         lr: Any = 5e-4,
+        optimizer: Callable = Adam,
         lr_scheduler: None | Callable = None,
         loss_weights: dict[str, float] | DynamicLossWeights | None = None,
         cluster_functions: dict[str, ClusterFctType] | None = None,
@@ -77,6 +78,9 @@ class TCNTrainer:
             loss_functions: Dictionary of loss functions, keyed by loss name
             device:
             lr: Learning rate
+            optimizer: Optimizer to use (default: Adam): Function. Will be called with
+                the model parameters as first positional parameter and with the learning
+                rate as keyword argument (`lr`).
             lr_scheduler: Learning rate scheduler. If it needs parameters, apply
                 functools.partial first
             loss_weights: Weight different loss functions.
@@ -113,7 +117,7 @@ class TCNTrainer:
         else:
             raise ValueError("Invalid value for loss_weights.")
 
-        self.optimizer = Adam(self.model.parameters(), lr=lr)
+        self.optimizer = optimizer(self.model.parameters(), lr=lr)
         self._lr_scheduler = lr_scheduler(self.optimizer) if lr_scheduler else None
 
         # Current epoch
