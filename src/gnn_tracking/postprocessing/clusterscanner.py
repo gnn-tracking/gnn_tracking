@@ -127,6 +127,9 @@ class ClusterHyperParamScanner(AbstractClusterHyperParamScanner):
         self._cheap_metric = guide_proxy
         self._expensive_metric = guide
         self._graph_to_sector: dict[int, int] = {}
+        #: Number of graphs to look at before using accumulated statistics to maybe
+        #: prune trial.
+        self.pruning_grace_period = 20
 
     def _get_sector_to_study(self, i_graph: int):
         """Return index of sector to study for graph $i_graph.
@@ -178,7 +181,7 @@ class ClusterHyperParamScanner(AbstractClusterHyperParamScanner):
                     predicted=labels,
                 )
             )
-            if i_graph >= 2:
+            if i_graph >= self.pruning_grace_period:
                 v = np.nanmean(cheap_foms).item()
                 trial.report(v, i_graph)
             if trial.should_prune():
