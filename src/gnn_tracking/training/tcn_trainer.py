@@ -214,7 +214,6 @@ class TCNTrainer:
 
     def _log_losses(
         self,
-        batch_loss: Tensor,
         batch_losses: dict[str, Tensor | float],
         *,
         style="table",
@@ -237,8 +236,7 @@ class TCNTrainer:
             report_str = ""
         if style == "table":
             report_str += "\n"
-        table_items: list[tuple[str, float]] = [("Total", batch_loss.item())]
-        table_items.extend(sorted(batch_losses.items()))
+        table_items: list[tuple[str, float]] = sorted(batch_losses.items())
         if style == "table":
             report_str += tabulate.tabulate(
                 table_items,
@@ -275,7 +273,6 @@ class TCNTrainer:
 
             if not (batch_idx % 10):
                 self._log_losses(
-                    batch_loss,
                     batch_losses,
                     header=f"Epoch {self._epoch:>2} "
                     f"({batch_idx:>5}/{len(self.train_loader)}): ",
@@ -397,7 +394,6 @@ class TCNTrainer:
         for pt_min in pt_thlds:
             losses.update(self._test_step(thld=thld, val=val, pt_min=pt_min))
         self._log_losses(
-            losses.get("total", Tensor([np.nan])),
             losses,
             header=f"Test {self._epoch}: ",
         )
