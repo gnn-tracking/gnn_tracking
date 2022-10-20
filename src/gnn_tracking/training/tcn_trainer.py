@@ -16,6 +16,7 @@ from torch.optim import Adam
 from torch_geometric.data import Data
 from torch_geometric.loader import DataLoader
 
+from gnn_tracking.metrics.binary_classification import BinaryClassificationStats
 from gnn_tracking.postprocessing.clusterscanner import ClusterScanResult
 from gnn_tracking.training.dynamiclossweights import (
     ConstantLossWeights,
@@ -24,7 +25,6 @@ from gnn_tracking.training.dynamiclossweights import (
 from gnn_tracking.utils.device import guess_device
 from gnn_tracking.utils.log import get_logger
 from gnn_tracking.utils.timing import timing
-from gnn_tracking.utils.training import BinaryClassificationStats
 
 hook_type = Callable[[torch.nn.Module, dict[str, Tensor]], None]
 
