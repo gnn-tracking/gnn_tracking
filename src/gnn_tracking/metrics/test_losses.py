@@ -8,7 +8,7 @@ from pytest import approx
 from torch.nn.functional import binary_cross_entropy
 from typing_extensions import TypeAlias
 
-from gnn_tracking.utils.losses import (
+from gnn_tracking.metrics.losses import (
     BackgroundLoss,
     ObjectLoss,
     PotentialLoss,

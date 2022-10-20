@@ -1,17 +1,10 @@
 from __future__ import annotations
 
 from functools import cached_property
-from typing import TypeVar
 
 import torch
 
 from gnn_tracking.utils.types import assert_int
-
-
-def zero_divide(a: float, b: float) -> float:
-    if b == 0:
-        return 0
-    return a / b
 
 
 class BinaryClassificationStats:
@@ -79,15 +72,7 @@ class BinaryClassificationStats:
         }
 
 
-_P = TypeVar("_P")
-
-
-def add_key_prefix(dct: dict[str, _P], prefix: str = "") -> dict[str, _P]:
-    """Return a copy of the dictionary with the prefix added to all keys."""
-    return {f"{prefix}{k}": v for k, v in dct.items()}
-
-
-def subdict_with_prefix_stripped(dct: dict[str, _P], prefix: str = "") -> dict[str, _P]:
-    """Return a copy of the dictionary for all keys that start with prefix
-    and with the prefix removed from all keys."""
-    return {k[len(prefix) :]: v for k, v in dct.items() if k.startswith(prefix)}
+def zero_divide(a: float, b: float) -> float:
+    if b == 0:
+        return 0
+    return a / b
