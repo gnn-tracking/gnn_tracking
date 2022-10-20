@@ -64,7 +64,7 @@ class TCNTrainer:
         loss_functions: dict[str, LossFctType],
         *,
         device=None,
-        lr: Any = 5 * 10**-4,
+        lr: Any = 5e-4,
         lr_scheduler: None | Callable = None,
         loss_weights: dict[str, float] | DynamicLossWeights | None = None,
         cluster_functions: dict[str, ClusterFctType] | None = None,
