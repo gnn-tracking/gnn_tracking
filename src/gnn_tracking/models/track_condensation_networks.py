@@ -23,25 +23,18 @@ class INConvBlock(nn.Module):
         hidden_dim=100,
     ):
         super().__init__()
-        self.indim = indim
-        self.h_dim = h_dim
-        self.e_dim = e_dim
-        self.L = L
-        self.k = k
         self.relu = nn.ReLU()
-        self.hidden_dim = hidden_dim
-
-        self.node_encoder = MLP(2 * indim, self.h_dim, hidden_dim=hidden_dim, L=1)
+        self.node_encoder = MLP(2 * indim, h_dim, hidden_dim=hidden_dim, L=1)
         self.edge_conv = DynamicEdgeConv(self.node_encoder, aggr="add", k=k)
-        self.edge_encoder = MLP(2 * self.h_dim, self.e_dim, hidden_dim=hidden_dim, L=1)
+        self.edge_encoder = MLP(2 * h_dim, e_dim, hidden_dim=hidden_dim, L=1)
         layers = []
         for _ in range(L):
             layers.append(
                 IN(
-                    self.h_dim,
-                    self.e_dim,
-                    node_outdim=self.h_dim,
-                    edge_outdim=self.e_dim,
+                    h_dim,
+                    e_dim,
+                    node_outdim=h_dim,
+                    edge_outdim=e_dim,
                     node_hidden_dim=hidden_dim,
                     edge_hidden_dim=hidden_dim,
                 )
@@ -89,9 +82,6 @@ class PointCloudTCN(nn.Module):
             L: message passing depth in each block
         """
         super().__init__()
-        self.h_dim = h_dim
-        self.e_dim = e_dim
-        self.relu = nn.ReLU()
 
         layers = [INConvBlock(node_indim, h_dim, e_dim, L=L, k=N_blocks)]
         for i in range(N_blocks):
@@ -99,8 +89,8 @@ class PointCloudTCN(nn.Module):
         self.layers = nn.ModuleList(layers)
 
         # modules to predict outputs
-        self.B = MLP(self.h_dim, 1, hidden_dim, L=3)
-        self.X = MLP(self.h_dim, h_outdim, hidden_dim, L=3)
+        self.B = MLP(h_dim, 1, hidden_dim, L=3)
+        self.X = MLP(h_dim, h_outdim, hidden_dim, L=3)
 
     def forward(
         self,
