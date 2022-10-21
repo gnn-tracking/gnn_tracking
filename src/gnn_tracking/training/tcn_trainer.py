@@ -26,10 +26,15 @@ from gnn_tracking.utils.device import guess_device
 from gnn_tracking.utils.log import get_logger
 from gnn_tracking.utils.timing import timing
 
-hook_type = Callable[[torch.nn.Module, dict[str, Tensor]], None]
+#: Function type that can be used as hook for the training/test step in the
+#: `TCNTrainer` class. The function takes the trainer instance as first argument and
+#: a dictionary of losses/metrics as second argument.
+hook_type = Callable[["TCNTrainer", dict[str, Tensor]], None]
 
 
 class LossFctType(Protocol):
+    """Type of a loss function"""
+
     def __call__(self, *args: Any, **kwargs: Any) -> Tensor:
         ...
 
@@ -123,7 +128,9 @@ class TCNTrainer:
         # Current epoch
         self._epoch = 0
 
+        #: Hooks to be called after training epoch (please use `add_hook` to add them)
         self._train_hooks: list[hook_type] = []
+        #: Hooks to be called after testing (please use `add_hook` to add them)
         self._test_hooks: list[hook_type] = []
 
         #: Mapping of cluster function name to best parameter
@@ -291,7 +298,7 @@ class TCNTrainer:
         self._loss_weight_setter.step(losses)
         self.train_loss.append(pd.DataFrame(losses, index=[self._epoch]))
         for hook in self._train_hooks:
-            hook(self.model, losses)
+            hook(self, losses)
         return losses
 
     def _denote_pt(self, name: str, pt_min=0.0) -> str:
@@ -403,7 +410,7 @@ class TCNTrainer:
         )
         self.test_loss.append(pd.DataFrame(losses, index=[self._epoch]))
         for hook in self._test_hooks:
-            hook(self.model, losses)
+            hook(self, losses)
         return losses
 
     def step(self, *, max_batches: int | None = None) -> dict[str, float]:
