@@ -58,6 +58,7 @@ def dbscan_scan(
     graphs: np.ndarray,
     truth: np.ndarray,
     sectors: np.ndarray,
+    *,
     n_jobs=1,
     n_trials=100,
     guide="v_measure",
