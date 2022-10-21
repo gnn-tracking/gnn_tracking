@@ -15,14 +15,14 @@ T: TypeAlias = torch.Tensor
 # https://github.com/kornia/kornia/blob/master/kornia/losses/focal.py
 # (binary_focal_loss_with_logits function)
 def binary_focal_loss(
+    *,
     inpt: T,
     target: T,
-    *,
     alpha: float = 0.25,
     gamma: float = 2.0,
     reduction: str = "mean",
     pos_weight: T | None = None,
-    mask_outliers=False,
+    mask_outliers=True,
 ) -> T:
     """Binary Focal Loss, following https://arxiv.org/abs/1708.02002.
 
@@ -45,10 +45,14 @@ def binary_focal_loss(
         mask = torch.isclose(inpt, torch.Tensor([0.0]).to(inpt.device)) | torch.isclose(
             inpt, torch.Tensor([1.0]).to(inpt.device)
         )
-        mask = ~mask.bool()
         n_outliers = mask.sum()
+        mask = ~mask.bool()
         if n_outliers:
-            logger.warning("Masking %d outliers in focal loss", n_outliers)
+            logger.warning(
+                "Masking %d/%d as outliers in focal loss", n_outliers, len(mask)
+            )
+            logger.debug(inpt[:10])
+            logger.debug(target[:10])
     else:
         mask = torch.full_like(inpt, True).bool()
 
@@ -102,7 +106,14 @@ class EdgeWeightBCELoss(EdgeWeightLoss):
 
 
 class EdgeWeightFocalLoss(EdgeWeightLoss):
-    def __init__(self, *, alpha=0.25, gamma=2.0, pos_weight=None, reduction="mean"):
+    def __init__(
+        self,
+        *,
+        alpha=0.25,
+        gamma=2.0,
+        pos_weight=None,
+        reduction="mean",
+    ):
         """See binary_focal_loss for details."""
         super().__init__()
         self.alpha = alpha
@@ -112,12 +123,13 @@ class EdgeWeightFocalLoss(EdgeWeightLoss):
 
     def forward(self, *, w, y, **kwargs) -> T:
         focal_loss = binary_focal_loss(
-            w,
-            y,
+            inpt=w,
+            target=y,
             alpha=self.alpha,
             gamma=self.gamma,
             pos_weight=self.pos_weight,
             reduction=self.reduction,
+            mask_outliers=True,
         )
         return focal_loss
 
