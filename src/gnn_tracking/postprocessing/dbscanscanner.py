@@ -50,8 +50,8 @@ class DBSCANHyperParamScanner(AbstractClusterHyperParamScanner):
             **kwargs,
         )
 
-    def _scan(self, **kwargs) -> ClusterScanResult:
-        return self.chps._scan(**kwargs)
+    def _scan(self, *args, **kwargs) -> ClusterScanResult:
+        return self.chps._scan(*args, **kwargs)
 
 
 def dbscan_scan(
