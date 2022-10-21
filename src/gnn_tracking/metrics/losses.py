@@ -22,7 +22,7 @@ def binary_focal_loss(
     gamma: float = 2.0,
     reduction: str = "mean",
     pos_weight: T | None = None,
-    mask_outliers=False,
+    mask_outliers=True,
 ) -> T:
     """Binary Focal Loss, following https://arxiv.org/abs/1708.02002.
 
@@ -45,7 +45,7 @@ def binary_focal_loss(
         mask = torch.isclose(inpt, torch.Tensor(0.0)) | torch.isclose(
             inpt, torch.Tensor(1.0)
         )
-        mask = mask.bool()
+        mask = ~mask.bool()
         n_outliers = mask.sum()
         if n_outliers:
             logger.warning("Masking %d outliers in focal loss", n_outliers)
@@ -74,8 +74,8 @@ def binary_focal_loss(
     if torch.isnan(loss).any():
         logger.error(
             "NaN loss in focal loss. Here's some more information: "
-            "sum pos_term: {}, sum neg_term: {}, sum loss_tmp: {}, "
-            "max probs_pos: {}, max probs_neg: {}, max target: {}, ",
+            "sum pos_term: %s, sum neg_term: %s, sum loss_tmp: %s, "
+            "max probs_pos: %s, max probs_neg: %s, max target: %s, ",
             pos_term.sum(),
             neg_term.sum(),
             loss_tmp.sum(),

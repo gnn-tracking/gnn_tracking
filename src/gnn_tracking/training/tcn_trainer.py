@@ -85,7 +85,7 @@ class TCNTrainer:
             lr: Learning rate
             optimizer: Optimizer to use (default: Adam): Function. Will be called with
                 the model parameters as first positional parameter and with the learning
-                rate as keyword argument (`lr`).
+                rate as keyword argument (``lr``).
             lr_scheduler: Learning rate scheduler. If it needs parameters, apply
                 functools.partial first
             loss_weights: Weight different loss functions.
