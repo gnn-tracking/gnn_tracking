@@ -42,8 +42,8 @@ def binary_focal_loss(
         pos_weight = torch.ones(inpt.shape[-1], device=inpt.device, dtype=inpt.dtype)
 
     if mask_outliers:
-        mask = torch.isclose(inpt, torch.Tensor(0.0)) | torch.isclose(
-            inpt, torch.Tensor(1.0)
+        mask = torch.isclose(inpt, torch.Tensor([0.0])) | torch.isclose(
+            inpt, torch.Tensor([1.0])
         )
         mask = ~mask.bool()
         n_outliers = mask.sum()
