@@ -22,7 +22,7 @@ def binary_focal_loss(
     gamma: float = 2.0,
     reduction: str = "mean",
     pos_weight: T | None = None,
-    mask_outliers=True,
+    mask_outliers=False,
 ) -> T:
     """Binary Focal Loss, following https://arxiv.org/abs/1708.02002.
 
@@ -42,8 +42,8 @@ def binary_focal_loss(
         pos_weight = torch.ones(inpt.shape[-1], device=inpt.device, dtype=inpt.dtype)
 
     if mask_outliers:
-        mask = torch.isclose(inpt, torch.Tensor([0.0])) | torch.isclose(
-            inpt, torch.Tensor([1.0])
+        mask = torch.isclose(inpt, torch.Tensor([0.0]).to(inpt.device)) | torch.isclose(
+            inpt, torch.Tensor([1.0]).to(inpt.device)
         )
         mask = ~mask.bool()
         n_outliers = mask.sum()
@@ -54,6 +54,7 @@ def binary_focal_loss(
 
     inpt = inpt[mask]
     target = target[mask]
+    pos_weight = pos_weight[mask]
 
     probs_pos = inpt
     probs_neg = 1 - inpt
