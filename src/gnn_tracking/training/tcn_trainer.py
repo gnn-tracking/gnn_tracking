@@ -70,7 +70,7 @@ class TCNTrainer:
         loss_weights: dict[str, float] | DynamicLossWeights | None = None,
         cluster_functions: dict[str, ClusterFctType] | None = None,
     ):
-        """
+        """Main trainer class of the condensation network approach.
 
         Args:
             model:

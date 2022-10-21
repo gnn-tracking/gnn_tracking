@@ -6,11 +6,12 @@ import numpy as np
 import pandas as pd
 from sklearn import metrics
 
+#: Function type that calculates a clustering metric
 metric_type = Callable[[np.ndarray, np.ndarray], Union[float, dict[str, float]]]
 
 
 def custom_metrics(labels: np.ndarray, truth: np.ndarray) -> dict[str, float]:
-    """Custom metrics
+    """Calculate 'custom' metrics for matching tracks and hits.
 
     Args:
         labels: Predicted labels
@@ -42,6 +43,7 @@ def custom_metrics(labels: np.ndarray, truth: np.ndarray) -> dict[str, float]:
     }
 
 
+#: Common metrics that we have for clustering/matching of tracks to hits
 common_metrics: dict[str, metric_type] = {
     "v_measure": metrics.v_measure_score,
     "homogeneity": metrics.homogeneity_score,
