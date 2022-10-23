@@ -130,6 +130,10 @@ class ClusterHyperParamScanner(AbstractClusterHyperParamScanner):
         #: Number of graphs to look at before using accumulated statistics to maybe
         #: prune trial.
         self.pruning_grace_period = 20
+        #: Number of trials completed
+        self._n_trials_completed = 0
+        #: Number of trials that were pruned
+        self._n_trials_pruned = 0
 
     def _get_sector_to_study(self, i_graph: int):
         """Return index of sector to study for graph $i_graph.
@@ -185,6 +189,7 @@ class ClusterHyperParamScanner(AbstractClusterHyperParamScanner):
                 v = np.nanmean(cheap_foms).item()
                 trial.report(v, i_graph)
             if trial.should_prune():
+                self._n_trials_pruned += 1
                 raise optuna.TrialPruned()
         if not self._cheap_metric:
             # What we just evaluated is actually already the expensive metric
@@ -206,11 +211,13 @@ class ClusterHyperParamScanner(AbstractClusterHyperParamScanner):
                         np.nanmean(expensive_foms).item(), i_labels + len(self.graphs)
                     )
                 if trial.should_prune():
+                    self._n_trials_pruned += 1
                     raise optuna.TrialPruned()
         global_fom = np.nanmean(expensive_foms).item()
         if self._es(global_fom):
             logger.info("Stopped early")
             trial.study.stop()
+        self._n_trials_completed += 1
         return global_fom
 
     def _evaluate(self) -> dict[str, float]:
@@ -259,8 +266,14 @@ class ClusterHyperParamScanner(AbstractClusterHyperParamScanner):
         assert self._study is not None  # for mypy
         if start_params is not None:
             self._study.enqueue_trial(start_params)
+        optuna.logging.set_verbosity(optuna.logging.WARNING)
         self._study.optimize(
             self._objective,
             **kwargs,
+        )
+        logger.info(
+            "Completed %d trials, pruned %d trials",
+            self._n_trials_completed,
+            self._n_trials_pruned,
         )
         return ClusterScanResult(study=self._study, metrics=self._evaluate())
