@@ -384,6 +384,12 @@ class TCNTrainer:
                 self._best_cluster_params[
                     self._denote_pt(k, pt_min)
                 ] = cluster_result.best_params
+                losses.update(
+                    {
+                        self._denote_pt(f"best_{k}_{param}", pt_min): val
+                        for param, val in cluster_result.best_params.items()
+                    }
+                )
         return losses
 
     def test_step(
