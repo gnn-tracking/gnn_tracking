@@ -8,7 +8,7 @@ from torch_geometric.loader import DataLoader
 from gnn_tracking.metrics.losses import BackgroundLoss, EdgeWeightBCELoss, PotentialLoss
 from gnn_tracking.models.track_condensation_networks import GraphTCN
 from gnn_tracking.postprocessing.dbscanscanner import dbscan_scan
-from gnn_tracking.training.dynamiclossweights import NormalizeEvery
+from gnn_tracking.training.dynamiclossweights import NormalizeAt
 from gnn_tracking.training.tcn_trainer import TCNTrainer
 from gnn_tracking.utils.seeds import fix_seeds
 
@@ -46,7 +46,7 @@ def test_train(tmp_path, built_graphs, loss_weights: str) -> None:
     if loss_weights == "default":
         _loss_weights = None
     elif loss_weights == "auto":
-        _loss_weights = NormalizeEvery(every=1)
+        _loss_weights = NormalizeAt(at=[0])
     else:
         raise ValueError()
 
