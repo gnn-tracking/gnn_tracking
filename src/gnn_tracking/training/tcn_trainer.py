@@ -422,14 +422,15 @@ class TCNTrainer:
         self._epoch += 1
         with timing(f"Training for epoch {self._epoch}"):
             train_losses = self.train_step(max_batches=max_batches)
+        with timing(f"Test step for epoch {self._epoch}"):
             test_results = self.test_step(thld=0.5, val=True)
-            results = {
-                **{f"train_{k}": v for k, v in train_losses.items()},
-                **test_results,
-            }
-            if self._lr_scheduler:
-                self._lr_scheduler.step()
-            return results
+        results = {
+            **{f"train_{k}": v for k, v in train_losses.items()},
+            **test_results,
+        }
+        if self._lr_scheduler:
+            self._lr_scheduler.step()
+        return results
 
     def train(self, epochs=1000, max_batches: int | None = None):
         """Train the model.
