@@ -42,7 +42,7 @@ class AbstractClusterHyperParamScanner(ABC):
         if start_params is not None:
             logger.debug("Starting from params: %s", start_params)
         logger.info("Starting hyperparameter scan for clustering")
-        with timing("Clustering hyperparameter scan"):
+        with timing("Clustering hyperparameter scan & metric evaluation"):
             return self._scan(**kwargs)
 
 
@@ -259,6 +259,7 @@ class ClusterHyperParamScanner(AbstractClusterHyperParamScanner):
         """Run the scan."""
         self._es.reset()
         if self._study is None:
+            optuna.logging.set_verbosity(optuna.logging.WARNING)
             self._study = optuna.create_study(
                 pruner=optuna.pruners.MedianPruner(),
                 direction="maximize",
@@ -266,7 +267,6 @@ class ClusterHyperParamScanner(AbstractClusterHyperParamScanner):
         assert self._study is not None  # for mypy
         if start_params is not None:
             self._study.enqueue_trial(start_params)
-        optuna.logging.set_verbosity(optuna.logging.WARNING)
         self._study.optimize(
             self._objective,
             **kwargs,
