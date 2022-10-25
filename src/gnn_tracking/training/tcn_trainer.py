@@ -290,9 +290,12 @@ class TCNTrainer:
                     style="inline",
                 )
 
-            _losses["total"].append(batch_loss.item())
+            _losses["total_train"].append(batch_loss.item())
             for key, loss in batch_losses.items():
-                _losses[key].append(loss.item())
+                _losses[f"{key}_train"].append(loss.item())
+                _losses[f"{key}_weighted_train"].append(
+                    loss.item() * self._loss_weight_setter[key]
+                )
 
         losses = {k: np.nanmean(v) for k, v in _losses.items()}
         self._loss_weight_setter.step(losses)
@@ -325,9 +328,11 @@ class TCNTrainer:
         """
         self.model.eval()
 
+        # Objects in the following three lists are used for clustering
         graphs: list[np.ndarray] = []
         truths: list[np.ndarray] = []
         sectors: list[np.ndarray] = []
+
         batch_losses = collections.defaultdict(list)
         with torch.no_grad():
             loader = self.val_loader if val else self.test_loader
@@ -348,11 +353,10 @@ class TCNTrainer:
                     for k, v in bcs.get_all().items():
                         batch_losses[self._denote_pt(k, pt_min)].append(v)
 
-                batch_losses[self._denote_pt("total", pt_min)].append(batch_loss.item())
+                batch_losses["total"].append(batch_loss.item())
                 for key, loss in these_batch_losses.items():
-                    loss_key = self._denote_pt(key, pt_min)
-                    batch_losses[loss_key].append(loss.item())
-                    batch_losses[f"{loss_key}_weighted"].append(
+                    batch_losses[key].append(loss.item())
+                    batch_losses[f"{key}_weighted"].append(
                         loss.item() * self._loss_weight_setter[key]
                     )
 
