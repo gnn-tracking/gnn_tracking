@@ -356,7 +356,10 @@ class TCNTrainer:
                         loss.item() * self._loss_weight_setter[key]
                     )
 
-                if _batch_idx <= self.max_batches_for_clustering:
+                if (
+                    self.clustering_functions
+                    and _batch_idx <= self.max_batches_for_clustering
+                ):
                     graphs.append(model_output["x"][pt_mask].detach().cpu().numpy())
                     truths.append(
                         model_output["particle_id"][pt_mask].detach().cpu().numpy()
