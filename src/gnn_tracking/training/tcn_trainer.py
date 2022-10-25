@@ -87,7 +87,7 @@ class TCNTrainer:
                 the model parameters as first positional parameter and with the learning
                 rate as keyword argument (``lr``).
             lr_scheduler: Learning rate scheduler. If it needs parameters, apply
-                functools.partial first
+                ``functools.partial`` first
             loss_weights: Weight different loss functions.
                 Either `DynamicLossWeights` object or a dictionary of weights keyed by
                 loss name.
@@ -290,10 +290,10 @@ class TCNTrainer:
                     style="inline",
                 )
 
-            _losses["total_train"].append(batch_loss.item())
+            _losses["total"].append(batch_loss.item())
             for key, loss in batch_losses.items():
-                _losses[f"{key}_train"].append(loss.item())
-                _losses[f"{key}_weighted_train"].append(
+                _losses[f"{key}"].append(loss.item())
+                _losses[f"{key}_weighted"].append(
                     loss.item() * self._loss_weight_setter[key]
                 )
 
@@ -417,10 +417,6 @@ class TCNTrainer:
         losses = {}
         for pt_min in pt_thlds:
             losses.update(self._test_step(thld=thld, val=val, pt_min=pt_min))
-        self._log_losses(
-            losses,
-            header=f"Test {self._epoch}: ",
-        )
         self.test_loss.append(pd.DataFrame(losses, index=[self._epoch]))
         for hook in self._test_hooks:
             hook(self, losses)
@@ -438,9 +434,13 @@ class TCNTrainer:
         with timing(f"Test step for epoch {self._epoch}"):
             test_results = self.test_step(thld=0.5, val=True)
         results = {
-            **{f"train_{k}": v for k, v in train_losses.items()},
+            **{f"{k}_train": v for k, v in train_losses.items()},
             **test_results,
         }
+        self._log_losses(
+            results,
+            header=f"Results {self._epoch}: ",
+        )
         if self._lr_scheduler:
             self._lr_scheduler.step()
         return results
