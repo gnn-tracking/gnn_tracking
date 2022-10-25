@@ -124,6 +124,7 @@ class GraphTCN(nn.Module):
         L_hc=3,
         alpha_ec: float = 0.5,
         alpha_hc: float = 0.5,
+        feed_edge_weights=False,
     ):
         """
 
@@ -138,6 +139,7 @@ class GraphTCN(nn.Module):
             L_hc: message passing depth for track condenser
             alpha_ec: strength of residual connection for EC
             alpha_hc: strength of residual connection for HC
+            feed_edge_weights: whether to feed edge weights to the track condenser
         """
         super().__init__()
         self.relu = nn.ReLU()
@@ -157,7 +159,11 @@ class GraphTCN(nn.Module):
             node_indim, h_dim, hidden_dim=hidden_dim, L=2, bias=False
         )
         self.hc_edge_encoder = MLP(
-            edge_indim + 1, e_dim, hidden_dim=hidden_dim, L=2, bias=False
+            edge_indim + int(feed_edge_weights),
+            e_dim,
+            hidden_dim=hidden_dim,
+            L=2,
+            bias=False,
         )
         self.hc_resin = ResIN.identical_in_layers(
             node_indim=h_dim,
@@ -181,6 +187,7 @@ class GraphTCN(nn.Module):
             node_hidden_dim=hidden_dim,
             edge_hidden_dim=hidden_dim,
         )
+        self._feed_edge_weights = feed_edge_weights
 
     def forward(
         self,
@@ -197,7 +204,10 @@ class GraphTCN(nn.Module):
         mask = (edge_weights > 0.5).squeeze()
         row, col = row[mask], col[mask]
         edge_index = torch.stack([row, col], dim=0)
-        edge_attr = torch.concat([edge_attr[mask], edge_weights[mask]], dim=1)
+        if self._feed_edge_weights:
+            edge_attr = torch.concat([edge_attr[mask], edge_weights[mask]], dim=1)
+        else:
+            edge_attr = edge_attr[mask]
 
         # apply the track condenser
         h_hc = self.relu(self.hc_node_encoder(x))
