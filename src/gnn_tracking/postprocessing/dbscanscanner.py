@@ -26,7 +26,7 @@ class DBSCANHyperParamScanner(AbstractClusterHyperParamScanner):
         self,
         *,
         eps_range: tuple[float, float] = (1e-5, 1.0),
-        min_samples_range: tuple[int, int] = (1, 50),
+        min_samples_range: tuple[int, int] = (1, 3),
         **kwargs,
     ):
         """Class to scan hyperparameters of DBSCAN.
