@@ -340,6 +340,8 @@ class TCNTrainer:
                 data = data.to(self.device)
                 model_output = self.evaluate_model(data, mask_pids_reco=False)
                 batch_loss, these_batch_losses = self.get_batch_losses(model_output)
+                if torch.isnan(batch_loss):
+                    raise RuntimeError("NaN loss encountered")
 
                 pt_mask = model_output["pt"] > pt_min
                 edge_pt_mask = self._edge_pt_mask(data.edge_index, data.pt, pt_min)
