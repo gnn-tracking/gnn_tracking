@@ -326,9 +326,9 @@ class TCNTrainer:
                 batch_loss, these_batch_losses = self.get_batch_losses(model_output)
 
                 pt_mask = model_output["pt"] > pt_min
-                edge_pt_mask = self._edge_pt_mask(data.edge_index, data.pt, pt_min)
 
                 if model_output["w"] is not None:
+                    edge_pt_mask = self._edge_pt_mask(data.edge_index, data.pt, pt_min)
                     bcs = BinaryClassificationStats(
                         output=model_output["w"][edge_pt_mask],
                         y=model_output["y"][edge_pt_mask].long(),
