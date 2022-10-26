@@ -221,6 +221,8 @@ class TCNTrainer:
             self._loss_weight_setter[k] * individual_losses[k]
             for k in individual_losses.keys()
         )
+        if torch.isnan(total):
+            raise RuntimeError("NaN loss encountered in test step")
         return total, individual_losses
 
     def _log_losses(
@@ -340,8 +342,6 @@ class TCNTrainer:
                 data = data.to(self.device)
                 model_output = self.evaluate_model(data, mask_pids_reco=False)
                 batch_loss, these_batch_losses = self.get_batch_losses(model_output)
-                if torch.isnan(batch_loss):
-                    raise RuntimeError("NaN loss encountered")
 
                 pt_mask = model_output["pt"] > pt_min
 
