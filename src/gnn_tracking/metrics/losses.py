@@ -15,14 +15,14 @@ T: TypeAlias = torch.Tensor
 # https://github.com/kornia/kornia/blob/master/kornia/losses/focal.py
 # (binary_focal_loss_with_logits function)
 def binary_focal_loss(
+    *,
     inpt: T,
     target: T,
-    *,
     alpha: float = 0.25,
     gamma: float = 2.0,
     reduction: str = "mean",
     pos_weight: T | None = None,
-    mask_outliers=False,
+    mask_outliers=True,
 ) -> T:
     """Binary Focal Loss, following https://arxiv.org/abs/1708.02002.
 
@@ -42,18 +42,23 @@ def binary_focal_loss(
         pos_weight = torch.ones(inpt.shape[-1], device=inpt.device, dtype=inpt.dtype)
 
     if mask_outliers:
-        mask = torch.isclose(inpt, torch.Tensor(0.0)) | torch.isclose(
-            inpt, torch.Tensor(1.0)
+        mask = torch.isclose(inpt, torch.Tensor([0.0]).to(inpt.device)) | torch.isclose(
+            inpt, torch.Tensor([1.0]).to(inpt.device)
         )
-        mask = mask.bool()
         n_outliers = mask.sum()
+        mask = ~mask.bool()
         if n_outliers:
-            logger.warning("Masking %d outliers in focal loss", n_outliers)
+            logger.warning(
+                "Masking %d/%d as outliers in focal loss", n_outliers, len(mask)
+            )
+            logger.debug(inpt[:10])
+            logger.debug(target[:10])
     else:
         mask = torch.full_like(inpt, True).bool()
 
     inpt = inpt[mask]
     target = target[mask]
+    pos_weight = pos_weight[mask]
 
     probs_pos = inpt
     probs_neg = 1 - inpt
@@ -74,8 +79,8 @@ def binary_focal_loss(
     if torch.isnan(loss).any():
         logger.error(
             "NaN loss in focal loss. Here's some more information: "
-            "sum pos_term: {}, sum neg_term: {}, sum loss_tmp: {}, "
-            "max probs_pos: {}, max probs_neg: {}, max target: {}, ",
+            "sum pos_term: %s, sum neg_term: %s, sum loss_tmp: %s, "
+            "max probs_pos: %s, max probs_neg: %s, max target: %s, ",
             pos_term.sum(),
             neg_term.sum(),
             loss_tmp.sum(),
@@ -101,7 +106,14 @@ class EdgeWeightBCELoss(EdgeWeightLoss):
 
 
 class EdgeWeightFocalLoss(EdgeWeightLoss):
-    def __init__(self, *, alpha=0.25, gamma=2.0, pos_weight=None, reduction="mean"):
+    def __init__(
+        self,
+        *,
+        alpha=0.25,
+        gamma=2.0,
+        pos_weight=None,
+        reduction="mean",
+    ):
         """See binary_focal_loss for details."""
         super().__init__()
         self.alpha = alpha
@@ -111,12 +123,13 @@ class EdgeWeightFocalLoss(EdgeWeightLoss):
 
     def forward(self, *, w, y, **kwargs) -> T:
         focal_loss = binary_focal_loss(
-            w,
-            y,
+            inpt=w,
+            target=y,
             alpha=self.alpha,
             gamma=self.gamma,
             pos_weight=self.pos_weight,
             reduction=self.reduction,
+            mask_outliers=True,
         )
         return focal_loss
 

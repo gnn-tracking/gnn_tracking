@@ -16,6 +16,7 @@ from torch.optim import Adam
 from torch_geometric.data import Data
 from torch_geometric.loader import DataLoader
 
+from gnn_tracking.metrics.binary_classification import BinaryClassificationStats
 from gnn_tracking.postprocessing.clusterscanner import ClusterScanResult
 from gnn_tracking.training.dynamiclossweights import (
     ConstantLossWeights,
@@ -24,12 +25,16 @@ from gnn_tracking.training.dynamiclossweights import (
 from gnn_tracking.utils.device import guess_device
 from gnn_tracking.utils.log import get_logger
 from gnn_tracking.utils.timing import timing
-from gnn_tracking.utils.training import BinaryClassificationStats
 
-hook_type = Callable[[torch.nn.Module, dict[str, Tensor]], None]
+#: Function type that can be used as hook for the training/test step in the
+#: `TCNTrainer` class. The function takes the trainer instance as first argument and
+#: a dictionary of losses/metrics as second argument.
+hook_type = Callable[["TCNTrainer", dict[str, Tensor]], None]
 
 
 class LossFctType(Protocol):
+    """Type of a loss function"""
+
     def __call__(self, *args: Any, **kwargs: Any) -> Tensor:
         ...
 
@@ -65,11 +70,12 @@ class TCNTrainer:
         *,
         device=None,
         lr: Any = 5e-4,
+        optimizer: Callable = Adam,
         lr_scheduler: None | Callable = None,
         loss_weights: dict[str, float] | DynamicLossWeights | None = None,
         cluster_functions: dict[str, ClusterFctType] | None = None,
     ):
-        """
+        """Main trainer class of the condensation network approach.
 
         Args:
             model:
@@ -77,8 +83,11 @@ class TCNTrainer:
             loss_functions: Dictionary of loss functions, keyed by loss name
             device:
             lr: Learning rate
+            optimizer: Optimizer to use (default: Adam): Function. Will be called with
+                the model parameters as first positional parameter and with the learning
+                rate as keyword argument (``lr``).
             lr_scheduler: Learning rate scheduler. If it needs parameters, apply
-                functools.partial first
+                ``functools.partial`` first
             loss_weights: Weight different loss functions.
                 Either `DynamicLossWeights` object or a dictionary of weights keyed by
                 loss name.
@@ -113,13 +122,15 @@ class TCNTrainer:
         else:
             raise ValueError("Invalid value for loss_weights.")
 
-        self.optimizer = Adam(self.model.parameters(), lr=lr)
+        self.optimizer = optimizer(self.model.parameters(), lr=lr)
         self._lr_scheduler = lr_scheduler(self.optimizer) if lr_scheduler else None
 
         # Current epoch
         self._epoch = 0
 
+        #: Hooks to be called after training epoch (please use `add_hook` to add them)
         self._train_hooks: list[hook_type] = []
+        #: Hooks to be called after testing (please use `add_hook` to add them)
         self._test_hooks: list[hook_type] = []
 
         #: Mapping of cluster function name to best parameter
@@ -281,13 +292,16 @@ class TCNTrainer:
 
             _losses["total"].append(batch_loss.item())
             for key, loss in batch_losses.items():
-                _losses[key].append(loss.item())
+                _losses[f"{key}"].append(loss.item())
+                _losses[f"{key}_weighted"].append(
+                    loss.item() * self._loss_weight_setter[key]
+                )
 
         losses = {k: np.nanmean(v) for k, v in _losses.items()}
         self._loss_weight_setter.step(losses)
         self.train_loss.append(pd.DataFrame(losses, index=[self._epoch]))
         for hook in self._train_hooks:
-            hook(self.model, losses)
+            hook(self, losses)
         return losses
 
     def _denote_pt(self, name: str, pt_min=0.0) -> str:
@@ -314,9 +328,11 @@ class TCNTrainer:
         """
         self.model.eval()
 
+        # Objects in the following three lists are used for clustering
         graphs: list[np.ndarray] = []
         truths: list[np.ndarray] = []
         sectors: list[np.ndarray] = []
+
         batch_losses = collections.defaultdict(list)
         with torch.no_grad():
             loader = self.val_loader if val else self.test_loader
@@ -324,6 +340,8 @@ class TCNTrainer:
                 data = data.to(self.device)
                 model_output = self.evaluate_model(data, mask_pids_reco=False)
                 batch_loss, these_batch_losses = self.get_batch_losses(model_output)
+                if torch.isnan(batch_loss):
+                    raise RuntimeError("NaN loss encountered")
 
                 pt_mask = model_output["pt"] > pt_min
 
@@ -337,15 +355,17 @@ class TCNTrainer:
                     for k, v in bcs.get_all().items():
                         batch_losses[self._denote_pt(k, pt_min)].append(v)
 
-                batch_losses[self._denote_pt("total", pt_min)].append(batch_loss.item())
+                batch_losses["total"].append(batch_loss.item())
                 for key, loss in these_batch_losses.items():
-                    loss_key = self._denote_pt(key, pt_min)
-                    batch_losses[loss_key].append(loss.item())
-                    batch_losses[f"{loss_key}_weighted"].append(
+                    batch_losses[key].append(loss.item())
+                    batch_losses[f"{key}_weighted"].append(
                         loss.item() * self._loss_weight_setter[key]
                     )
 
-                if _batch_idx <= self.max_batches_for_clustering:
+                if (
+                    self.clustering_functions
+                    and _batch_idx <= self.max_batches_for_clustering
+                ):
                     graphs.append(model_output["x"][pt_mask].detach().cpu().numpy())
                     truths.append(
                         model_output["particle_id"][pt_mask].detach().cpu().numpy()
@@ -373,6 +393,12 @@ class TCNTrainer:
                 self._best_cluster_params[
                     self._denote_pt(k, pt_min)
                 ] = cluster_result.best_params
+                losses.update(
+                    {
+                        self._denote_pt(f"best_{k}_{param}", pt_min): val
+                        for param, val in cluster_result.best_params.items()
+                    }
+                )
         return losses
 
     def test_step(
@@ -393,13 +419,9 @@ class TCNTrainer:
         losses = {}
         for pt_min in pt_thlds:
             losses.update(self._test_step(thld=thld, val=val, pt_min=pt_min))
-        self._log_losses(
-            losses,
-            header=f"Test {self._epoch}: ",
-        )
         self.test_loss.append(pd.DataFrame(losses, index=[self._epoch]))
         for hook in self._test_hooks:
-            hook(self.model, losses)
+            hook(self, losses)
         return losses
 
     def step(self, *, max_batches: int | None = None) -> dict[str, float]:
@@ -411,14 +433,19 @@ class TCNTrainer:
         self._epoch += 1
         with timing(f"Training for epoch {self._epoch}"):
             train_losses = self.train_step(max_batches=max_batches)
+        with timing(f"Test step for epoch {self._epoch}"):
             test_results = self.test_step(thld=0.5, val=True)
-            results = {
-                **{f"train_{k}": v for k, v in train_losses.items()},
-                **test_results,
-            }
-            if self._lr_scheduler:
-                self._lr_scheduler.step()
-            return results
+        results = {
+            **{f"{k}_train": v for k, v in train_losses.items()},
+            **test_results,
+        }
+        self._log_losses(
+            results,
+            header=f"Results {self._epoch}: ",
+        )
+        if self._lr_scheduler:
+            self._lr_scheduler.step()
+        return results
 
     def train(self, epochs=1000, max_batches: int | None = None):
         """Train the model.

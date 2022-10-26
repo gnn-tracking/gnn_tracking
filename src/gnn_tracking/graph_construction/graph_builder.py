@@ -9,7 +9,7 @@ import pandas as pd
 import torch
 from torch_geometric.data import Data
 
-from gnn_tracking.utils.log import get_logger
+from gnn_tracking.utils.log import get_logger, logger
 
 
 class GraphBuilder:
@@ -338,8 +338,14 @@ class GraphBuilder:
         return evtid, sectorid
 
     def process(self, start=0, stop=1):
-        infiles = os.listdir(self.indir)
-        for f in infiles[start:stop]:
+        available_files = os.listdir(self.indir)
+        considered_files = available_files[start:stop]
+        logger.info(
+            "Loading %d graphs (out of %d available).",
+            len(considered_files),
+            len(available_files),
+        )
+        for f in considered_files:
             if f.split(".")[-1] != "pt":
                 continue
             name = f.split("/")[-1]

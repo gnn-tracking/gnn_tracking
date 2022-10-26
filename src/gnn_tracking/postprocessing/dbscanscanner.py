@@ -14,6 +14,8 @@ from gnn_tracking.postprocessing.clusterscanner import (
 
 __all__ = ["DBSCANHyperParamScanner", "dbscan_scan"]
 
+from gnn_tracking.utils.log import logger
+
 
 def dbscan(graphs: np.ndarray, eps, min_samples) -> np.ndarray:
     return DBSCAN(eps=eps, min_samples=min_samples).fit_predict(graphs)
@@ -24,7 +26,7 @@ class DBSCANHyperParamScanner(AbstractClusterHyperParamScanner):
         self,
         *,
         eps_range: tuple[float, float] = (1e-5, 1.0),
-        min_samples_range: tuple[int, int] = (1, 50),
+        min_samples_range: tuple[int, int] = (1, 3),
         **kwargs,
     ):
         """Class to scan hyperparameters of DBSCAN.
@@ -50,14 +52,15 @@ class DBSCANHyperParamScanner(AbstractClusterHyperParamScanner):
             **kwargs,
         )
 
-    def _scan(self, **kwargs) -> ClusterScanResult:
-        return self.chps._scan(**kwargs)
+    def _scan(self, *args, **kwargs) -> ClusterScanResult:
+        return self.chps._scan(*args, **kwargs)
 
 
 def dbscan_scan(
     graphs: np.ndarray,
     truth: np.ndarray,
     sectors: np.ndarray,
+    *,
     n_jobs=1,
     n_trials=100,
     guide="v_measure",
@@ -79,6 +82,8 @@ def dbscan_scan(
     Returns:
         ClusterScanResult
     """
+    if n_jobs == 1:
+        logger.warning("Only using 1 thread for DBSCAN scan")
     dbss = DBSCANHyperParamScanner(
         graphs=graphs,
         truth=truth,
