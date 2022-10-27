@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, Callable
 
 import numpy as np
 from sklearn.cluster import DBSCAN
@@ -62,22 +62,26 @@ def dbscan_scan(
     sectors: np.ndarray,
     *,
     n_jobs=1,
-    n_trials=100,
+    n_trials: int | Callable[[int], int] = 100,
     guide="v_measure",
     epoch=None,
     start_params: dict[str, Any] | None = None,
 ) -> ClusterScanResult:
-    """Convenience function for scanning of dbscan hyperparameters
+    """Convenience function for scanning of DBSCAN hyperparameters
 
     Args:
-        graphs: See ClusterHyperParamScanner
-        truth: See ClusterHyperParamScanner
-        sectors: See ClusterHyperParamScanner
+        graphs: See `ClusterHyperParamScanner`
+        truth: See `ClusterHyperParamScanner`
+        sectors: See `ClusterHyperParamScanner`
         n_jobs: Number of threads to run in parallel
-        n_trials: Number of trials for optimization
+        n_trials: Number of trials for optimization. If callable, it is called with the
+            epoch number and should return the number of trials.
+            Example: ``lambda epoch: 1 if epoch > 5 and epoch % 2 == 0 else 100`` will
+            only scan HPs for every second epoch after epoch 5.
         guide: See ClusterHyperParamScanner
         epoch: Epoch that is currently being processed
         start_params: Start here
+        **kwargs: Passed on to `DBSCANHyperParamScanner`
 
     Returns:
         ClusterScanResult
@@ -91,6 +95,13 @@ def dbscan_scan(
         guide=guide,
         metrics=common_metrics,
     )
+    if isinstance(n_trials, int):
+        pass
+    elif isinstance(n_trials, Callable):
+        n_trials = n_trials(epoch)
+    else:
+        raise ValueError("Invalid specification of n_trials.")
+
     return dbss.scan(
         n_jobs=n_jobs,
         n_trials=n_trials,

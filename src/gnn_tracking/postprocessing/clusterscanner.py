@@ -83,7 +83,8 @@ class ClusterHyperParamScanner(AbstractClusterHyperParamScanner):
             guide_proxy: Faster proxy for guiding metric. See
             early_stopping: Instance that can be called and has a reset method
 
-        Example:
+        Example::
+
             # Note: This is also pre-implemented in dbscanner.py
 
             from sklearn import metrics
