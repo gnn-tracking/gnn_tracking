@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections import Counter
 from typing import Callable, TypedDict, Union
 
 import numpy as np
@@ -43,23 +44,22 @@ def custom_metrics(truth: np.ndarray, predicted: np.ndarray) -> CustomMetrics:
     clusters = c_id.groupby("c")
     # For each cluster: Take most popular PID of that cluster and get number of
     # corresponding hits in that cluster
+    in_cluster_maj_pids = clusters["id"].agg(lambda x: x.mode()[0])
     in_cluster_maj_hits = clusters["id"].apply(lambda x: sum(x == x.mode()[0]))
     # For each cluster: Fraction of hits that have the most popular PID
-    in_cluster_maj_frac = clusters["id"].apply(lambda x: sum(x == x.mode()[0]) / len(x))
-    h_id = pd.DataFrame({"hits": np.ones(len(predicted)), "id": truth})
-    particles = h_id.groupby("id")
+    in_cluster_maj_frac = (in_cluster_maj_hits / clusters.size()).fillna(0)
     # For each PID: Number of hits
-    pid_to_count = particles["hits"].apply(lambda x: len(x)).to_dict()
+    pid_to_count = Counter(truth)
     # For each cluster: Take most popular PID of that cluster and get number of hits of
     # that PID (in any cluster)
-    majority_hits = clusters["id"].apply(lambda x: x.mode().map(pid_to_count)[0])
+    majority_hits = in_cluster_maj_pids.map(pid_to_count)
     perfect_match = (majority_hits == in_cluster_maj_hits) & (
         in_cluster_maj_frac > 0.99
     )
     double_majority = ((in_cluster_maj_hits / majority_hits).fillna(0) > 0.5) & (
         in_cluster_maj_frac > 0.5
     )
-    lhc_match = in_cluster_maj_frac.fillna(0) > 0.75
+    lhc_match = in_cluster_maj_frac > 0.75
     n_particles = len(np.unique(truth))
     n_clusters = len(np.unique(predicted))
     r = {
