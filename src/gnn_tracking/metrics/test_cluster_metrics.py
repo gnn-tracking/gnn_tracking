@@ -25,7 +25,8 @@ test_cases = [
     ClusterMetricTestCase(
         truth=[],
         predicted=[],
-        total=0,
+        n_particles=0,
+        n_clusters=0,
         perfect=float("nan"),
         lhc=float("nan"),
         double_majority=float("nan"),
