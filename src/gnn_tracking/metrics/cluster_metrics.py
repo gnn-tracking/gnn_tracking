@@ -35,8 +35,7 @@ def custom_metrics(truth: np.ndarray, predicted: np.ndarray) -> dict[str, float]
         majority_fraction > 0.5
     )
     lhc_match = majority_fraction.fillna(0) > 0.75
-    # fixme: This doesn't seem right
-    total = len(np.unique(predicted))
+    total = len(np.unique(truth))
     return {
         "total": total,
         "perfect": sum(perfect_match) / total,
