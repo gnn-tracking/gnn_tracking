@@ -22,6 +22,13 @@ def custom_metrics(truth: np.ndarray, predicted: np.ndarray) -> dict[str, float]
 
     """
     assert predicted.shape == truth.shape
+    if len(truth) == 0:
+        return {
+            "total": 0,
+            "perfect": float("nan"),
+            "lhc": float("nan"),
+            "double_majority": float("nan"),
+        }
     c_id = pd.DataFrame({"c": predicted, "id": truth})
     clusters = c_id.groupby("c")
     majority_counts = clusters["id"].apply(lambda x: sum(x == x.mode()[0]))
