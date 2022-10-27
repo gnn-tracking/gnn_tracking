@@ -24,7 +24,7 @@ def custom_metrics(truth: np.ndarray, predicted: np.ndarray) -> CustomMetrics:
     """Calculate 'custom' metrics for matching tracks and hits.
 
     Args:
-        truth: Trut labels/PIDs
+        truth: Truth labels/PIDs
         predicted: Predicted labels/PIDs
 
     Returns:
@@ -41,13 +41,20 @@ def custom_metrics(truth: np.ndarray, predicted: np.ndarray) -> CustomMetrics:
         }
         return r
     c_id = pd.DataFrame({"c": predicted, "id": truth})
-    clusters = c_id.groupby("c")
-    # For each cluster: Take most popular PID of that cluster and get number of
-    # corresponding hits in that cluster
-    in_cluster_maj_pids = clusters["id"].agg(lambda x: x.mode()[0])
-    in_cluster_maj_hits = clusters["id"].apply(lambda x: sum(x == x.mode()[0]))
+    # Here we make use of the fact that value_counts sorts by the count
+    # So after we have the count, we group by the cluster and take the first line
+    # for each
+    pid_counts = c_id.value_counts().reset_index()
+    majority_df = pid_counts.groupby("c").first()
+    # This dataframe now has both the most popular PID ("id" column) and the
+    # number of times it appears ("0" column)
+    in_cluster_maj_pids = majority_df["id"]
+    in_cluster_maj_hits = majority_df[0]
+    # This is a significantly (!) faster version than doing
+    # c_id.groupby("c").agg(lambda x: x.mode()[0]) etc.
+    cluster_sizes = pid_counts.groupby("c")[0].sum()
     # For each cluster: Fraction of hits that have the most popular PID
-    in_cluster_maj_frac = (in_cluster_maj_hits / clusters.size()).fillna(0)
+    in_cluster_maj_frac = (in_cluster_maj_hits / cluster_sizes).fillna(0)
     # For each PID: Number of hits
     pid_to_count = Counter(truth)
     # For each cluster: Take most popular PID of that cluster and get number of hits of
