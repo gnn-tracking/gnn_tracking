@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Callable, Union
+from typing import Callable, TypedDict, Union
 
 import numpy as np
 import pandas as pd
@@ -11,7 +11,15 @@ from sklearn import metrics
 metric_type = Callable[[np.ndarray, np.ndarray], Union[float, dict[str, float]]]
 
 
-def custom_metrics(truth: np.ndarray, predicted: np.ndarray) -> dict[str, float]:
+class CustomMetrics(TypedDict):
+    n_particles: int
+    n_clusters: int
+    perfect: float
+    double_majority: float
+    lhc: float
+
+
+def custom_metrics(truth: np.ndarray, predicted: np.ndarray) -> CustomMetrics:
     """Calculate 'custom' metrics for matching tracks and hits.
 
     Args:
@@ -23,12 +31,14 @@ def custom_metrics(truth: np.ndarray, predicted: np.ndarray) -> dict[str, float]
     """
     assert predicted.shape == truth.shape
     if len(truth) == 0:
-        return {
-            "total": 0,
+        r: CustomMetrics = {
+            "n_particles": 0,
+            "n_clusters": 0,
             "perfect": float("nan"),
             "lhc": float("nan"),
             "double_majority": float("nan"),
         }
+        return r
     c_id = pd.DataFrame({"c": predicted, "id": truth})
     clusters = c_id.groupby("c")
     # For each cluster: Take most popular PID of that cluster and get number of
@@ -52,13 +62,14 @@ def custom_metrics(truth: np.ndarray, predicted: np.ndarray) -> dict[str, float]
     lhc_match = in_cluster_maj_frac.fillna(0) > 0.75
     n_particles = len(np.unique(truth))
     n_clusters = len(np.unique(predicted))
-    return {
+    r = {
         "n_particles": n_particles,
         "n_clusters": n_clusters,
         "perfect": sum(perfect_match) / n_particles,
         "double_majority": sum(double_majority) / n_particles,
         "lhc": sum(lhc_match) / n_clusters,
     }
+    return r
 
 
 #: Common metrics that we have for clustering/matching of tracks to hits
@@ -66,7 +77,7 @@ common_metrics: dict[str, metric_type] = {
     "v_measure": metrics.v_measure_score,
     "homogeneity": metrics.homogeneity_score,
     "completeness": metrics.completeness_score,
-    "trk": custom_metrics,
+    "trk": custom_metrics,  # type: ignore
     "adjusted_rand": metrics.adjusted_rand_score,
     "fowlkes_mallows": metrics.fowlkes_mallows_score,
     "adjusted_mutual_info": metrics.adjusted_mutual_info_score,
