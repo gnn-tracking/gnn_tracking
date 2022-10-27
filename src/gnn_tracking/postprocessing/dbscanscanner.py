@@ -31,6 +31,8 @@ class DBSCANHyperParamScanner(AbstractClusterHyperParamScanner):
     ):
         """Class to scan hyperparameters of DBSCAN.
 
+        For a convenience wrapper, take a look at `dbscan_scan`.
+
         Args:
             graphs: See ClusterHyperParamScanner
             truth: See ClusterHyperParamScanner
@@ -67,7 +69,8 @@ def dbscan_scan(
     epoch=None,
     start_params: dict[str, Any] | None = None,
 ) -> ClusterScanResult:
-    """Convenience function for scanning of DBSCAN hyperparameters
+    """Convenience function for scanning of DBSCAN hyperparameters to be given to
+    `TCNTrainer` (see example below).
 
     Args:
         graphs: See `ClusterHyperParamScanner`
@@ -85,6 +88,21 @@ def dbscan_scan(
 
     Returns:
         ClusterScanResult
+
+    Usage example with `TCNTrainer`::
+
+        from gnn_tracking.postprocessing.dbscanscanner import dbscan_scan
+
+        faster_dbscan_scan = partial(
+            dbscan_scan,
+            n_jobs=12,
+            n_trials=lambda epoch: 1 if epoch > 5 and epoch % 2 == 0 else 100,
+        )
+
+        trainer = TCNTrainer(
+            ...,
+            cluster_functions={"dbscan": faster_dbscan_scan},
+        )
     """
     if n_jobs == 1:
         logger.warning("Only using 1 thread for DBSCAN scan")
