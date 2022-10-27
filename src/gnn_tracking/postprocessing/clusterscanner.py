@@ -8,7 +8,7 @@ from typing import Any, Callable, Mapping, Protocol
 import numpy as np
 import optuna
 
-from gnn_tracking.postprocessing.cluster_metrics import metric_type
+from gnn_tracking.metrics.cluster_metrics import metric_type
 from gnn_tracking.utils.earlystopping import no_early_stopping
 from gnn_tracking.utils.log import logger
 from gnn_tracking.utils.timing import timing

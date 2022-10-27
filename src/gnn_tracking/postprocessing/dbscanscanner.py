@@ -5,7 +5,7 @@ from typing import Any
 import numpy as np
 from sklearn.cluster import DBSCAN
 
-from gnn_tracking.postprocessing.cluster_metrics import common_metrics
+from gnn_tracking.metrics.cluster_metrics import common_metrics
 from gnn_tracking.postprocessing.clusterscanner import (
     AbstractClusterHyperParamScanner,
     ClusterHyperParamScanner,
