@@ -6,11 +6,12 @@ import numpy as np
 import pandas as pd
 from sklearn import metrics
 
-#: Function type that calculates a clustering metric
+#: Function type that calculates a clustering metric. The truth labels must be given
+#: as first parameter, the predicted labels as second parameter.
 metric_type = Callable[[np.ndarray, np.ndarray], Union[float, dict[str, float]]]
 
 
-def custom_metrics(labels: np.ndarray, truth: np.ndarray) -> dict[str, float]:
+def custom_metrics(truth: np.ndarray, labels: np.ndarray) -> dict[str, float]:
     """Calculate 'custom' metrics for matching tracks and hits.
 
     Args:
