@@ -11,22 +11,22 @@ from sklearn import metrics
 metric_type = Callable[[np.ndarray, np.ndarray], Union[float, dict[str, float]]]
 
 
-def custom_metrics(truth: np.ndarray, labels: np.ndarray) -> dict[str, float]:
+def custom_metrics(truth: np.ndarray, predicted: np.ndarray) -> dict[str, float]:
     """Calculate 'custom' metrics for matching tracks and hits.
 
     Args:
-        labels: Predicted labels
-        truth:
+        truth: Trut labels/PIDs
+        predicted: Predicted labels/PIDs
 
     Returns:
 
     """
-    assert labels.shape == truth.shape
-    c_id = pd.DataFrame({"c": labels, "id": truth})
+    assert predicted.shape == truth.shape
+    c_id = pd.DataFrame({"c": predicted, "id": truth})
     clusters = c_id.groupby("c")
     majority_counts = clusters["id"].apply(lambda x: sum(x == x.mode()[0]))
     majority_fraction = clusters["id"].apply(lambda x: sum(x == x.mode()[0]) / len(x))
-    h_id = pd.DataFrame({"hits": np.ones(len(labels)), "id": truth})
+    h_id = pd.DataFrame({"hits": np.ones(len(predicted)), "id": truth})
     particles = h_id.groupby("id")
     nhits = particles["hits"].apply(lambda x: len(x)).to_dict()
     majority_hits = clusters["id"].apply(lambda x: x.mode().map(nhits)[0])
@@ -34,8 +34,9 @@ def custom_metrics(truth: np.ndarray, labels: np.ndarray) -> dict[str, float]:
     double_majority = ((majority_counts / majority_hits).fillna(0) > 0.5) & (
         majority_fraction > 0.5
     )
-    lhc_match = (majority_fraction).fillna(0) > 0.75
-    total = len(np.unique(labels))
+    lhc_match = majority_fraction.fillna(0) > 0.75
+    # fixme: This doesn't seem right
+    total = len(np.unique(predicted))
     return {
         "total": total,
         "perfect": sum(perfect_match) / total,
