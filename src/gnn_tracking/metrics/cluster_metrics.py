@@ -42,12 +42,14 @@ def custom_metrics(truth: np.ndarray, predicted: np.ndarray) -> dict[str, float]
         majority_fraction > 0.5
     )
     lhc_match = majority_fraction.fillna(0) > 0.75
-    total = len(np.unique(truth))
+    n_particles = len(np.unique(truth))
+    n_clusters = len(np.unique(predicted))
     return {
-        "total": total,
-        "perfect": sum(perfect_match) / total,
-        "double_majority": sum(double_majority) / total,
-        "lhc": sum(lhc_match) / total,
+        "n_particles": n_particles,
+        "n_clusters": n_clusters,
+        "perfect": sum(perfect_match) / n_particles,
+        "double_majority": sum(double_majority) / n_particles,
+        "lhc": sum(lhc_match) / n_clusters,
     }
 
 
