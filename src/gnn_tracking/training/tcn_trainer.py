@@ -313,13 +313,12 @@ class TCNTrainer:
         pt_b = pt[edge_index[1]]
         return (pt_a > pt_min) | (pt_b > pt_min)
 
-    def _test_step(self, thld=0.5, val=True, pt_min=0.0) -> dict[str, float]:
+    def test_step(self, thld=0.5, val=True) -> dict[str, float]:
         """Test the model on the validation or test set
 
         Args:
-            thld: Threshold for edges
+            thld: Threshold for edge classification
             val: Use validation dataset rather than test dataset
-            pt_min: Minimum pt for tracks to be considered
 
         Returns:
             Dictionary of metrics
@@ -340,17 +339,19 @@ class TCNTrainer:
                 model_output = self.evaluate_model(data, mask_pids_reco=False)
                 batch_loss, these_batch_losses = self.get_batch_losses(model_output)
 
-                pt_mask = model_output["pt"] > pt_min
-
                 if model_output["w"] is not None:
-                    edge_pt_mask = self._edge_pt_mask(data.edge_index, data.pt, pt_min)
-                    bcs = BinaryClassificationStats(
-                        output=model_output["w"][edge_pt_mask],
-                        y=model_output["y"][edge_pt_mask].long(),
-                        thld=thld,
-                    )
-                    for k, v in bcs.get_all().items():
-                        batch_losses[denote_pt(k, pt_min)].append(v)
+                    for pt_min in self.pt_thlds:
+                        pt_mask = model_output["pt"] > pt_min
+                        edge_pt_mask = self._edge_pt_mask(
+                            data.edge_index, data.pt, pt_min
+                        )
+                        bcs = BinaryClassificationStats(
+                            output=model_output["w"][edge_pt_mask],
+                            y=model_output["y"][edge_pt_mask].long(),
+                            thld=thld,
+                        )
+                        for k, v in bcs.get_all().items():
+                            batch_losses[denote_pt(k, pt_min)].append(v)
 
                 batch_losses["total"].append(batch_loss.item())
                 for key, loss in these_batch_losses.items():
@@ -378,41 +379,18 @@ class TCNTrainer:
                 sectors,
                 pts,
                 epoch=self._epoch,
-                start_params=self._best_cluster_params.get(denote_pt(k, pt_min), None),
+                start_params=self._best_cluster_params.get(k, None),
             )
             if cluster_result is not None:
-                losses.update(
-                    {denote_pt(k, pt_min): v for k, v in cluster_result.metrics.items()}
-                )
-                self._best_cluster_params[
-                    denote_pt(k, pt_min)
-                ] = cluster_result.best_params
+                losses.update(cluster_result.metrics)
+                self._best_cluster_params[k] = cluster_result.best_params
                 losses.update(
                     {
-                        denote_pt(f"best_{k}_{param}", pt_min): val
+                        f"best_{k}_{param}": val
                         for param, val in cluster_result.best_params.items()
                     }
                 )
-        return losses
 
-    def test_step(
-        self, thld=0.5, val=True, pt_thlds: list[float] | None = None
-    ) -> dict[str, float]:
-        """Test the model on the validation or test set
-
-        Args:
-            thld: Threshold for edges
-            val: Use validation dataset rather than test dataset
-            pt_thlds: pt thresholds that the metrics are being evaluated at
-
-        Returns:
-            Dictionary of metrics
-        """
-        if pt_thlds is None:
-            pt_thlds = self.pt_thlds
-        losses = {}
-        for pt_min in pt_thlds:
-            losses.update(self._test_step(thld=thld, val=val, pt_min=pt_min))
         self.test_loss.append(pd.DataFrame(losses, index=[self._epoch]))
         for hook in self._test_hooks:
             hook(self, losses)
