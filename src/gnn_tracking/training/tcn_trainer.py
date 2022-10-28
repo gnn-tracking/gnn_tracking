@@ -24,6 +24,7 @@ from gnn_tracking.training.dynamiclossweights import (
 )
 from gnn_tracking.utils.device import guess_device
 from gnn_tracking.utils.log import get_logger
+from gnn_tracking.utils.nomenclature import denote_pt
 from gnn_tracking.utils.timing import timing
 
 #: Function type that can be used as hook for the training/test step in the
@@ -48,6 +49,7 @@ class ClusterFctType(Protocol):
         graphs: list[np.ndarray],
         truth: list[np.ndarray],
         sectors: list[np.ndarray],
+        pts: list[np.ndarray],
         epoch=None,
         start_params: dict[str, Any] | None = None,
     ) -> ClusterScanResult:
@@ -306,12 +308,6 @@ class TCNTrainer:
             hook(self, losses)
         return losses
 
-    def _denote_pt(self, name: str, pt_min=0.0) -> str:
-        """Suffix to append to designate pt threshold"""
-        if np.isclose(pt_min, 0.0):
-            return name
-        return f"{name}_pt{pt_min:.1f}"
-
     def _edge_pt_mask(self, edge_index: Tensor, pt: Tensor, pt_min=0.0) -> Tensor:
         pt_a = pt[edge_index[0]]
         pt_b = pt[edge_index[1]]
@@ -334,6 +330,7 @@ class TCNTrainer:
         graphs: list[np.ndarray] = []
         truths: list[np.ndarray] = []
         sectors: list[np.ndarray] = []
+        pts: list[np.ndarray] = []
 
         batch_losses = collections.defaultdict(list)
         with torch.no_grad():
@@ -353,7 +350,7 @@ class TCNTrainer:
                         thld=thld,
                     )
                     for k, v in bcs.get_all().items():
-                        batch_losses[self._denote_pt(k, pt_min)].append(v)
+                        batch_losses[denote_pt(k, pt_min)].append(v)
 
                 batch_losses["total"].append(batch_loss.item())
                 for key, loss in these_batch_losses.items():
@@ -371,6 +368,7 @@ class TCNTrainer:
                         model_output["particle_id"][pt_mask].detach().cpu().numpy()
                     )
                     sectors.append(data.sector[pt_mask].detach().cpu().numpy())
+                    pts.append(model_output["pt"][pt_mask].detach().cpu().numpy())
 
         losses = {k: np.nanmean(v) for k, v in batch_losses.items()}
         for k, f in self.clustering_functions.items():
@@ -378,24 +376,20 @@ class TCNTrainer:
                 graphs,
                 truths,
                 sectors,
+                pts,
                 epoch=self._epoch,
-                start_params=self._best_cluster_params.get(
-                    self._denote_pt(k, pt_min), None
-                ),
+                start_params=self._best_cluster_params.get(denote_pt(k, pt_min), None),
             )
             if cluster_result is not None:
                 losses.update(
-                    {
-                        self._denote_pt(k, pt_min): v
-                        for k, v in cluster_result.metrics.items()
-                    }
+                    {denote_pt(k, pt_min): v for k, v in cluster_result.metrics.items()}
                 )
                 self._best_cluster_params[
-                    self._denote_pt(k, pt_min)
+                    denote_pt(k, pt_min)
                 ] = cluster_result.best_params
                 losses.update(
                     {
-                        self._denote_pt(f"best_{k}_{param}", pt_min): val
+                        denote_pt(f"best_{k}_{param}", pt_min): val
                         for param, val in cluster_result.best_params.items()
                     }
                 )

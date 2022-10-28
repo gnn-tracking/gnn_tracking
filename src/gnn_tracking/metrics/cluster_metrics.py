@@ -1,15 +1,32 @@
 from __future__ import annotations
 
+import functools
 from collections import Counter
-from typing import Callable, TypedDict, Union
+from typing import Iterable, Protocol, TypedDict
 
 import numpy as np
 import pandas as pd
 from sklearn import metrics
 
-#: Function type that calculates a clustering metric. The truth labels must be given
-#: as first parameter, the predicted labels as second parameter.
-metric_type = Callable[[np.ndarray, np.ndarray], Union[float, dict[str, float]]]
+from gnn_tracking.utils.math import zero_division_gives_nan
+from gnn_tracking.utils.nomenclature import denote_pt
+
+
+class ClusterMetricType(Protocol):
+    """Function type that calculates a clustering metric. Positional parameters: truth
+    PIDs, cluster labels, pt values, pt thresholds. Returns: dict of metric values
+    (different #: pts are denoted by suffixes)
+    """
+
+    def __call__(
+        self,
+        *,
+        truth: np.ndarray,
+        predicted: np.ndarray,
+        pts: np.ndarray,
+        pt_thlds: list[float],
+    ) -> float | dict[str, float]:
+        ...
 
 
 class CustomMetrics(TypedDict):
@@ -32,72 +49,125 @@ class CustomMetrics(TypedDict):
     lhc: float
 
 
-def custom_metrics(truth: np.ndarray, predicted: np.ndarray) -> CustomMetrics:
+_custom_metrics_nan_results: CustomMetrics = {
+    "n_particles": 0,
+    "n_clusters": 0,
+    "perfect": float("nan"),
+    "lhc": float("nan"),
+    "double_majority": float("nan"),
+}
+
+
+def custom_metrics(
+    *,
+    truth: np.ndarray,
+    predicted: np.ndarray,
+    pts: np.ndarray,
+    pt_thlds: Iterable[float],
+) -> dict[float, CustomMetrics]:
     """Calculate 'custom' metrics for matching tracks and hits.
 
     Args:
-        truth: Truth labels/PIDs
-        predicted: Predicted labels/PIDs
+        truth: Truth labels/PIDs for each hit
+        predicted: Predicted labels/cluster index for each hit
+        pts: pt values of the hits
+        pt_thlds: pt thresholds to calculate the metrics for
 
     Returns:
         See `CustomMetrics`
     """
-    assert predicted.shape == truth.shape
+    assert predicted.shape == truth.shape == pts.shape
     if len(truth) == 0:
-        r: CustomMetrics = {
-            "n_particles": 0,
-            "n_clusters": 0,
-            "perfect": float("nan"),
-            "lhc": float("nan"),
-            "double_majority": float("nan"),
-        }
-        return r
-    c_id = pd.DataFrame({"c": predicted, "id": truth})
+        return {pt: _custom_metrics_nan_results for pt in pt_thlds}
+    df = pd.DataFrame({"c": predicted, "id": truth, "pt": pts})
+
     # Here we make use of the fact that value_counts sorts by the count
     # So after we have the count, we group by the cluster and take the first line
-    # for each
-    pid_counts = c_id.value_counts().reset_index()
-    majority_df = pid_counts.groupby("c").first()
-    # This dataframe now has both the most popular PID ("id" column) and the
-    # number of times it appears ("0" column)
-    in_cluster_maj_pids = majority_df["id"]
-    in_cluster_maj_hits = majority_df[0]
-    # This is a significantly (!) faster version than doing
+    # for each.
+    # The resulting dataframe now has both the most popular PID ("id" column) and the
+    # number of times it appears ("0" column).
+    # This strategy is a significantly (!) faster version than doing
     # c_id.groupby("c").agg(lambda x: x.mode()[0]) etc.
-    cluster_sizes = pid_counts.groupby("c")[0].sum()
-    # For each cluster: Fraction of hits that have the most popular PID
-    in_cluster_maj_frac = (in_cluster_maj_hits / cluster_sizes).fillna(0)
-    # For each PID: Number of hits
+    pid_counts = df[["c", "id"]].value_counts().reset_index()
+    maj_df = pid_counts.groupby("c").first()
+    # For each cluster: Which true PID has the most hits?
+    c_maj_pids = maj_df["id"]
+    # For each cluster: How many hits does the PID with the most hits have?
+    c_maj_hits = maj_df[0]
+    # Number of hits per cluster
+    c_sizes = pid_counts.groupby("c")[0].sum()
+
+    pid_to_pt = df[["id", "pt"]].groupby("id")["pt"].first().to_dict()
+    # For each cluster: Of which pt is the PID with the most hits?
+    c_maj_pts = c_maj_pids.map(pid_to_pt)
+
+    # For each PID: Number of hits (in any cluster)
     pid_to_count = Counter(truth)
     # For each cluster: Take most popular PID of that cluster and get number of hits of
     # that PID (in any cluster)
-    majority_hits = in_cluster_maj_pids.map(pid_to_count)
-    perfect_match = (majority_hits == in_cluster_maj_hits) & (
-        in_cluster_maj_frac > 0.99
-    )
-    double_majority = ((in_cluster_maj_hits / majority_hits).fillna(0) > 0.5) & (
-        in_cluster_maj_frac > 0.5
-    )
-    lhc_match = in_cluster_maj_frac > 0.75
-    n_particles = len(np.unique(truth))
-    n_clusters = len(np.unique(predicted))
-    r = {
-        "n_particles": n_particles,
-        "n_clusters": n_clusters,
-        "perfect": sum(perfect_match) / n_particles,
-        "double_majority": sum(double_majority) / n_particles,
-        "lhc": sum(lhc_match) / n_clusters,
+    maj_hits = c_maj_pids.map(pid_to_count)
+
+    result: dict[float, ClusterMetricType] = {}
+    for pt in pt_thlds:
+        c_mask = c_maj_pts >= pt
+
+        # For each cluster: Fraction of hits that have the most popular PID
+        c_maj_frac = (c_maj_hits[c_mask] / c_sizes[c_mask]).fillna(0)
+        # For each cluster: Take the most popular PID of that cluster. What fraction of
+        # the corresponding hits is in this cluster?
+        maj_frac = (c_maj_hits[c_mask] / maj_hits[c_mask]).fillna(0)
+
+        perfect_match = (maj_hits == c_maj_hits) & (c_maj_frac > 0.99)
+        double_majority = (maj_frac > 0.5) & (c_maj_frac > 0.5)
+        lhc_match = c_maj_frac > 0.75
+
+        h_mask = pts >= pt
+        n_particles = len(np.unique(truth[h_mask]))
+        n_clusters = len(np.unique(predicted[h_mask]))
+
+        r = {
+            "n_particles": n_particles,
+            "n_clusters": n_clusters,
+            "perfect": zero_division_gives_nan(sum(perfect_match), n_particles),
+            "double_majority": zero_division_gives_nan(
+                sum(double_majority), n_particles
+            ),
+            "lhc": zero_division_gives_nan(sum(lhc_match), n_clusters),
+        }
+        result[pt] = r  # type: ignore
+    return result  # type: ignore
+
+
+def custom_metrics_flattened(*args, **kwargs) -> dict[str, float]:
+    """Flatten the result of `custom_metrics` by using pt suffixes"""
+    return {
+        denote_pt(k, pt): v
+        for pt, results in custom_metrics(*args, **kwargs).items()
+        for k, v in results.items()
     }
-    return r
+
+
+def _signature_wrapper(func):
+    @functools.wraps(func)
+    def wrapped(
+        *,
+        truth,
+        predicted,
+        pts,
+        pt_thlds,
+    ):
+        return func(truth, predicted)
+
+    return wrapped
 
 
 #: Common metrics that we have for clustering/matching of tracks to hits
-common_metrics: dict[str, metric_type] = {
-    "v_measure": metrics.v_measure_score,
-    "homogeneity": metrics.homogeneity_score,
-    "completeness": metrics.completeness_score,
-    "trk": custom_metrics,  # type: ignore
-    "adjusted_rand": metrics.adjusted_rand_score,
-    "fowlkes_mallows": metrics.fowlkes_mallows_score,
-    "adjusted_mutual_info": metrics.adjusted_mutual_info_score,
+common_metrics: dict[str, ClusterMetricType] = {
+    "v_measure": _signature_wrapper(metrics.v_measure_score),
+    "homogeneity": _signature_wrapper(metrics.homogeneity_score),
+    "completeness": _signature_wrapper(metrics.completeness_score),
+    "trk": custom_metrics_flattened,
+    "adjusted_rand": _signature_wrapper(metrics.adjusted_rand_score),
+    "fowlkes_mallows": _signature_wrapper(metrics.fowlkes_mallows_score),
+    "adjusted_mutual_info": _signature_wrapper(metrics.adjusted_mutual_info_score),
 }

@@ -32,10 +32,6 @@ class DBSCANHyperParamScanner(AbstractClusterHyperParamScanner):
         """Class to scan hyperparameters of DBSCAN.
 
         Args:
-            graphs: See ClusterHyperParamScanner
-            truth: See ClusterHyperParamScanner
-            sectors: See ClusterHyperParamScanner
-            metric: See ClusterHyperParamScanner
             eps_range: Range of epsilons to sample from
             min_samples_range: Range of min_samples to sample from
             **kwargs: Passed on to ClusterHyperParamScanner.
@@ -60,6 +56,7 @@ def dbscan_scan(
     graphs: np.ndarray,
     truth: np.ndarray,
     sectors: np.ndarray,
+    pts: np.ndarray,
     *,
     n_jobs=1,
     n_trials=100,
@@ -73,6 +70,7 @@ def dbscan_scan(
         graphs: See ClusterHyperParamScanner
         truth: See ClusterHyperParamScanner
         sectors: See ClusterHyperParamScanner
+        pts: See ClusterHyperParamScanner
         n_jobs: Number of threads to run in parallel
         n_trials: Number of trials for optimization
         guide: See ClusterHyperParamScanner
@@ -88,6 +86,7 @@ def dbscan_scan(
         graphs=graphs,
         truth=truth,
         sectors=sectors,
+        pts=pts,
         guide=guide,
         metrics=common_metrics,
     )
