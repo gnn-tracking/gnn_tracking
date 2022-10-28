@@ -13,10 +13,7 @@ from gnn_tracking.utils.nomenclature import denote_pt
 
 
 class ClusterMetricType(Protocol):
-    """Function type that calculates a clustering metric. Positional parameters: truth
-    PIDs, cluster labels, pt values, pt thresholds. Returns: dict of metric values
-    (different #: pts are denoted by suffixes)
-    """
+    """Function type that calculates a clustering metric."""
 
     def __call__(
         self,
