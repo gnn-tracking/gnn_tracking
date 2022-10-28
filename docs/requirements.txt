@@ -1,3 +1,2 @@
 sphinx_book_theme
 sphinx-autoapi
-git+https://github.com/GageDeZoort/gnn_tracking.git
