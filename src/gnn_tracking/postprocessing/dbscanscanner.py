@@ -5,7 +5,7 @@ from typing import Any, Callable
 import numpy as np
 from sklearn.cluster import DBSCAN
 
-from gnn_tracking.postprocessing.cluster_metrics import common_metrics
+from gnn_tracking.metrics.cluster_metrics import common_metrics
 from gnn_tracking.postprocessing.clusterscanner import (
     AbstractClusterHyperParamScanner,
     ClusterHyperParamScanner,
@@ -34,10 +34,6 @@ class DBSCANHyperParamScanner(AbstractClusterHyperParamScanner):
         For a convenience wrapper, take a look at `dbscan_scan`.
 
         Args:
-            graphs: See ClusterHyperParamScanner
-            truth: See ClusterHyperParamScanner
-            sectors: See ClusterHyperParamScanner
-            metric: See ClusterHyperParamScanner
             eps_range: Range of epsilons to sample from
             min_samples_range: Range of min_samples to sample from
             **kwargs: Passed on to ClusterHyperParamScanner.
@@ -62,6 +58,7 @@ def dbscan_scan(
     graphs: np.ndarray,
     truth: np.ndarray,
     sectors: np.ndarray,
+    pts: np.ndarray,
     *,
     n_jobs=1,
     n_trials: int | Callable[[int], int] = 100,
@@ -73,9 +70,10 @@ def dbscan_scan(
     `TCNTrainer` (see example below).
 
     Args:
-        graphs: See `ClusterHyperParamScanner`
-        truth: See `ClusterHyperParamScanner`
-        sectors: See `ClusterHyperParamScanner`
+        graphs: See ClusterHyperParamScanner
+        truth: See ClusterHyperParamScanner
+        sectors: See ClusterHyperParamScanner
+        pts: See ClusterHyperParamScanner
         n_jobs: Number of threads to run in parallel
         n_trials: Number of trials for optimization. If callable, it is called with the
             epoch number and should return the number of trials.
@@ -110,6 +108,7 @@ def dbscan_scan(
         graphs=graphs,
         truth=truth,
         sectors=sectors,
+        pts=pts,
         guide=guide,
         metrics=common_metrics,
     )
