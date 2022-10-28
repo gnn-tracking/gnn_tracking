@@ -127,8 +127,6 @@ class ClusterHyperParamScanner(AbstractClusterHyperParamScanner):
         self.graphs: list[np.ndarray] = graphs
         self.truth: list[np.ndarray] = truth
         self.pts: list[np.ndarray] = pts
-        if any(["." in k for k in metrics]):
-            raise ValueError("Metric names must not contain dots")
         self.metrics: dict[str, ClusterMetricType] = metrics
         if sectors is None:
             self.sectors: list[np.ndarray] = [np.ones(t, dtype=int) for t in self.truth]
@@ -178,10 +176,12 @@ class ClusterHyperParamScanner(AbstractClusterHyperParamScanner):
             pt_thlds=self.pt_thlds,
         )
         if "." in name:
-            metric, subkey = name.split(".")
-            return self.metrics[metric](**arguments)[subkey]  # type: ignore
-        else:
-            return self.metrics[name](**arguments)  # type: ignore
+            metric, _, subkey = name.partition(".")
+            try:
+                return self.metrics[metric](**arguments)[subkey]  # type: ignore
+            except KeyError:
+                pass
+        return self.metrics[name](**arguments)  # type: ignore
 
     def _objective(self, trial: optuna.trial.Trial) -> float:
         """Objective function for optuna."""
