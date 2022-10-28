@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, Callable
 
 import numpy as np
 from sklearn.cluster import DBSCAN
@@ -31,6 +31,8 @@ class DBSCANHyperParamScanner(AbstractClusterHyperParamScanner):
     ):
         """Class to scan hyperparameters of DBSCAN.
 
+        For a convenience wrapper, take a look at `dbscan_scan`.
+
         Args:
             eps_range: Range of epsilons to sample from
             min_samples_range: Range of min_samples to sample from
@@ -59,12 +61,13 @@ def dbscan_scan(
     pts: np.ndarray,
     *,
     n_jobs=1,
-    n_trials=100,
+    n_trials: int | Callable[[int], int] = 100,
     guide="v_measure",
     epoch=None,
     start_params: dict[str, Any] | None = None,
 ) -> ClusterScanResult:
-    """Convenience function for scanning of dbscan hyperparameters
+    """Convenience function for scanning of DBSCAN hyperparameters to be given to
+    `TCNTrainer` (see example below).
 
     Args:
         graphs: See ClusterHyperParamScanner
@@ -72,13 +75,32 @@ def dbscan_scan(
         sectors: See ClusterHyperParamScanner
         pts: See ClusterHyperParamScanner
         n_jobs: Number of threads to run in parallel
-        n_trials: Number of trials for optimization
+        n_trials: Number of trials for optimization. If callable, it is called with the
+            epoch number and should return the number of trials.
+            Example: ``lambda epoch: 1 if epoch > 5 and epoch % 2 == 0 else 100`` will
+            only scan HPs for every second epoch after epoch 5.
         guide: See ClusterHyperParamScanner
         epoch: Epoch that is currently being processed
         start_params: Start here
+        **kwargs: Passed on to `DBSCANHyperParamScanner`
 
     Returns:
         ClusterScanResult
+
+    Usage example with `TCNTrainer`::
+
+        from gnn_tracking.postprocessing.dbscanscanner import dbscan_scan
+
+        faster_dbscan_scan = partial(
+            dbscan_scan,
+            n_jobs=12,
+            n_trials=lambda epoch: 1 if epoch > 5 and epoch % 2 == 0 else 100,
+        )
+
+        trainer = TCNTrainer(
+            ...,
+            cluster_functions={"dbscan": faster_dbscan_scan},
+        )
     """
     if n_jobs == 1:
         logger.warning("Only using 1 thread for DBSCAN scan")
@@ -90,6 +112,13 @@ def dbscan_scan(
         guide=guide,
         metrics=common_metrics,
     )
+    if isinstance(n_trials, int):
+        pass
+    elif isinstance(n_trials, Callable):
+        n_trials = n_trials(epoch)
+    else:
+        raise ValueError("Invalid specification of n_trials.")
+
     return dbss.scan(
         n_jobs=n_jobs,
         n_trials=n_trials,
