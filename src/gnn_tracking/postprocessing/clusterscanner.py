@@ -16,19 +16,29 @@ from gnn_tracking.utils.timing import timing
 
 @dataclasses.dataclass
 class ClusterScanResult:
+    """Result of the scan over different clustering hyperparameters."""
+
+    #: This object contains information about every single trial.
     study: optuna.Study
+    #: Complete metrics of the trial that was deemed most successful
     metrics: dict[str, float]
 
     @property
     def best_params(self) -> dict[str, Any]:
+        """Hyperparameters with the best score."""
         return self.study.best_params
 
     @property
     def best_value(self) -> float:
+        """Best score"""
         return self.study.best_value
 
 
 class AbstractClusterHyperParamScanner(ABC):
+    """Abstract base class for classes that implement hyperparameter scanning of
+    clustering algorithms.
+    """
+
     @abstractmethod
     def _scan(
         self,
@@ -47,6 +57,8 @@ class AbstractClusterHyperParamScanner(ABC):
 
 
 class ClusterAlgorithmType(Protocol):
+    """Type of a clustering algorithm."""
+
     def __call__(self, graphs: np.ndarray, *args, **kwargs) -> np.ndarray:
         ...
 
@@ -198,6 +210,7 @@ class ClusterHyperParamScanner(AbstractClusterHyperParamScanner):
             sector_mask = self.sectors[i_graph] == sector
             graph = graph[sector_mask]
             truth = truth[sector_mask]
+            pts = pts[sector_mask]
             labels = self.algorithm(graph, **params)
             all_labels.append(labels)
             cheap_foms.append(

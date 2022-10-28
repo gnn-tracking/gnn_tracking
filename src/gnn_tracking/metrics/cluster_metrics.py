@@ -73,7 +73,11 @@ def custom_metrics(
     Returns:
         See `CustomMetrics`
     """
-    assert predicted.shape == truth.shape == pts.shape
+    assert predicted.shape == truth.shape == pts.shape, (
+        predicted.shape,
+        truth.shape,
+        pts.shape,
+    )
     if len(truth) == 0:
         return {pt: _custom_metrics_nan_results for pt in pt_thlds}
     df = pd.DataFrame({"c": predicted, "id": truth, "pt": pts})
