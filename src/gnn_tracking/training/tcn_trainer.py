@@ -341,7 +341,6 @@ class TCNTrainer:
 
                 if model_output["w"] is not None:
                     for pt_min in self.pt_thlds:
-                        pt_mask = model_output["pt"] > pt_min
                         edge_pt_mask = self._edge_pt_mask(
                             data.edge_index, data.pt, pt_min
                         )
@@ -364,12 +363,10 @@ class TCNTrainer:
                     self.clustering_functions
                     and _batch_idx <= self.max_batches_for_clustering
                 ):
-                    graphs.append(model_output["x"][pt_mask].detach().cpu().numpy())
-                    truths.append(
-                        model_output["particle_id"][pt_mask].detach().cpu().numpy()
-                    )
-                    sectors.append(data.sector[pt_mask].detach().cpu().numpy())
-                    pts.append(model_output["pt"][pt_mask].detach().cpu().numpy())
+                    graphs.append(model_output["x"].detach().cpu().numpy())
+                    truths.append(model_output["particle_id"].detach().cpu().numpy())
+                    sectors.append(data.sector.detach().cpu().numpy())
+                    pts.append(model_output["pt"].detach().cpu().numpy())
 
         losses = {k: np.nanmean(v) for k, v in batch_losses.items()}
         for k, f in self.clustering_functions.items():
