@@ -296,6 +296,8 @@ class PerfectECGraphTCN(nn.Module):
         hidden_dim=40,
         L_hc=3,
         alpha_hc: float = 0.5,
+        ec_tpr=1.0,
+        ec_tnr=1.0,
     ):
         """Identical to `GraphTCN` but with a "perfect" (i.e., truth based) edge
         classifier.
@@ -311,9 +313,11 @@ class PerfectECGraphTCN(nn.Module):
             L_hc: message passing depth for track condenser
             alpha_ec: strength of residual connection for EC
             alpha_hc: strength of residual connection for HC
+            ec_tpr: true positive rate of the perfect edge classifier
+            ec_tnr: true negative rate of the perfect edge classifier
         """
         super().__init__()
-        ec = PerfectEdgeClassification()
+        ec = PerfectEdgeClassification(tpr=ec_tpr, tnr=ec_tnr)
         hc_in = ResIN.identical_in_layers(
             node_indim=h_dim,
             edge_indim=e_dim,
