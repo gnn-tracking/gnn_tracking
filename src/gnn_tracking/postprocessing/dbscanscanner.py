@@ -102,6 +102,11 @@ def dbscan_scan(
             cluster_functions={"dbscan": faster_dbscan_scan},
         )
     """
+    if start_params is None:
+        start_params = {
+            "eps": 0.95,
+            "min_samples": 1,
+        }
     if n_jobs == 1:
         logger.warning("Only using 1 thread for DBSCAN scan")
     dbss = DBSCANHyperParamScanner(
