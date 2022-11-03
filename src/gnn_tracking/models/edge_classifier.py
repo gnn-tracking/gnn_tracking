@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import numpy as np
 import torch
 from torch import Tensor, nn
 from torch_geometric.data import Data
@@ -60,11 +61,12 @@ class ECForGraphTCN(nn.Module):
         L_ec=3,
         alpha_ec: float = 0.5,
     ):
-        """
+        """Edge classification step to be used for Graph Track Condensor network
+        (Graph TCN)
 
         Args:
-            node_indim:
-            edge_indim:
+            node_indim: Node feature dim
+            edge_indim: Edge feature dim
             h_dim: node dimension in latent space
             e_dim: edge dimension in latent space
             hidden_dim: width of hidden layers in all perceptrons
@@ -108,3 +110,22 @@ class ECForGraphTCN(nn.Module):
         edge_attrs_ec = torch.cat(edge_attrs_ec, dim=1)
         edge_weights = torch.sigmoid(self.W(edge_attrs_ec))
         return edge_weights
+
+
+class PerfectEdgeClassification(nn.Module):
+    def __init__(self, tpr=1.0, tnr=1.0):
+        """An edge classifier that is perfect because it uses the truth information.
+        If TPR or TNR is not 1.0, noise is added to the truth information.
+
+        Args:
+            tpr: True positive rate
+            tnr: False positive rate
+        """
+        super().__init__()
+        if not np.isclose(tpr, 1.0):
+            raise NotImplementedError("Handling of arbitrary TPR not yet implemented")
+        if not np.isclose(tnr, 1.0):
+            raise NotImplementedError("Handling of arbitrary TNR not yet implemented")
+
+    def forward(self, data: Data) -> Tensor:
+        return data.y
