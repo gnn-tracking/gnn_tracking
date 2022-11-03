@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import dataclasses
 from abc import ABC, abstractmethod
 from collections import defaultdict
 from typing import Any, Callable, Iterable, Mapping, Protocol
@@ -14,24 +13,30 @@ from gnn_tracking.utils.log import logger
 from gnn_tracking.utils.timing import timing
 
 
-@dataclasses.dataclass
 class ClusterScanResult:
+    def __init__(
+        self,
+        metrics: dict[str, float],
+        best_params: dict[str, float],
+        best_value: float,
+    ):
+        self.metrics = metrics
+
+        #: Hyperparameters with best score
+        self.best_params = best_params
+
+        #: Best score
+        self.best_value = best_value
+
+
+class OptunaClusterScanResult(ClusterScanResult):
     """Result of the scan over different clustering hyperparameters."""
 
-    #: This object contains information about every single trial.
-    study: optuna.Study
-    #: Complete metrics of the trial that was deemed most successful
-    metrics: dict[str, float]
-
-    @property
-    def best_params(self) -> dict[str, Any]:
-        """Hyperparameters with the best score."""
-        return self.study.best_params
-
-    @property
-    def best_value(self) -> float:
-        """Best score"""
-        return self.study.best_value
+    def __init__(self, metrics: dict[str, float], study: optuna.Study):
+        super().__init__(
+            metrics, best_params=study.best_params, best_value=study.best_value
+        )
+        self.study = study
 
 
 class AbstractClusterHyperParamScanner(ABC):
@@ -261,18 +266,21 @@ class ClusterHyperParamScanner(AbstractClusterHyperParamScanner):
         self._n_trials_completed += 1
         return global_fom
 
-    def _evaluate(self) -> dict[str, float]:
+    def _evaluate(
+        self, best_params: None | dict[str, float] = None
+    ) -> dict[str, float]:
         """Evaluate all metrics (on all sectors and given graphs) for the best
-        parameters that we just found.
+        parameters that we just found with optuna.
         """
         logger.debug("Evaluating all metrics for best clustering")
         with timing("Evaluating all metrics"):
-            return self.__evaluate()
+            if best_params is None:
+                assert self._study is not None  # mypy
+                best_params = self._study.best_params
+            return self.__evaluate(best_params=best_params)
 
-    def __evaluate(self) -> dict[str, float]:
+    def __evaluate(self, best_params: dict[str, float]) -> dict[str, float]:
         """See _evaluate."""
-        assert self._study is not None  # mypy
-        params = self._study.best_params
         metric_values = defaultdict(list)
         for graph, truth, sectors, pts in zip(
             self.graphs, self.truth, self.sectors, self.pts
@@ -287,7 +295,7 @@ class ClusterHyperParamScanner(AbstractClusterHyperParamScanner):
                 sector_graph = graph[sector_mask]
                 sector_truth = truth[sector_mask]
                 sector_pts = pts[sector_mask]
-                labels = self.algorithm(sector_graph, **params)
+                labels = self.algorithm(sector_graph, **best_params)
                 for name, metric in self.metrics.items():
                     r = metric(
                         truth=sector_truth,
@@ -307,6 +315,19 @@ class ClusterHyperParamScanner(AbstractClusterHyperParamScanner):
     ) -> ClusterScanResult:
         """Run the scan."""
         self._es.reset()
+        if start_params is not None and "n_trials" in kwargs:
+            # Do not even start optuna, because that takes time
+            logger.info(
+                "Skipping optuna, because start_params are given and only"
+                "one trial to run"
+            )
+            metrics = self._evaluate(best_params=start_params)
+            return ClusterScanResult(
+                metrics=metrics,
+                best_params=start_params,
+                best_value=metrics[self._expensive_metric],
+            )
+
         if self._study is None:
             optuna.logging.set_verbosity(optuna.logging.WARNING)
             self._study = optuna.create_study(
@@ -325,4 +346,4 @@ class ClusterHyperParamScanner(AbstractClusterHyperParamScanner):
             self._n_trials_completed,
             self._n_trials_pruned,
         )
-        return ClusterScanResult(study=self._study, metrics=self._evaluate())
+        return OptunaClusterScanResult(study=self._study, metrics=self._evaluate())
