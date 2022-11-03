@@ -44,6 +44,8 @@ class LossFctType(Protocol):
 
 
 class ClusterFctType(Protocol):
+    """Type of a clustering scanner function"""
+
     def __call__(
         self,
         graphs: list[np.ndarray],
