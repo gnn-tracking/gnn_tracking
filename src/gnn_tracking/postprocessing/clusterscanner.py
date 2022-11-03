@@ -58,7 +58,7 @@ class AbstractClusterHyperParamScanner(ABC):
             logger.debug("Starting from params: %s", start_params)
         logger.info("Starting hyperparameter scan for clustering")
         with timing("Clustering hyperparameter scan & metric evaluation"):
-            return self._scan(**kwargs)
+            return self._scan(start_params=start_params, **kwargs)
 
 
 class ClusterAlgorithmType(Protocol):
