@@ -296,7 +296,6 @@ class PerfectECGraphTCN(nn.Module):
         hidden_dim=40,
         L_hc=3,
         alpha_hc: float = 0.5,
-        feed_edge_weights=False,
     ):
         """Identical to `GraphTCN` but with a "perfect" (i.e., truth based) edge
         classifier.
@@ -312,7 +311,6 @@ class PerfectECGraphTCN(nn.Module):
             L_hc: message passing depth for track condenser
             alpha_ec: strength of residual connection for EC
             alpha_hc: strength of residual connection for HC
-            feed_edge_weights: whether to feed edge weights to the track condenser
         """
         super().__init__()
         ec = PerfectEdgeClassification()
@@ -336,7 +334,7 @@ class PerfectECGraphTCN(nn.Module):
             h_outdim=h_outdim,
             hidden_dim=hidden_dim,
             L_hc=L_hc,
-            feed_edge_weights=feed_edge_weights,
+            feed_edge_weights=False,
         )
 
     def forward(
