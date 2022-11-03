@@ -255,15 +255,31 @@ class TCNTrainer:
             report_str += "\n"
         table_items: list[tuple[str, float]] = sorted(batch_losses.items())
         if style == "table":
+            annotated_table_items = [
+                (
+                    "-->" if self.highlight_metric(t[0]) else "",
+                    t[0],
+                    t[1],
+                )
+                for t in table_items
+            ]
             report_str += tabulate.tabulate(
-                table_items,
+                annotated_table_items,
                 tablefmt="outline",
                 floatfmt=".5f",
-                headers=["Metric", "Value"],
+                headers=["", "Metric", "Value"],
             )
         else:
             report_str += ", ".join(f"{k}={v:>10.5f}" for k, v in table_items)
         self.logger.info(report_str)
+
+    def highlight_metric(self, metric: str) -> bool:
+        """Should a metric be highlighted in the log output?"""
+        if "double_majority" in metric:
+            return True
+        if "tpr" in metric.casefold():
+            return True
+        return False
 
     def train_step(self, *, max_batches: int | None = None) -> dict[str, float]:
         """
