@@ -6,7 +6,7 @@ from torch import Tensor
 from torch_geometric.data import Data
 
 from gnn_tracking.models.dynamic_edge_conv import DynamicEdgeConv
-from gnn_tracking.models.edge_classifier import ECForGraphTCN
+from gnn_tracking.models.edge_classifier import ECForGraphTCN, PerfectEdgeClassification
 from gnn_tracking.models.interaction_network import InteractionNetwork as IN
 from gnn_tracking.models.mlp import MLP
 from gnn_tracking.models.resin import ResIN
@@ -232,8 +232,8 @@ class GraphTCN(nn.Module):
         for the track condensor network.
 
         Args:
-            node_indim:
-            edge_indim:
+            node_indim: Node feature dim
+            edge_indim: Edge feature dim
             h_dim: node dimension in latent space
             e_dim: edge dimension in latent space
             h_outdim: output dimension in clustering space
@@ -254,6 +254,68 @@ class GraphTCN(nn.Module):
             L_ec=L_ec,
             alpha_ec=alpha_ec,
         )
+        hc_in = ResIN.identical_in_layers(
+            node_indim=h_dim,
+            edge_indim=e_dim,
+            node_outdim=h_dim,
+            edge_outdim=e_dim,
+            node_hidden_dim=hidden_dim,
+            edge_hidden_dim=hidden_dim,
+            alpha=alpha_hc,
+            n_layers=L_hc,
+        )
+        self._gtcn = ModularGraphTCN(
+            ec=ec,
+            hc_in=hc_in,
+            node_indim=node_indim,
+            edge_indim=edge_indim,
+            h_dim=h_dim,
+            e_dim=e_dim,
+            h_outdim=h_outdim,
+            hidden_dim=hidden_dim,
+            L_hc=L_hc,
+            feed_edge_weights=feed_edge_weights,
+        )
+
+    def forward(
+        self,
+        data: Data,
+    ) -> dict[str, Tensor]:
+        return self._gtcn.forward(data=data)
+
+
+class PerfectECGraphTCN(nn.Module):
+    def __init__(
+        self,
+        *,
+        node_indim: int,
+        edge_indim: int,
+        h_dim=5,
+        e_dim=4,
+        h_outdim=2,
+        hidden_dim=40,
+        L_hc=3,
+        alpha_hc: float = 0.5,
+        feed_edge_weights=False,
+    ):
+        """Identical to `GraphTCN` but with a "perfect" (i.e., truth based) edge
+        classifier.
+
+        Args:
+            node_indim: Node feature dim
+            edge_indim: Edge feature dim
+            h_dim: node dimension in latent space
+            e_dim: edge dimension in latent space
+            h_outdim: output dimension in clustering space
+            hidden_dim: width of hidden layers in all perceptrons
+            L_ec: message passing depth for edge classifier
+            L_hc: message passing depth for track condenser
+            alpha_ec: strength of residual connection for EC
+            alpha_hc: strength of residual connection for HC
+            feed_edge_weights: whether to feed edge weights to the track condenser
+        """
+        super().__init__()
+        ec = PerfectEdgeClassification()
         hc_in = ResIN.identical_in_layers(
             node_indim=h_dim,
             edge_indim=e_dim,
