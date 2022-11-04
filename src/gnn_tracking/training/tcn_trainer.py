@@ -305,20 +305,26 @@ class TCNTrainer:
             self.optimizer.step()
 
             if not (batch_idx % 10):
+                _losses_w = {}
+                for key, loss in batch_losses.items():
+                    _losses_w[f"{key}_weighted"] = (
+                        loss.item() * self._loss_weight_setter[key]
+                    )
                 self._log_losses(
-                    batch_losses,
+                    #batch_losses,
+                    _losses_w,
                     header=f"Epoch {self._epoch:>2} "
                     f"({batch_idx:>5}/{len(self.train_loader)}): ",
                     style="inline",
                 )
-
+                
             _losses["total"].append(batch_loss.item())
             for key, loss in batch_losses.items():
                 _losses[f"{key}"].append(loss.item())
                 _losses[f"{key}_weighted"].append(
                     loss.item() * self._loss_weight_setter[key]
                 )
-
+        
         losses = {k: np.nanmean(v) for k, v in _losses.items()}
         self._loss_weight_setter.step(losses)
         self.train_loss.append(pd.DataFrame(losses, index=[self._epoch]))
