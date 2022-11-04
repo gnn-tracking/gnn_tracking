@@ -17,7 +17,7 @@ extensions = ["sphinx.ext.napoleon", "autoapi.extension"]
 
 autoapi_type = "python"
 autoapi_dirs = ["../../src/gnn_tracking"]
-autoapi_ignore = []
+autoapi_ignore = ["*/test_*.py"]
 autoapi_python_class_content = "init"
 
 
