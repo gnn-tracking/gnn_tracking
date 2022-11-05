@@ -52,6 +52,7 @@ class ClusterFctType(Protocol):
         truth: list[np.ndarray],
         sectors: list[np.ndarray],
         pts: list[np.ndarray],
+        reconstructable: list[np.ndarray],
         epoch=None,
         start_params: dict[str, Any] | None = None,
     ) -> ClusterScanResult:
@@ -311,20 +312,20 @@ class TCNTrainer:
                         loss.item() * self._loss_weight_setter[key]
                     )
                 self._log_losses(
-                    #batch_losses,
+                    # batch_losses,
                     _losses_w,
                     header=f"Epoch {self._epoch:>2} "
                     f"({batch_idx:>5}/{len(self.train_loader)}): ",
                     style="inline",
                 )
-                
+
             _losses["total"].append(batch_loss.item())
             for key, loss in batch_losses.items():
                 _losses[f"{key}"].append(loss.item())
                 _losses[f"{key}_weighted"].append(
                     loss.item() * self._loss_weight_setter[key]
                 )
-        
+
         losses = {k: np.nanmean(v) for k, v in _losses.items()}
         self._loss_weight_setter.step(losses)
         self.train_loss.append(pd.DataFrame(losses, index=[self._epoch]))
@@ -350,10 +351,11 @@ class TCNTrainer:
         self.model.eval()
 
         # Objects in the following three lists are used for clustering
-        graphs: list[np.ndarray] = []
-        truths: list[np.ndarray] = []
-        sectors: list[np.ndarray] = []
-        pts: list[np.ndarray] = []
+        graphs = list[np.ndarray]()
+        truths = list[np.ndarray]()
+        sectors = list[np.ndarray]()
+        pts = list[np.ndarray]()
+        reconstructable = list[np.ndarray]()
 
         batch_losses = collections.defaultdict(list)
         with torch.no_grad():
@@ -391,6 +393,9 @@ class TCNTrainer:
                     truths.append(model_output["particle_id"].detach().cpu().numpy())
                     sectors.append(data.sector.detach().cpu().numpy())
                     pts.append(model_output["pt"].detach().cpu().numpy())
+                    reconstructable.append(
+                        model_output["reconstructable"].detach().cpu().numpy()
+                    )
 
         losses = {k: np.nanmean(v) for k, v in batch_losses.items()}
         for k, f in self.clustering_functions.items():
@@ -399,6 +404,7 @@ class TCNTrainer:
                 truths,
                 sectors,
                 pts,
+                reconstructable,
                 epoch=self._epoch,
                 start_params=self._best_cluster_params.get(k, None),
             )

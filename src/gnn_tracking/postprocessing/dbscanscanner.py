@@ -59,6 +59,7 @@ def dbscan_scan(
     truth: np.ndarray,
     sectors: np.ndarray,
     pts: np.ndarray,
+    reconstructable: np.ndarray,
     *,
     n_jobs=1,
     n_trials: int | Callable[[int], int] = 100,
@@ -74,6 +75,7 @@ def dbscan_scan(
         truth: See ClusterHyperParamScanner
         sectors: See ClusterHyperParamScanner
         pts: See ClusterHyperParamScanner
+        reconstructable: See ClusterHyperParamScanner
         n_jobs: Number of threads to run in parallel
         n_trials: Number of trials for optimization. If callable, it is called with the
             epoch number and should return the number of trials.
@@ -114,6 +116,7 @@ def dbscan_scan(
         truth=truth,
         sectors=sectors,
         pts=pts,
+        reconstructable=reconstructable,
         guide=guide,
         metrics=common_metrics,
     )

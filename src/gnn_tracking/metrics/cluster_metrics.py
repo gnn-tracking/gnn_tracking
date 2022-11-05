@@ -21,6 +21,7 @@ class ClusterMetricType(Protocol):
         truth: np.ndarray,
         predicted: np.ndarray,
         pts: np.ndarray,
+        reconstructable: np.ndarray,
         pt_thlds: list[float],
     ) -> float | dict[str, float]:
         ...
@@ -60,6 +61,7 @@ def custom_metrics(
     truth: np.ndarray,
     predicted: np.ndarray,
     pts: np.ndarray,
+    reconstructable: np.ndarray,
     pt_thlds: Iterable[float],
 ) -> dict[float, CustomMetrics]:
     """Calculate 'custom' metrics for matching tracks and hits.
@@ -68,6 +70,9 @@ def custom_metrics(
         truth: Truth labels/PIDs for each hit
         predicted: Predicted labels/cluster index for each hit
         pts: pt values of the hits
+        reconstructable: Whether the hit belongs to a "reconstructable tracks" (this
+            usually implies a cut on the number of layers that are being hit
+            etc.)
         pt_thlds: pt thresholds to calculate the metrics for
 
     Returns:
@@ -80,11 +85,13 @@ def custom_metrics(
     )
     if len(truth) == 0:
         return {pt: _custom_metrics_nan_results for pt in pt_thlds}
-    df = pd.DataFrame({"c": predicted, "id": truth, "pt": pts})
+    df = pd.DataFrame({"c": predicted, "id": truth, "pt": pts, "r": reconstructable})
 
-    # Here we make use of the fact that value_counts sorts by the count
-    # So after we have the count, we group by the cluster and take the first line
-    # for each.
+    # For each cluster, we determine the true PID that is associated with the most
+    # hits in that cluster.
+    # Here we make use of the fact that `df.value_counts` sorts by the count.
+    # That means that if we group by the cluster and take the first line
+    # for each of the counts, we have the most popular PID for each cluster.
     # The resulting dataframe now has both the most popular PID ("id" column) and the
     # number of times it appears ("0" column).
     # This strategy is a significantly (!) faster version than doing
@@ -98,9 +105,15 @@ def custom_metrics(
     # Number of hits per cluster
     c_sizes = pid_counts.groupby("c")[0].sum()
 
-    pid_to_pt = df[["id", "pt"]].groupby("id")["pt"].first().to_dict()
+    # Properties associated to PID. This is pretty trivial, but since everything is
+    # passed by, rather than by PID, we need to get rid of "duplicates"
+    pid_to_props = df[["id", "pt", "r"]].groupby("id")[["pt", "r"]].first()
+    pid_to_pt = pid_to_props["pt"].to_dict()
+    pid_to_r = pid_to_props["r"].to_dict()
     # For each cluster: Of which pt is the PID with the most hits?
     c_maj_pts = c_maj_pids.map(pid_to_pt)
+    # For each cluster: Is the PID with the most hits reconstructable?
+    c_maj_reconstructable = c_maj_pids.map(pid_to_r)
 
     # For each PID: Number of hits (in any cluster)
     pid_to_count = Counter(truth)
@@ -108,9 +121,9 @@ def custom_metrics(
     # that PID (in any cluster)
     maj_hits = c_maj_pids.map(pid_to_count)
 
-    result: dict[float, ClusterMetricType] = {}
+    result = dict[float, ClusterMetricType]()
     for pt in pt_thlds:
-        c_mask = c_maj_pts >= pt
+        c_mask = (c_maj_pts >= pt) & c_maj_reconstructable
 
         # For each cluster: Fraction of hits that have the most popular PID
         c_maj_frac = (c_maj_hits[c_mask] / c_sizes[c_mask]).fillna(0)
@@ -155,6 +168,7 @@ def _signature_wrapper(func):
         truth,
         predicted,
         pts,
+        reconstructable,
         pt_thlds,
     ):
         return func(truth, predicted)
