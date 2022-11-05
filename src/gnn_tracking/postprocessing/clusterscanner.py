@@ -77,6 +77,7 @@ class ClusterHyperParamScanner(AbstractClusterHyperParamScanner):
         graphs: list[np.ndarray],
         truth: list[np.ndarray],
         pts: list[np.ndarray],
+        reconstructable: list[np.ndarray],
         guide: str,
         metrics: dict[str, ClusterMetricType],
         sectors: list[np.ndarray] | None = None,
@@ -97,6 +98,7 @@ class ClusterHyperParamScanner(AbstractClusterHyperParamScanner):
             graphs:
             truth: Truth labels for clustering
             pts: Pt values for each graph
+            reconstructable: Whether each hit belongs to a reconstructable true track
             guide: Name of expensive metric that is taken as a figure of merit
                 for the overall performance. If the corresponding metric function
                 returns a dict, the key should be key.subkey.
@@ -144,6 +146,7 @@ class ClusterHyperParamScanner(AbstractClusterHyperParamScanner):
         self.graphs: list[np.ndarray] = graphs
         self.truth: list[np.ndarray] = truth
         self.pts: list[np.ndarray] = pts
+        self.reconstructable: list[np.ndarray] = reconstructable
         self.metrics: dict[str, ClusterMetricType] = metrics
         if sectors is None:
             self.sectors: list[np.ndarray] = [np.ones(t, dtype=int) for t in self.truth]
@@ -183,13 +186,20 @@ class ClusterHyperParamScanner(AbstractClusterHyperParamScanner):
         return choice
 
     def _get_explicit_metric(
-        self, name: str, *, predicted: np.ndarray, truth: np.ndarray, pts: np.ndarray
+        self,
+        name: str,
+        *,
+        predicted: np.ndarray,
+        truth: np.ndarray,
+        pts: np.ndarray,
+        reconstructable: np.ndarray,
     ) -> float:
         """Get metric value from dict of metrics."""
         arguments = dict(
             truth=truth,
             predicted=predicted,
             pts=pts,
+            reconstructable=reconstructable,
             pt_thlds=self.pt_thlds,
         )
         if "." in name:
@@ -206,8 +216,8 @@ class ClusterHyperParamScanner(AbstractClusterHyperParamScanner):
         cheap_foms = []
         all_labels = []
         # Do a first run, looking only at the cheap metric, stopping early
-        for i_graph, (graph, truth, pts) in enumerate(
-            zip(self.graphs, self.truth, self.pts)
+        for i_graph, (graph, truth, pts, reconstructable) in enumerate(
+            zip(self.graphs, self.truth, self.pts, self.reconstructable)
         ):
             # Consider a random sector for each graph, but keep the sector consistent
             # between different trials.
@@ -216,6 +226,7 @@ class ClusterHyperParamScanner(AbstractClusterHyperParamScanner):
             graph = graph[sector_mask]
             truth = truth[sector_mask]
             pts = pts[sector_mask]
+            reconstructable = reconstructable[sector_mask]
             labels = self.algorithm(graph, **params)
             all_labels.append(labels)
             cheap_foms.append(
@@ -224,6 +235,7 @@ class ClusterHyperParamScanner(AbstractClusterHyperParamScanner):
                     truth=truth,
                     predicted=labels,
                     pts=pts,
+                    reconstructable=reconstructable,
                 )
             )
             if i_graph >= self.pruning_grace_period:
@@ -239,8 +251,8 @@ class ClusterHyperParamScanner(AbstractClusterHyperParamScanner):
             expensive_foms = []
             # If we haven't stopped early, do a second run, looking at the expensive
             # metric
-            for i_labels, (labels, truth, pts) in enumerate(
-                zip(all_labels, self.truth, self.pts)
+            for i_labels, (labels, truth, pts, reconstructable) in enumerate(
+                zip(all_labels, self.truth, self.pts, self.reconstructable)
             ):
                 sector = self._get_sector_to_study(i_labels)
                 sector_mask = self.sectors[i_labels] == sector
@@ -250,6 +262,7 @@ class ClusterHyperParamScanner(AbstractClusterHyperParamScanner):
                     truth=truth,
                     predicted=labels,
                     pts=pts,
+                    reconstructable=reconstructable,
                 )
                 expensive_foms.append(expensive_fom)
                 if i_labels >= 2:
@@ -282,8 +295,8 @@ class ClusterHyperParamScanner(AbstractClusterHyperParamScanner):
     def __evaluate(self, best_params: dict[str, float]) -> dict[str, float]:
         """See _evaluate."""
         metric_values = defaultdict(list)
-        for graph, truth, sectors, pts in zip(
-            self.graphs, self.truth, self.sectors, self.pts
+        for graph, truth, sectors, pts, reconstructable in zip(
+            self.graphs, self.truth, self.sectors, self.pts, self.reconstructable
         ):
             available_sectors: list[int] = np.unique(sectors).tolist()  # type: ignore
             try:
@@ -295,12 +308,14 @@ class ClusterHyperParamScanner(AbstractClusterHyperParamScanner):
                 sector_graph = graph[sector_mask]
                 sector_truth = truth[sector_mask]
                 sector_pts = pts[sector_mask]
+                sector_reconstructable = reconstructable[sector_mask]
                 labels = self.algorithm(sector_graph, **best_params)
                 for name, metric in self.metrics.items():
                     r = metric(
                         truth=sector_truth,
                         predicted=labels,
                         pts=sector_pts,
+                        reconstructable=sector_reconstructable,
                         pt_thlds=self.pt_thlds,
                     )
                     if not isinstance(r, Mapping):
