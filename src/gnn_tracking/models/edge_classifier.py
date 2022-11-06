@@ -113,19 +113,26 @@ class ECForGraphTCN(nn.Module):
 
 
 class PerfectEdgeClassification(nn.Module):
-    def __init__(self, tpr=1.0, tnr=1.0):
+    def __init__(self, tpr=1.0, tnr=1.0, false_below_pt=0.0):
         """An edge classifier that is perfect because it uses the truth information.
         If TPR or TNR is not 1.0, noise is added to the truth information.
 
         Args:
             tpr: True positive rate
             tnr: False positive rate
+            false_below_pt: If not 0.0, all true edges between hits corresponding to
+                particles with a pt lower than this threshold are set to false.
         """
         super().__init__()
         if not np.isclose(tpr, 1.0):
             raise NotImplementedError("Handling of arbitrary TPR not yet implemented")
         if not np.isclose(tnr, 1.0):
             raise NotImplementedError("Handling of arbitrary TNR not yet implemented")
+        self.false_below_pt = false_below_pt
 
     def forward(self, data: Data) -> Tensor:
-        return data.y
+        r = data.y
+        if self.false_below_pt > 0.0:
+            false_mask = data.pt < self.false_below_pt
+            r[false_mask] = False
+        return r
