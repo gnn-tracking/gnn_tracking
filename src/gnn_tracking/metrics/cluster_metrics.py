@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import functools
 from collections import Counter
-from typing import Iterable, Protocol, TypedDict
+from typing import Callable, Iterable, Protocol, TypedDict
 
 import numpy as np
 import pandas as pd
@@ -10,6 +10,7 @@ from sklearn import metrics
 
 from gnn_tracking.utils.math import zero_division_gives_nan
 from gnn_tracking.utils.nomenclature import denote_pt
+from gnn_tracking.utils.signature import tolerate_additional_kwargs
 
 
 class ClusterMetricType(Protocol):
@@ -165,7 +166,8 @@ def custom_metrics(
 
 
 def custom_metrics_flattened(*args, **kwargs) -> dict[str, float]:
-    """Flatten the result of `custom_metrics` by using pt suffixes"""
+    """Flatten the result of `custom_metrics` by using pt suffixes to arrive at a
+    flat dictionary, rather than a nested one."""
     return {
         denote_pt(k, pt): v
         for pt, results in custom_metrics(*args, **kwargs).items()
@@ -173,16 +175,41 @@ def custom_metrics_flattened(*args, **kwargs) -> dict[str, float]:
     }
 
 
-def _signature_wrapper(func):
+def count_hits_per_cluster(predicted: np.ndarray) -> np.ndarray:
+    """Count number of hits per cluster"""
+    _, counts = np.unique(predicted, return_counts=True)
+    hist_counts, _ = np.histogram(counts, bins=np.arange(0.5, counts.max() + 1.5))
+    return hist_counts
+
+
+def hits_per_cluster_count_to_flat_dict(
+    counts: np.ndarray, min_max=10
+) -> dict[str, float]:
+    """Turn result array from `count_hits_per_cluster` into a dictionary
+    with cumulative counts.
+
+    Args:
+        counts: Result from `count_hits_per_cluster`
+        min_max: Pad the counts with zeros to at least this length
+    """
+    cumulative = np.cumsum(
+        np.pad(counts, (0, max(0, min_max - len(counts))), "constant")
+    )
+    total = cumulative[-1]
+    return {
+        f"hitcountgeq_{i:04}": cumulative / total
+        for i, cumulative in enumerate(reversed(cumulative), start=1)
+    }
+
+
+def _sklearn_signature_wrap(func: Callable) -> ClusterMetricType:
+    """A decorator to make an sklearn cluster metric function accept/take the
+    arguments from ``ClusterMetricType``.
+    """
+
     @functools.wraps(func)
-    def wrapped(
-        *,
-        truth,
-        predicted,
-        pts,
-        reconstructable,
-        pt_thlds,
-    ):
+    @tolerate_additional_kwargs
+    def wrapped(predicted: np.ndarray, truth: np.ndarray):
         return func(truth, predicted)
 
     return wrapped
@@ -190,11 +217,14 @@ def _signature_wrapper(func):
 
 #: Common metrics that we have for clustering/matching of tracks to hits
 common_metrics: dict[str, ClusterMetricType] = {
-    "v_measure": _signature_wrapper(metrics.v_measure_score),
-    "homogeneity": _signature_wrapper(metrics.homogeneity_score),
-    "completeness": _signature_wrapper(metrics.completeness_score),
+    "v_measure": _sklearn_signature_wrap(metrics.v_measure_score),
+    "homogeneity": _sklearn_signature_wrap(metrics.homogeneity_score),
+    "completeness": _sklearn_signature_wrap(metrics.completeness_score),
     "trk": custom_metrics_flattened,
-    "adjusted_rand": _signature_wrapper(metrics.adjusted_rand_score),
-    "fowlkes_mallows": _signature_wrapper(metrics.fowlkes_mallows_score),
-    "adjusted_mutual_info": _signature_wrapper(metrics.adjusted_mutual_info_score),
+    "adjusted_rand": _sklearn_signature_wrap(metrics.adjusted_rand_score),
+    "fowlkes_mallows": _sklearn_signature_wrap(metrics.fowlkes_mallows_score),
+    "adjusted_mutual_info": _sklearn_signature_wrap(metrics.adjusted_mutual_info_score),
+    "trkc": lambda **kwargs: hits_per_cluster_count_to_flat_dict(
+        tolerate_additional_kwargs(count_hits_per_cluster)(**kwargs)
+    ),
 }

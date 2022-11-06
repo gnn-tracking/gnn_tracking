@@ -6,7 +6,7 @@ import numpy as np
 import pytest
 from pytest import approx
 
-from gnn_tracking.metrics.cluster_metrics import custom_metrics
+from gnn_tracking.metrics.cluster_metrics import count_hits_per_cluster, custom_metrics
 
 
 @dataclasses.dataclass
@@ -260,3 +260,8 @@ test_cases = [
 @pytest.mark.parametrize("test_case", test_cases)
 def test_custom_metrics(test_case):
     test_case.run()
+
+
+def test_count_cluster_hits():
+    r = count_hits_per_cluster(np.array([0, 0, 0, 1, 1, 2, 3, 3, 3]))
+    assert (r == np.array([1, 1, 2])).all()
