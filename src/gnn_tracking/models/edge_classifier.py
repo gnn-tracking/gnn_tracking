@@ -21,7 +21,7 @@ class EdgeClassifier(nn.Module):
         r_hidden_size=32,
         o_hidden_size=32,
     ):
-        super(EdgeClassifier, self).__init__()
+        super().__init__()
         self.node_encoder = MLP(node_indim, node_latentdim, 64, L=1)
         self.edge_encoder = MLP(edge_indim, edge_latentdim, 64, L=1)
         gnn_layers = []
