@@ -1,6 +1,6 @@
 repos:
   - repo: https://github.com/psf/black
-    rev: 22.8.0
+    rev: 22.10.0
     hooks:
       - id: black
   - repo: https://github.com/pre-commit/pre-commit-hooks
@@ -38,13 +38,13 @@ repos:
   #     hooks:
   #      -   id: mypy
   - repo: https://github.com/codespell-project/codespell
-    rev: "v2.2.1"
+    rev: "v2.2.2"
     hooks:
       - id: codespell
         args: ["-I", "codespell.txt"]
         exclude: '.*\.ipynb'
   - repo: https://github.com/asottile/pyupgrade
-    rev: v2.38.2
+    rev: v3.2.0
     hooks:
       - id: pyupgrade
 
