@@ -92,20 +92,20 @@ def binary_focal_loss(
     return loss
 
 
-class EdgeWeightLoss(torch.nn.Module, ABC):
+class AbstractEdgeWeightLoss(torch.nn.Module, ABC):
     @abstractmethod
     def forward(self, *, w, y, **kwargs) -> T:
         pass
 
 
-class EdgeWeightBCELoss(EdgeWeightLoss):
+class EdgeWeightBCELoss(AbstractEdgeWeightLoss):
     @staticmethod
     def forward(*, w, y, **kwargs) -> T:
         bce_loss = binary_cross_entropy(w, y, reduction="mean")
         return bce_loss
 
 
-class EdgeWeightFocalLoss(EdgeWeightLoss):
+class EdgeWeightFocalLoss(AbstractEdgeWeightLoss):
     def __init__(
         self,
         *,
