@@ -102,7 +102,6 @@ class AbstractEdgeWeightLoss(torch.nn.Module, ABC):
         pass
 
 
-
 class EdgeWeightBCELoss(AbstractEdgeWeightLoss):
     """Binary Cross Entropy loss function for edge classification"""
 
