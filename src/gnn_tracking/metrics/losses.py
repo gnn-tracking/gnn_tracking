@@ -1,3 +1,5 @@
+"""This module contains loss functions for the GNN tracking model."""
+
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
@@ -93,12 +95,17 @@ def binary_focal_loss(
 
 
 class AbstractEdgeWeightLoss(torch.nn.Module, ABC):
+    """Abstract base class for loss functions for edge classification."""
+
     @abstractmethod
     def forward(self, *, w, y, **kwargs) -> T:
         pass
 
 
+
 class EdgeWeightBCELoss(AbstractEdgeWeightLoss):
+    """Binary Cross Entropy loss function for edge classification"""
+
     @staticmethod
     def forward(*, w, y, **kwargs) -> T:
         bce_loss = binary_cross_entropy(w, y, reduction="mean")
@@ -114,7 +121,9 @@ class EdgeWeightFocalLoss(AbstractEdgeWeightLoss):
         pos_weight=None,
         reduction="mean",
     ):
-        """See binary_focal_loss for details."""
+        """Loss function based on focal loss for edge classification.
+        See `binary_focal_loss` for details.
+        """
         super().__init__()
         self.alpha = alpha
         self.gamma = gamma
@@ -136,7 +145,7 @@ class EdgeWeightFocalLoss(AbstractEdgeWeightLoss):
 
 class PotentialLoss(torch.nn.Module):
     def __init__(self, q_min=0.01, radius_threshold=10.0, attr_pt_thld=0.9):
-        """Potential/condensation loss
+        """Potential/condensation loss (specific to object condensation approach).
 
         Args:
             q_min: Minimal charge ``q``
@@ -221,8 +230,8 @@ class BackgroundLoss(torch.nn.Module):
 
 class ObjectLoss(torch.nn.Module):
     def __init__(self, mode="efficiency"):
+        """Loss functions for predicted object properties."""
         super().__init__()
-        #: Strength of noise suppression
         self.mode = mode
 
     def _mse(self, *, pred, truth):

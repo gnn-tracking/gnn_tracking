@@ -21,7 +21,7 @@ class EdgeClassifier(nn.Module):
         r_hidden_size=32,
         o_hidden_size=32,
     ):
-        super(EdgeClassifier, self).__init__()
+        super().__init__()
         self.node_encoder = MLP(node_indim, node_latentdim, 64, L=1)
         self.edge_encoder = MLP(edge_indim, edge_latentdim, 64, L=1)
         gnn_layers = []
@@ -113,19 +113,35 @@ class ECForGraphTCN(nn.Module):
 
 
 class PerfectEdgeClassification(nn.Module):
-    def __init__(self, tpr=1.0, tnr=1.0):
+    def __init__(self, tpr=1.0, tnr=1.0, false_below_pt=0.0):
         """An edge classifier that is perfect because it uses the truth information.
         If TPR or TNR is not 1.0, noise is added to the truth information.
 
         Args:
             tpr: True positive rate
             tnr: False positive rate
+            false_below_pt: If not 0.0, all true edges between hits corresponding to
+                particles with a pt lower than this threshold are set to false.
+                This is not counted towards the TPR/TNR.
         """
         super().__init__()
-        if not np.isclose(tpr, 1.0):
-            raise NotImplementedError("Handling of arbitrary TPR not yet implemented")
-        if not np.isclose(tnr, 1.0):
-            raise NotImplementedError("Handling of arbitrary TNR not yet implemented")
+        assert 0.0 <= tpr <= 1.0
+        self.tpr = tpr
+        assert 0.0 <= tnr <= 1.0
+        self.tnr = tnr
+        self.false_below_pt = false_below_pt
 
     def forward(self, data: Data) -> Tensor:
-        return data.y
+        r = data.y.bool()
+        if not np.isclose(self.tpr, 1.0):
+            true_mask = r.clone()
+            rand = torch.rand(int(true_mask.sum()))
+            r[true_mask] = rand <= self.tpr
+        if not np.isclose(self.tnr, 1.0):
+            false_mask = (~r).clone()
+            rand = torch.rand(int(false_mask.sum()))
+            r[false_mask] = ~(rand <= self.tnr)
+        if self.false_below_pt > 0.0:
+            false_mask = data.pt < self.false_below_pt
+            r[false_mask] = False
+        return r
