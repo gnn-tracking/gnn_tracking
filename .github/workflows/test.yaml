@@ -36,7 +36,7 @@ jobs:
         shell: bash
       - name: Cache Conda env
         id: cache
-        uses: actions/cache@v2
+        uses: actions/cache@v3
         with:
           path: ${{ env.CONDA }}/envs
           key: conda-${{ runner.os }}--${{ runner.arch }}--${{ steps.get-date.outputs.today }}-${{ hashFiles('environments/testing.yml') }}-${{ env.CACHE_NUMBER }}
