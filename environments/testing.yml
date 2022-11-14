@@ -9,3 +9,4 @@ dependencies:
   - cudatoolkit=11.6
   - pytorch==1.12
   - pyg
+  - pip
