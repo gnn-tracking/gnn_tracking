@@ -39,12 +39,12 @@ jobs:
         uses: actions/cache@v3
         with:
           path: ${{ env.CONDA }}/envs
-          key: conda-${{ runner.os }}--${{ runner.arch }}--${{ steps.get-date.outputs.today }}-${{ hashFiles('environments/testing.yml') }}-${{ env.CACHE_NUMBER }}
+          key: conda-${{ runner.os }}--${{ runner.arch }}--${{ steps.get-date.outputs.today }}-${{ hashFiles('environments/testing-linux-64-lock.yml') }}-${{ env.CACHE_NUMBER }}
         env:
           # Increase this value to reset cache if etc/example-environment.yml has not changed
           CACHE_NUMBER: 0
       - name: Update environment if not cached
-        run: mamba env update -n anaconda-client-env -f environments/testing.yml
+        run: mamba env create -n anaconda-client-env -f environments/testing-linux-64-lock.yml
         if: steps.cache.outputs.cache-hit != 'true'
       - name: Pip install package
         run: |
