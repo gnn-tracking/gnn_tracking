@@ -23,13 +23,11 @@ jobs:
 
     steps:
       - uses: actions/checkout@v3
-      - name: Setup Mambaforge
-        uses: conda-incubator/setup-miniconda@v2
+      - name: Install Conda environment from environment.yml
+        uses: mamba-org/provision-with-micromamba@main
         with:
-          miniforge-variant: Mambaforge
-          miniforge-version: latest
-          activate-environment: anaconda-client-env
-          use-mamba: true
+          environment-file: environments/testing-linux-64.lock
+          environment-name: anaconda-client-env
       - name: Get date for cache timestamp
         id: get-date
         run: echo "today=$(/bin/date -u '+%Y%m%d')" >> $GITHUB_OUTPUT
@@ -39,12 +37,12 @@ jobs:
         uses: actions/cache@v3
         with:
           path: ${{ env.CONDA }}/envs
-          key: conda-${{ runner.os }}--${{ runner.arch }}--${{ steps.get-date.outputs.today }}-${{ hashFiles('environments/testing-linux-64-lock.yml') }}-${{ env.CACHE_NUMBER }}
+          key: conda-${{ runner.os }}--${{ runner.arch }}--${{ steps.get-date.outputs.today }}-${{ hashFiles('environments/testing-linux-64.lock') }}-${{ env.CACHE_NUMBER }}
         env:
           # Increase this value to reset cache if etc/example-environment.yml has not changed
           CACHE_NUMBER: 0
       - name: Update environment if not cached
-        run: mamba env create -n anaconda-client-env -f environments/testing-linux-64-lock.yml
+        run: micromamba create -n anaconda-client-env -f environments/testing-linux-64.lock
         if: steps.cache.outputs.cache-hit != 'true'
       - name: Pip install package
         run: |
