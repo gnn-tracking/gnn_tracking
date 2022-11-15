@@ -55,6 +55,16 @@ test_cases = [
         lhc=float("nan"),
         double_majority=float("nan"),
     ),
+    # Nan because of having only noise from DBSCAN
+    ClusterMetricTestCase(
+        truth=[1, 2],
+        predicted=[-1, -1],
+        n_particles=2,
+        n_clusters=0,
+        perfect=0,
+        lhc=float("nan"),
+        double_majority=0,
+    ),
     ClusterMetricTestCase(
         truth=[0],
         predicted=[0],
@@ -73,6 +83,15 @@ test_cases = [
         perfect=1.0,
         lhc=1.0,
         double_majority=1.0,
+    ),
+    ClusterMetricTestCase(
+        truth=[0, 0, 0, 0],
+        predicted=[1, -1, -1, -1],
+        n_particles=1,
+        n_clusters=1,
+        perfect=0.0,
+        lhc=1.0,
+        double_majority=0.0,
     ),
     ClusterMetricTestCase(
         truth=[0],

@@ -68,7 +68,9 @@ def custom_metrics(
 
     Args:
         truth: Truth labels/PIDs for each hit
-        predicted: Predicted labels/cluster index for each hit
+        predicted: Predicted labels/cluster index for each hit. Negative labels are
+            interpreted as noise (because this is how DBSCAN outputs it) and are
+            ignored
         pts: pt values of the hits
         reconstructable: Whether the hit belongs to a "reconstructable tracks" (this
             usually implies a cut on the number of layers that are being hit
@@ -104,6 +106,10 @@ def custom_metrics(
     c_maj_hits = maj_df[0]
     # Number of hits per cluster
     c_sizes = pid_counts.groupby("c")[0].sum()
+    # Assume that negative cluster labels mean that the cluster was labeled as
+    # invalid
+    h_valid_cluster = predicted >= 0
+    c_valid_cluster = np.unique(predicted) >= 0
 
     # Properties associated to PID. This is pretty trivial, but since everything is
     # passed by, rather than by PID, we need to get rid of "duplicates"
@@ -131,13 +137,17 @@ def custom_metrics(
         # the corresponding hits is in this cluster?
         maj_frac = (c_maj_hits[c_mask] / maj_hits[c_mask]).fillna(0)
 
-        perfect_match = (maj_hits == c_maj_hits) & (c_maj_frac > 0.99)
-        double_majority = (maj_frac > 0.5) & (c_maj_frac > 0.5)
-        lhc_match = c_maj_frac > 0.75
+        perfect_match: np.ndarray = (
+            (maj_hits == c_maj_hits) & (c_maj_frac > 0.99) & c_valid_cluster
+        )
+        double_majority: np.ndarray = (
+            (maj_frac > 0.5) & (c_maj_frac > 0.5) & c_valid_cluster
+        )
+        lhc_match: np.ndarray = (c_maj_frac > 0.75) & c_valid_cluster
 
-        h_mask = pts >= pt
-        n_particles = len(np.unique(truth[h_mask]))
-        n_clusters = len(np.unique(predicted[h_mask]))
+        h_pt_mask = pts >= pt
+        n_particles = len(np.unique(truth[h_pt_mask]))
+        n_clusters = len(np.unique(predicted[h_pt_mask & h_valid_cluster]))
 
         r = {
             "n_particles": n_particles,
