@@ -9,4 +9,8 @@ dependencies:
   - cudatoolkit=11.6
   - pytorch==1.12
   - pyg
+  - pandas
+  - numpy
+  - scikit-learn
+  - optuna
   - pip

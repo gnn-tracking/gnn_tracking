@@ -4,7 +4,15 @@ channels:
   - pyg
   - ostrokach-forge
   - conda-forge
+  - scikit-learn
 dependencies:
   - python==3.10
   - pytorch==1.12
   - pyg
+  - ray-tune
+  - optuna
+  - wandb
+  - numpy
+  - pandas
+  - scikit-learn
+  - pip
