@@ -5,11 +5,11 @@
 # available, unless you explicitly update the lock file.
 #
 # Install this environment as "YOURENV" with:
-#     conda-lock install -n YOURENV --file conda-lock.yml
+#     conda-lock install -n YOURENV --file minimal.conda-lock.yml
 # To update a single package to the latest version compatible with the version constraints in the source:
-#     conda-lock lock --lockfile conda-lock.yml --update PACKAGE
+#     conda-lock lock --lockfile minimal.conda-lock.yml --update PACKAGE
 # To re-solve the entire environment, e.g. after changing a version constraint in the source file:
-#     conda-lock -f /home/kl5675/Documents/22/git_sync/gnn_tracking/environments/default.yml --lockfile conda-lock.yml
+#     conda-lock -f /home/kl5675/Documents/22/git_sync/gnn_tracking/environments/default.yml -f /home/kl5675/Documents/22/git_sync/gnn_tracking/environments/minimal.yml --lockfile minimal.conda-lock.yml
 metadata:
   channels:
   - url: pytorch
@@ -21,13 +21,14 @@ metadata:
   - url: conda-forge
     used_env_vars: []
   content_hash:
-    linux-64: 181308870e97a96c28c730baaa89f98d6d911ab46da2a3094b4db9a89e6b2dcc
+    linux-64: 83e76e50628a8e098716c5122ea30365f0b7f0981c48c362fa70f213481ab9a0
     win-64: 258fa41e82fe026f3129427c533bd2eda43f8bb154d8179c54f2534fe3109e72
   platforms:
   - linux-64
   - win-64
   sources:
   - /home/kl5675/Documents/22/git_sync/gnn_tracking/environments/default.yml
+  - /home/kl5675/Documents/22/git_sync/gnn_tracking/environments/minimal.yml
 package:
 - category: main
   dependencies: {}
@@ -569,6 +570,18 @@ package:
   version: 4.4.0
 - category: main
   dependencies:
+    python: '>=3.7'
+  hash:
+    md5: c829cfb8cb826acb9de0ac1a2df0a940
+    sha256: bd4f11ff075ff251ade9f57686f31473e25be46ab282d9603f551401250f9f44
+  manager: conda
+  name: wheel
+  optional: false
+  platform: linux-64
+  url: https://conda.anaconda.org/conda-forge/noarch/wheel-0.38.4-pyhd8ed1ab_0.tar.bz2
+  version: 0.38.4
+- category: main
+  dependencies:
     libffi: '>=3.4,<4.0a0'
     libgcc-ng: '>=12'
     pycparser: ''
@@ -642,6 +655,20 @@ package:
   platform: linux-64
   url: https://conda.anaconda.org/conda-forge/linux-64/numpy-1.23.4-py310h53a5b5f_1.tar.bz2
   version: 1.23.4
+- category: main
+  dependencies:
+    python: '>=3.7'
+    setuptools: ''
+    wheel: ''
+  hash:
+    md5: da66f2851b9836d3a7c5190082a45f7d
+    sha256: 7a86b2427abbf5cf695da192ba1c03130115f157297e7bfde65f0a18a345a7bc
+  manager: conda
+  name: pip
+  optional: false
+  platform: linux-64
+  url: https://conda.anaconda.org/conda-forge/noarch/pip-22.3.1-pyhd8ed1ab_0.tar.bz2
+  version: 22.3.1
 - category: main
   dependencies:
     colorama: ''
