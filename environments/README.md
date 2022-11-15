@@ -9,11 +9,11 @@
 
 ## Pick the right file
 
-* `testing.yml`: The environment that is being used for testing with github
+* `minimal.yml`: The environment that is being used for testing with github
    actions
-* `default.yml`: Full environment including helper repositories for GPU.
+* `default.yml`: Full environment including setup for helper repositories for GPU.
    Should work for Linux and Windows
-* `macos.yml`: Full environment including helper repositories for CPU for
+* `macos.yml`: Full environment including setup helper repositories for CPU for
    Macos.
 
 ## Install it
