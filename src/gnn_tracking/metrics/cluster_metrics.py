@@ -138,12 +138,14 @@ def custom_metrics(
         maj_frac = (c_maj_hits[c_mask] / maj_hits[c_mask]).fillna(0)
 
         perfect_match: np.ndarray = (
-            (maj_hits == c_maj_hits) & (c_maj_frac > 0.99) & c_valid_cluster
+            (maj_hits[c_mask] == c_maj_hits[c_mask])
+            & (c_maj_frac > 0.99)
+            & c_valid_cluster[c_mask]
         )
         double_majority: np.ndarray = (
-            (maj_frac > 0.5) & (c_maj_frac > 0.5) & c_valid_cluster
+            (maj_frac > 0.5) & (c_maj_frac > 0.5) & c_valid_cluster[c_mask]
         )
-        lhc_match: np.ndarray = (c_maj_frac > 0.75) & c_valid_cluster
+        lhc_match: np.ndarray = (c_maj_frac > 0.75) & c_valid_cluster[c_mask]
 
         h_pt_mask = pts >= pt
         n_particles = len(np.unique(truth[h_pt_mask]))
