@@ -22,3 +22,15 @@
 conda install -c conda-forge conda-lock
 conda-lock install --name gnn  default.conda-lock.yml
 ```
+
+## Updating lock files
+
+Run
+
+```bash
+make
+```
+
+If you run into [this issue](https://github.com/conda-incubator/conda-lock/issues/283),
+you might have to remove the lock files first and run without the `--lockfile`
+argument.
