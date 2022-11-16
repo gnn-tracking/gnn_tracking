@@ -28,7 +28,7 @@ class ClusterMetricType(Protocol):
         ...
 
 
-class CustomMetrics(TypedDict):
+class TrackingMetrics(TypedDict):
     """Custom cluster metrics for tracking."""
 
     #: True number of particles
@@ -48,7 +48,7 @@ class CustomMetrics(TypedDict):
     lhc: float
 
 
-_custom_metrics_nan_results: CustomMetrics = {
+_tracking_metrics_nan_results: TrackingMetrics = {
     "n_particles": 0,
     "n_clusters": 0,
     "perfect": float("nan"),
@@ -57,7 +57,7 @@ _custom_metrics_nan_results: CustomMetrics = {
 }
 
 
-def custom_metrics(
+def tracking_metrics(
     *,
     truth: np.ndarray,
     predicted: np.ndarray,
@@ -65,7 +65,7 @@ def custom_metrics(
     reconstructable: np.ndarray,
     pt_thlds: Iterable[float],
     predicted_count_thld=3,
-) -> dict[float, CustomMetrics]:
+) -> dict[float, TrackingMetrics]:
     """Calculate 'custom' metrics for matching tracks and hits.
 
     Args:
@@ -90,7 +90,7 @@ def custom_metrics(
         pts.shape,
     )
     if len(truth) == 0:
-        return {pt: _custom_metrics_nan_results for pt in pt_thlds}
+        return {pt: _tracking_metrics_nan_results for pt in pt_thlds}
     df = pd.DataFrame({"c": predicted, "id": truth, "pt": pts, "r": reconstructable})
 
     # For each cluster, we determine the true PID that is associated with the most
@@ -183,7 +183,7 @@ def custom_metrics_flattened(*args, **kwargs) -> dict[str, float]:
     flat dictionary, rather than a nested one."""
     return {
         denote_pt(k, pt): v
-        for pt, results in custom_metrics(*args, **kwargs).items()
+        for pt, results in tracking_metrics(*args, **kwargs).items()
         for k, v in results.items()
     }
 
