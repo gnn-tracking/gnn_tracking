@@ -3,6 +3,7 @@ from __future__ import annotations
 import logging
 import os
 from os.path import join as join
+from pathlib import Path
 
 import numpy as np
 import pandas as pd
@@ -40,7 +41,7 @@ class GraphBuilder:
         self.feature_scale = np.array(
             [1000.0, np.pi, 1000.0, 1, 1 / 1000.0, 1 / 1000.0]
         )
-        self.data_list = []
+        self._data_list = []
         self.outfiles = os.listdir(outdir)
         self.directed = directed
         self.measurement_mode = measurement_mode
@@ -48,6 +49,14 @@ class GraphBuilder:
         self.measurements = []
         level = logging.DEBUG if log_level > 0 else logging.INFO
         self.logger = get_logger("GraphBuilder", level)
+
+    @property
+    def data_list(self):
+        logger.warning(
+            "Using GraphBuilder to load data is depcreacted. Please use "
+            "graph_builder.load_data instead."
+        )
+        return self._data_list
 
     def get_measurements(self):
         measurements = pd.DataFrame(self.measurements)
@@ -352,7 +361,7 @@ class GraphBuilder:
             name = f.split("/")[-1]
             if f in self.outfiles and not self.redo:
                 graph = torch.load(join(self.outdir, name))
-                self.data_list.append(graph)
+                self._data_list.append(graph)
             else:
                 try:
                     evtid, s = self.get_event_id_sector_from_str(name)
@@ -393,7 +402,29 @@ class GraphBuilder:
                 self.logger.debug(f"Writing {outfile}")
                 if self.write_output:
                     torch.save(graph, outfile)
-                self.data_list.append(graph)
+                self._data_list.append(graph)
 
         if self.measurement_mode:
             self.logger.info(self.get_measurements())
+
+
+def load_graphs(in_dir: str | os.PathLike, *, start=0, stop=None):
+    """Load graphs
+
+    Args:
+        in_dir:
+        start:
+        stop:
+
+    Returns:
+
+    """
+    in_dir = Path(in_dir)
+    available_files = list(in_dir.glob("*.pt"))
+    considered_files = available_files[start:stop]
+    logger.info(
+        "Loading %d graphs (out of %d available).",
+        len(considered_files),
+        len(available_files),
+    )
+    return [torch.load(f) for f in considered_files]
