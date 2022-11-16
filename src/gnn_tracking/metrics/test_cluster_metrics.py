@@ -6,7 +6,10 @@ import numpy as np
 import pytest
 from pytest import approx
 
-from gnn_tracking.metrics.cluster_metrics import count_hits_per_cluster, custom_metrics
+from gnn_tracking.metrics.cluster_metrics import (
+    count_hits_per_cluster,
+    tracking_metrics,
+)
 
 
 @dataclasses.dataclass
@@ -37,7 +40,7 @@ class ClusterMetricTestCase:
         self.predicted_count_thld = predicted_count_thld
 
     def run(self):
-        metrics = custom_metrics(
+        metrics = tracking_metrics(
             truth=self.truth,
             predicted=self.predicted,
             pts=self.pts,
