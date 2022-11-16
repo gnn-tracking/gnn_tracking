@@ -166,7 +166,7 @@ def tracking_metrics(
 
         r = {
             "n_particles": n_particles,
-            "n_clusters": n_clusters,
+            "n_cleaned_clusters": n_clusters,
             "perfect": zero_division_gives_nan(perfect_match, n_particles),
             "double_majority": zero_division_gives_nan(double_majority, n_particles),
             "lhc": zero_division_gives_nan(lhc_match, n_clusters),
