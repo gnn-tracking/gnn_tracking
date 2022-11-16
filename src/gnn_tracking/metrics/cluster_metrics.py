@@ -64,6 +64,7 @@ def custom_metrics(
     pts: np.ndarray,
     reconstructable: np.ndarray,
     pt_thlds: Iterable[float],
+    predicted_count_thld=3,
 ) -> dict[float, CustomMetrics]:
     """Calculate 'custom' metrics for matching tracks and hits.
 
@@ -77,6 +78,8 @@ def custom_metrics(
             usually implies a cut on the number of layers that are being hit
             etc.)
         pt_thlds: pt thresholds to calculate the metrics for
+        predicted_count_thld: Minimal number of hits in a cluster for it to not be
+            rejected.
 
     Returns:
         See `CustomMetrics`
@@ -109,8 +112,10 @@ def custom_metrics(
     c_sizes = pid_counts.groupby("c")[0].sum()
     # Assume that negative cluster labels mean that the cluster was labeled as
     # invalid
-    h_valid_cluster = predicted >= 0
-    c_valid_cluster = np.unique(predicted) >= 0
+    unique_predicted, predicted_counts = np.unique(predicted, return_counts=True)
+    c_valid_cluster = (unique_predicted >= 0) & (
+        predicted_counts >= predicted_count_thld
+    )
 
     # Properties associated to PID. This is pretty trivial, but since everything is
     # passed by, rather than by PID, we need to get rid of "duplicates"
@@ -138,28 +143,36 @@ def custom_metrics(
         # the corresponding hits is in this cluster?
         maj_frac = (c_maj_hits[c_mask] / maj_hits[c_mask]).fillna(0)
 
-        perfect_match: np.ndarray = (
+        perfect_match = np.sum(
             (maj_hits[c_mask] == c_maj_hits[c_mask])
             & (c_maj_frac > 0.99)
             & c_valid_cluster[c_mask]
-        )
-        double_majority: np.ndarray = (
+        ).item()
+        double_majority = np.sum(
             (maj_frac > 0.5) & (c_maj_frac > 0.5) & c_valid_cluster[c_mask]
-        )
-        lhc_match: np.ndarray = (c_maj_frac > 0.75) & c_valid_cluster[c_mask]
+        ).item()
+        lhc_match = np.sum((c_maj_frac > 0.75) & c_valid_cluster[c_mask]).item()
 
         h_pt_mask = pts >= pt
+        c_pt_mask = c_maj_pts >= pt
         n_particles = len(np.unique(truth[h_pt_mask]))
-        n_clusters = len(np.unique(predicted[h_pt_mask & h_valid_cluster]))
+        n_clusters = len(unique_predicted[c_pt_mask & c_valid_cluster])
+
+        fake_pm = n_clusters - perfect_match
+        fake_dm = n_clusters - double_majority
+        fake_lhc = n_clusters - lhc_match
+
+        # breakpoint()
 
         r = {
             "n_particles": n_particles,
             "n_clusters": n_clusters,
-            "perfect": zero_division_gives_nan(sum(perfect_match), n_particles),
-            "double_majority": zero_division_gives_nan(
-                sum(double_majority), n_particles
-            ),
-            "lhc": zero_division_gives_nan(sum(lhc_match), n_clusters),
+            "perfect": zero_division_gives_nan(perfect_match, n_particles),
+            "double_majority": zero_division_gives_nan(double_majority, n_particles),
+            "lhc": zero_division_gives_nan(lhc_match, n_clusters),
+            "fake_perfect": zero_division_gives_nan(fake_pm, n_particles),
+            "fake_double_majority": zero_division_gives_nan(fake_dm, n_particles),
+            "fake_lhc": zero_division_gives_nan(fake_lhc, n_clusters),
         }
         result[pt] = r  # type: ignore
     return result  # type: ignore
