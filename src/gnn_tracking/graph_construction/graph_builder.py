@@ -17,6 +17,7 @@ class GraphBuilder:
         self,
         indir,
         outdir,
+        *,
         pixel_only=True,
         redo=True,
         phi_slope_max=0.005,

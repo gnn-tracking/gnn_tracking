@@ -23,6 +23,7 @@ class PointCloudBuilder:
         self,
         outdir: str | PurePath,
         indir: str | PurePath,
+        *,
         n_sectors: int,
         redo=True,
         pixel_only=True,
