@@ -19,6 +19,7 @@ class ClusterMetricTestCase:
         pts: None | list[float] = None,
         reconstructable: None | list[bool] = None,
         pt_thld=-1.0,
+        predicted_count_thld=1,
         **kwargs,
     ):
         self.truth = np.array(truth)
@@ -33,6 +34,7 @@ class ClusterMetricTestCase:
         else:
             self.reconstructable = np.array(reconstructable)
         self.pt_thld = pt_thld
+        self.predicted_count_thld = predicted_count_thld
 
     def run(self):
         metrics = custom_metrics(
@@ -41,11 +43,19 @@ class ClusterMetricTestCase:
             pts=self.pts,
             pt_thlds=[self.pt_thld],
             reconstructable=self.reconstructable,
+            predicted_count_thld=self.predicted_count_thld,
         )
-        assert metrics[self.pt_thld] == approx(self.expected, nan_ok=True)
+        assert key_reduction(metrics[self.pt_thld], self.expected) == approx(
+            self.expected, nan_ok=True
+        )
+
+
+def key_reduction(dct, keys):
+    return {k: v for k, v in dct.items() if k in keys}
 
 
 test_cases = [
+    # Test 0
     ClusterMetricTestCase(
         truth=[],
         predicted=[],
@@ -55,6 +65,7 @@ test_cases = [
         lhc=float("nan"),
         double_majority=float("nan"),
     ),
+    # Test 1
     # Nan because of having only noise from DBSCAN
     ClusterMetricTestCase(
         truth=[1, 2],
@@ -65,6 +76,7 @@ test_cases = [
         lhc=float("nan"),
         double_majority=0,
     ),
+    # Test 2
     ClusterMetricTestCase(
         truth=[0],
         predicted=[0],
@@ -75,6 +87,7 @@ test_cases = [
         lhc=float("nan"),
         double_majority=float("nan"),
     ),
+    # Test 3
     ClusterMetricTestCase(
         truth=[0],
         predicted=[1],
@@ -84,6 +97,7 @@ test_cases = [
         lhc=1.0,
         double_majority=1.0,
     ),
+    # Test 4
     ClusterMetricTestCase(
         truth=[0, 0, 0, 0],
         predicted=[1, -1, -1, -1],
@@ -93,6 +107,7 @@ test_cases = [
         lhc=1.0,
         double_majority=0.0,
     ),
+    # Test 5
     ClusterMetricTestCase(
         truth=[0],
         predicted=[0],
@@ -102,6 +117,7 @@ test_cases = [
         lhc=1.0,
         double_majority=1.0,
     ),
+    # Test 6
     ClusterMetricTestCase(
         truth=[0, 1],
         predicted=[1, 0],
@@ -111,6 +127,7 @@ test_cases = [
         lhc=1.0,
         double_majority=1.0,
     ),
+    # Test 7
     ClusterMetricTestCase(
         truth=[0, 0],
         predicted=[1, 0],
@@ -120,6 +137,7 @@ test_cases = [
         lhc=2.0 / 2.0,
         double_majority=0.0,
     ),
+    # Test 8
     ClusterMetricTestCase(
         truth=[1, 0],
         predicted=[0, 0],
@@ -129,6 +147,7 @@ test_cases = [
         lhc=0.0,
         double_majority=0.0,
     ),
+    # Test 9
     ClusterMetricTestCase(
         truth=[0, 0, 0, 0, 1],
         predicted=[0, 0, 0, 0, 0],
@@ -138,6 +157,7 @@ test_cases = [
         lhc=1 / 1,
         double_majority=1 / 2,
     ),
+    # Test 10
     ClusterMetricTestCase(
         truth=[0, 0, 0, 0, 0],
         predicted=[0, 0, 0, 0, 1],
@@ -147,6 +167,7 @@ test_cases = [
         lhc=2 / 2,
         double_majority=1 / 1,
     ),
+    # Test 11
     ClusterMetricTestCase(
         # fmt: off
         truth=[
@@ -172,6 +193,7 @@ test_cases = [
         lhc=4 / 6,
         double_majority=3 / 6,
     ),
+    # Test 12
     # same thing as the last, except with pt thresholds masking some particles
     ClusterMetricTestCase(
         # fmt: off
@@ -196,6 +218,8 @@ test_cases = [
             0, 0, 0, 0, 0, 0,  # (masked)
             1, 1, 1, 1, 1, 1,
             2, 2, 2, 2,
+            # (next line masked: this is a bit random, but 0 is taken as most popular
+            # PID (out of several options) and that has a pt of 0, so it's masked)
             3, 3, 3, 3,
             4, 4,  # (masked)
             5,
@@ -203,11 +227,12 @@ test_cases = [
         # fmt: on
         pt_thld=0.5,
         n_particles=4,
-        n_clusters=4,
+        n_clusters=3,
         perfect=0 / 4,
-        lhc=2 / 4,
+        lhc=2 / 3,
         double_majority=1 / 4,
     ),
+    # Test 13
     # same thing as the last, except with pt thresholds and reconstructability
     # masking some particles
     ClusterMetricTestCase(
@@ -216,7 +241,7 @@ test_cases = [
             0, 0, 0, 0, 0, 0,  # lhc, dm  (pt-masked)
             1, 1, 1, 1, 1, 5,  # lhc, dm (reco-masked)
             0, 1, 1, 2,  # x
-            0, 1, 2, 3,  # x
+            0, 1, 1, 3,  # x
             4, 4,  # perfect, lhc, dm  (pt-masked)
             5  # lhc
         ],
