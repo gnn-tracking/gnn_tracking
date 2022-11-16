@@ -178,12 +178,15 @@ def tracking_metrics(
     return result  # type: ignore
 
 
-def custom_metrics_flattened(*args, **kwargs) -> dict[str, float]:
+def flatten_track_metrics(
+    custom_metrics_result: dict[float, dict[str, float]]
+) -> dict[str, float]:
     """Flatten the result of `custom_metrics` by using pt suffixes to arrive at a
-    flat dictionary, rather than a nested one."""
+    flat dictionary, rather than a nested one.
+    """
     return {
         denote_pt(k, pt): v
-        for pt, results in tracking_metrics(*args, **kwargs).items()
+        for pt, results in custom_metrics_result.items()
         for k, v in results.items()
     }
 
@@ -233,7 +236,9 @@ common_metrics: dict[str, ClusterMetricType] = {
     "v_measure": _sklearn_signature_wrap(metrics.v_measure_score),
     "homogeneity": _sklearn_signature_wrap(metrics.homogeneity_score),
     "completeness": _sklearn_signature_wrap(metrics.completeness_score),
-    "trk": custom_metrics_flattened,
+    "trk": lambda *args, **kwargs: flatten_track_metrics(
+        tracking_metrics(*args, **kwargs)
+    ),
     "adjusted_rand": _sklearn_signature_wrap(metrics.adjusted_rand_score),
     "fowlkes_mallows": _sklearn_signature_wrap(metrics.fowlkes_mallows_score),
     "adjusted_mutual_info": _sklearn_signature_wrap(metrics.adjusted_mutual_info_score),
