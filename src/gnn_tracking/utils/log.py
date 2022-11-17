@@ -7,6 +7,8 @@ import colorlog
 
 LOG_DEFAULT_LEVEL = logging.DEBUG
 
+logging.captureWarnings(True)
+
 
 def get_logger(name="GNNTracking", level=LOG_DEFAULT_LEVEL):
     """Sets up global logger."""

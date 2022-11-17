@@ -3,6 +3,7 @@ from __future__ import annotations
 import collections
 import logging
 import os
+import warnings
 from datetime import datetime
 from pathlib import Path, PurePath
 from typing import Any, Callable, Mapping, Protocol
@@ -145,9 +146,11 @@ class TCNTrainer:
         if lr is None:
             lr = 5e-4
         else:
-            self.logger.warning(
+            warnings.warn(
                 "Passing a learning rate to the trainer is deprecated. "
-                "Please pass an initialized optimizer instead."
+                "Please pass an initialized optimizer instead.",
+                DeprecationWarning,
+                stacklevel=2,
             )
             if optimizers is not None:
                 raise ValueError(
