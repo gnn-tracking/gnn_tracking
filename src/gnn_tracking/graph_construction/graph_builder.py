@@ -349,6 +349,12 @@ class GraphBuilder:
 
     def process(self, start=0, stop=1):
         available_files = os.listdir(self.indir)
+        if stop is not None and stop > len(available_files):
+            # to avoid tracking wrong hyperparameters
+            raise ValueError(
+                f"stop={stop} is larger than the number of files "
+                f"({len(available_files)})"
+            )
         considered_files = available_files[start:stop]
         logger.info(
             "Loading %d graphs (out of %d available).",
@@ -421,6 +427,11 @@ def load_graphs(in_dir: str | os.PathLike, *, start=0, stop=None):
     """
     in_dir = Path(in_dir)
     available_files = list(in_dir.glob("*.pt"))
+    if stop is not None and stop > len(available_files):
+        # to avoid tracking wrong hyperparameters
+        raise ValueError(
+            f"stop={stop} is larger than the number of files ({len(available_files)})"
+        )
     considered_files = available_files[start:stop]
     logger.info(
         "Loading %d graphs (out of %d available).",
