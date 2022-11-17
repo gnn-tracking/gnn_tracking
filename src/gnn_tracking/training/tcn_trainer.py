@@ -59,6 +59,20 @@ class ClusterFctType(Protocol):
         ...
 
 
+class SchedulerType(Protocol):
+    """Type of a scheduler"""
+
+    def step(self, epoch: int) -> None:
+        ...
+
+
+class OptimizerType(Protocol):
+    """Type of a scheduler"""
+
+    def step(self, epoch: int) -> None:
+        ...
+
+
 # The following abbreviations are used throughout the code:
 # W: edge weights
 # B: condensation likelihoods
@@ -74,25 +88,26 @@ class TCNTrainer:
         loss_functions: dict[str, LossFctType],
         *,
         device=None,
-        lr: Any = 5e-4,
-        optimizer: Callable = Adam,
-        lr_scheduler: None | Callable = None,
+        lr: None | float = None,
+        optimizers: list[Callable] | None = None,
+        lr_schedulers: None | list[SchedulerType] = None,
         loss_weights: dict[str, float] | DynamicLossWeights | None = None,
         cluster_functions: dict[str, ClusterFctType] | None = None,
     ):
         """Main trainer class of the condensation network approach.
 
         Args:
-            model:
-            loaders:
+            model: Model to train
+            loaders: Dictionary of data loaders with keys 'train', 'test', 'val'.
             loss_functions: Dictionary of loss functions, keyed by loss name
             device:
-            lr: Learning rate
-            optimizer: Optimizer to use (default: Adam): Function. Will be called with
-                the model parameters as first positional parameter and with the learning
-                rate as keyword argument (``lr``).
-            lr_scheduler: Learning rate scheduler. If it needs parameters, apply
-                ``functools.partial`` first
+            lr: Deprecated. Only here for backwards compatibility when no optimizer
+                is passed.
+            optimizers: Optimizers to use (default: Adam on all model parameters, using
+                the learning rate specified in `lr`).
+                If supplied explicitly, must be initialized with parameters and
+                learning rate. For example ``Adam(model.parameters(), lr=0.01)``.
+            lr_schedulers: Learning rate scheduler instances
             loss_weights: Weight different loss functions.
                 Either `DynamicLossWeights` object or a dictionary of weights keyed by
                 loss name.
@@ -127,8 +142,26 @@ class TCNTrainer:
         else:
             raise ValueError("Invalid value for loss_weights.")
 
-        self.optimizer = optimizer(self.model.parameters(), lr=lr)
-        self._lr_scheduler = lr_scheduler(self.optimizer) if lr_scheduler else None
+        if lr is None:
+            lr = 5e-4
+        else:
+            self.logger.warning(
+                "Passing a learning rate to the trainer is deprecated. "
+                "Please pass an initialized optimizer instead."
+            )
+            if optimizers is not None:
+                raise ValueError(
+                    "Using the deprecated direct pass of a lr while also specifying "
+                    "an optimizer is no longer supported. Please pass an initialized "
+                    "optimizer instead. For example Adam(model.parameters(), lr=1e-3)."
+                )
+        if optimizers is None:
+            optimizers = [Adam(self.model.parameters(), lr=lr)]
+        self.optimizers = optimizers
+
+        if lr_schedulers is None:
+            lr_schedulers = []
+        self._lr_schedulers = lr_schedulers
 
         # Current epoch
         self._epoch = 0
@@ -301,9 +334,11 @@ class TCNTrainer:
             model_output = self.evaluate_model(data)
             batch_loss, batch_losses = self.get_batch_losses(model_output)
 
-            self.optimizer.zero_grad()
+            for optimizer in self.optimizers:
+                optimizer.zero_grad()
             batch_loss.backward()
-            self.optimizer.step()
+            for optimizer in self.optimizers:
+                optimizer.step()
 
             if not (batch_idx % 10):
                 _losses_w = {}
@@ -442,8 +477,8 @@ class TCNTrainer:
             results,
             header=f"Results {self._epoch}: ",
         )
-        if self._lr_scheduler:
-            self._lr_scheduler.step()
+        for sched in self._lr_schedulers:
+            sched.step()
         return results
 
     def train(self, epochs=1000, max_batches: int | None = None):
@@ -483,12 +518,14 @@ class TCNTrainer:
         """Save state of model, optimizer and more for later resuming of training."""
         path = self.get_checkpoint_path(path)
         self.logger.info(f"Saving checkpoint to {path}")
+        dct = {
+            "epoch": self._epoch,
+            "model_state_dict": self.model.state_dict(),
+        }
+        for i, optimizer in enumerate(self.optimizers):
+            dct[f"optimizer{i}_state_dict"] = optimizer.state_dict()
         torch.save(
-            {
-                "epoch": self._epoch,
-                "model_state_dict": self.model.state_dict(),
-                "optimizer_state_dict": self.optimizer.state_dict(),
-            },
+            dct,
             path,
         )
 
@@ -496,5 +533,6 @@ class TCNTrainer:
         """Resume training from checkpoint"""
         checkpoint = torch.load(self.get_checkpoint_path(path), map_location=device)
         self.model.load_state_dict(checkpoint["model_state_dict"])
-        self.optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
+        for i, optimizer in enumerate(self.optimizers):
+            optimizer.load_state_dict(checkpoint[f"optimizer{i}_state_dict"])
         self._epoch = checkpoint["epoch"]
