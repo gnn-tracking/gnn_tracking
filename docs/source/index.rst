@@ -10,6 +10,8 @@ Welcome to gnn_tracking's documentation!
    :maxdepth: 2
    :caption: Contents:
 
+   readme
+
 
 
 Indices and tables
