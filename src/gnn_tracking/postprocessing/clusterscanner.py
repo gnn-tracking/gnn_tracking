@@ -64,7 +64,7 @@ class AbstractClusterHyperParamScanner(ABC):
 class ClusterAlgorithmType(Protocol):
     """Type of a clustering algorithm."""
 
-    def __call__(self, graphs: np.ndarray, *args, **kwargs) -> np.ndarray:
+    def __call__(self, graphs: np.ndarray) -> np.ndarray:
         ...
 
 

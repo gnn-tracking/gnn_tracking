@@ -17,7 +17,7 @@ __all__ = ["DBSCANHyperParamScanner", "dbscan_scan"]
 from gnn_tracking.utils.log import logger
 
 
-def dbscan(graphs: np.ndarray, eps, min_samples) -> np.ndarray:
+def dbscan(graphs: np.ndarray, eps=0.99, min_samples=1) -> np.ndarray:
     return DBSCAN(eps=eps, min_samples=min_samples).fit_predict(graphs)
 
 
