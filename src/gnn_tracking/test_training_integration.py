@@ -9,7 +9,7 @@ from gnn_tracking.metrics.losses import BackgroundLoss, EdgeWeightBCELoss, Poten
 from gnn_tracking.models.track_condensation_networks import GraphTCN
 from gnn_tracking.postprocessing.dbscanscanner import dbscan_scan
 from gnn_tracking.training.dynamiclossweights import NormalizeAt
-from gnn_tracking.training.tcn_trainer import TCNTrainer
+from gnn_tracking.training.tcn_trainer import LossFctType, TCNTrainer
 from gnn_tracking.utils.seeds import fix_seeds
 
 
@@ -33,7 +33,7 @@ def test_train(tmp_path, built_graphs, loss_weights: str) -> None:
     }
 
     q_min, sb = 0.01, 0.1
-    loss_functions = {
+    loss_functions: dict[str, LossFctType] = {
         "edge": EdgeWeightBCELoss(),
         "potential": PotentialLoss(q_min=q_min),
         "background": BackgroundLoss(sb=sb),
