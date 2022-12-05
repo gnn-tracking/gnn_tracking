@@ -414,19 +414,28 @@ class GraphBuilder:
             self.logger.info(self.get_measurements())
 
 
-def load_graphs(in_dir: str | os.PathLike, *, start=0, stop=None):
-    """Load graphs
+def load_graphs(
+    in_dir: str | os.PathLike, *, start=0, stop=None, sector: int | None = None
+) -> list[Data]:
+    """Load graphs.
 
     Args:
-        in_dir:
-        start:
-        stop:
+        in_dir: Directory that contains the graphs
+        start: First graph to load
+        stop: Last graph to load
+        sector: If specified, only files with the given sector are loaded (and
+            ``start``, ``stop`` are accordingly applied to the selection)
 
     Returns:
 
     """
     in_dir = Path(in_dir)
-    available_files = list(in_dir.glob("*.pt"))
+    if sector is None:
+        glob = "*.pt"
+    else:
+        glob = f"*_s{sector}.pt"
+    available_files = list(in_dir.glob(glob))
+
     if stop is not None and stop > len(available_files):
         # to avoid tracking wrong hyperparameters
         raise ValueError(
