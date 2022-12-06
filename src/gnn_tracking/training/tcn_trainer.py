@@ -201,19 +201,23 @@ class TCNTrainer:
         edge_mask = node_mask[data.edge_index[0]] & node_mask[data.edge_index[1]]
         return node_mask, edge_mask
 
-    @staticmethod
-    def _apply_mask(data: Data, node_mask: Tensor, edge_mask: Tensor) -> Data:
+    def _apply_mask(self, data: Data, node_mask: Tensor, edge_mask: Tensor) -> Data:
         """Apply mask to data"""
-        old_edge_indices = np.arange(len(node_mask))[node_mask]
-        new_edge_indices = np.arange(node_mask.sum())
+        # Somehow using tensors will mess up the call with np.vectorize
+        old_edge_indices = np.arange(len(node_mask))[node_mask.cpu()]
+        new_edge_indices = np.arange(node_mask.sum().cpu())
         assert old_edge_indices.shape == new_edge_indices.shape
         edge_index_mapping = np.vectorize(
             dict(zip(old_edge_indices, new_edge_indices)).get
         )
         edge_index = torch.stack(
             [
-                torch.Tensor(edge_index_mapping(data.edge_index[0][edge_mask])),
-                torch.Tensor(edge_index_mapping(data.edge_index[1][edge_mask])),
+                torch.from_numpy(
+                    edge_index_mapping(data.edge_index[0][edge_mask].cpu())
+                ).to(self.device),
+                torch.from_numpy(
+                    edge_index_mapping(data.edge_index[1][edge_mask].cpu())
+                ).to(self.device),
             ]
         ).long()
         return Data(
