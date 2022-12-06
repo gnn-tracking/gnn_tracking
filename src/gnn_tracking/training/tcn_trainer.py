@@ -513,8 +513,9 @@ class TCNTrainer:
                             thld=0.5,
                             val=True,
                             apply_truth_cuts=True,
-                        )
-                    )
+                        ),
+                        "tc_",
+                    ),
                 )
         results = {
             **{f"{k}_train": v for k, v in train_losses.items()},
