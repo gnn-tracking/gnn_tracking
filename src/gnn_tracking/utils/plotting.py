@@ -168,26 +168,47 @@ class PointCloudPlotter:
 
 
 class GraphPlotter:
-    def __init__(self, indir="", n_sectors=64, style="seaborn-paper"):
+    def __init__(
+        self,
+        indir="",
+        n_sectors=64,
+    ):
+        """Plotter for graph data.
+
+        Args:
+            indir: Input directory with graphs (if loading by name)
+            n_sectors:
+        """
         self.indir = indir
-        self.style = style
         self.n_sectors = n_sectors
 
-    def configure_plt(self):
-        plt.style.use(self.style)
+    def configure_plt(self, style="seaborn-paper"):
+        plt.style.use(style)
         rcParams.update({"figure.autolayout": True})
 
     def plot_ep_rz_uv(
         self,
+        *,
         graph: Data,
         sector: int,
-        name: str,
-        savefig=False,
+        name: str = "",
         filename="",
     ):
+        """
+
+        Args:
+            graph:
+            sector:
+            name: If ``graph`` is not specified, load from ``self.indir / name``.
+            filename: If specified, save figure to file
+
+        Returns:
+
+        """
         fig, axs = plt.subplots(nrows=1, ncols=3, dpi=200, figsize=(24, 8))
-        f = join(self.indir, f"{name}.pt")
-        graph = torch.load(f)
+        if graph is None:
+            f = join(self.indir, f"{name}.pt")
+            graph = torch.load(f)
         x, edge_index, y = graph.x, graph.edge_index, graph.y
         phi, eta = x[:, 1], x[:, 3]
         r, z = x[:, 0], x[:, 2]
@@ -238,7 +259,7 @@ class GraphPlotter:
         )
         axs[1].set_title(name)
         plt.tight_layout()
-        if savefig:
+        if filename:
             plt.savefig(filename, dpi=1200, format="pdf")
         plt.show()
 
@@ -248,10 +269,7 @@ class GraphPlotter:
         y,
         edge_index,
         name="",
-        savefig=False,
-        filename="",
         ax=None,
-        sector=-1,
         x1_label="",
         x2_label="",
         single_particle=False,
