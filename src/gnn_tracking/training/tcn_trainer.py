@@ -139,16 +139,16 @@ class TCNTrainer:
         self._epoch = 0
 
         #: Hooks to be called after training epoch (please use `add_hook` to add them)
-        self._train_hooks: list[hook_type] = []
+        self._train_hooks = list[hook_type]()
         #: Hooks to be called after testing (please use `add_hook` to add them)
-        self._test_hooks: list[hook_type] = []
+        self._test_hooks = list[hook_type]()
 
         #: Mapping of cluster function name to best parameter
         self._best_cluster_params: dict[str, dict[str, Any] | None] = {}
 
         # output quantities
-        self.train_loss: list[pd.DataFrame] = []
-        self.test_loss: list[pd.DataFrame] = []
+        self.train_loss = list[pd.DataFrame]()
+        self.test_loss = list[pd.DataFrame]()
 
         #: Number of batches that are being used for the clustering functions and the
         #: evaluation of the related metrics.
