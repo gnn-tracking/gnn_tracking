@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import Sequence
+
 import matplotlib.pyplot as plt
 import numpy as np
 
@@ -71,7 +73,11 @@ def _draw_circles(ax: plt.Axes, xs: np.ndarray, ys: np.ndarray, colors, eps=1) -
 
 
 def plot_selected_pids(
-    x: np.ndarray, pid: np.ndarray, ax: plt.Axes | None = None
+    x: np.ndarray,
+    pid: np.ndarray,
+    selected_pids: Sequence[int] | None = None,
+    *,
+    ax: plt.Axes | None = None,
 ) -> plt.Axes:
     """Draw latent space, highlighting 10 randomly selected PIDs. In addition, shaded
     circles of radius 1 are drawn around each hit for the selected PIDs.
@@ -79,6 +85,7 @@ def plot_selected_pids(
     Args:
         x: Coordinates in latent space. Only the first two coordinates are considered.
         pid:
+        selected_pids: PIDs to highlight. If None, random PIDs are used
         ax:
 
     Returns:
@@ -87,7 +94,11 @@ def plot_selected_pids(
     colors = plt.rcParams["axes.prop_cycle"].by_key()["color"]
     color_mapper = np.vectorize(colors.__getitem__)
     # todo: mark condensation point
-    selected_pids = np.random.choice(pid[pid > 0], 10).astype("int64")
+    if selected_pids is None:
+        selected_pids = np.random.choice(pid[pid > 0], 10).astype("int64")
+    else:
+        if len(selected_pids) > 10:
+            raise ValueError("Only up to 10 PIDs can be specified.")
     # map PIDs to number 0 to #PIDs - 1
     pid_mapper = np.vectorize({p.item(): i for i, p in enumerate(selected_pids)}.get)
     mask = np.isin(pid, selected_pids)
