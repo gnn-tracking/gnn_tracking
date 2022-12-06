@@ -23,6 +23,7 @@ from gnn_tracking.training.dynamiclossweights import (
     DynamicLossWeights,
 )
 from gnn_tracking.utils.device import guess_device
+from gnn_tracking.utils.dictionaries import add_key_suffix
 from gnn_tracking.utils.log import get_logger
 from gnn_tracking.utils.nomenclature import denote_pt
 from gnn_tracking.utils.timing import timing
@@ -81,6 +82,10 @@ class TCNTrainer:
         cluster_functions: dict[str, ClusterFctType] | None = None,
     ):
         """Main trainer class of the condensation network approach.
+
+        Note: Additional (more advanced) settings are goverend by attributes rather
+        than init arguments. Take a look at all attributes that do not start with
+        ``_``.
 
         Args:
             model:
@@ -149,6 +154,11 @@ class TCNTrainer:
         #: evaluation of the related metrics.
         self.max_batches_for_clustering = 10
 
+        #: Truth cut on pt during training
+        self.training_pt_thld = 0.0
+        #: Remove noise hits during training
+        self.training_without_noise = False
+
         #: pT thresholds that are being used in the evaluation of metrics in the test
         #: step
         self.pt_thlds = [0.9, 1.5]
@@ -175,15 +185,64 @@ class TCNTrainer:
         else:
             raise ValueError("Invalid value for called_at")
 
-    def evaluate_model(self, data: Data, mask_pids_reco=True) -> dict[str, Tensor]:
+    def _get_training_mask(self, data: Data) -> tuple[Tensor, Tensor]:
+        """Get mask for hits that are considered in training
+
+        Returns:
+            node mask, edge mask
+        """
+        node_mask = torch.full((len(data.x),), True, dtype=torch.bool)
+        if self.training_pt_thld > 0:
+            node_mask &= data.pt > 0
+        if self.training_without_noise:
+            node_mask &= data.particle_id > 0
+        edge_mask = node_mask[data.edge_index[0]] & node_mask[data.edge_index[1]]
+        return node_mask, edge_mask
+
+    @staticmethod
+    def _apply_mask(data: Data, node_mask: Tensor, edge_mask: Tensor) -> Data:
+        """Apply mask to data"""
+        old_edge_indices = np.arange(len(node_mask))[node_mask]
+        new_edge_indices = np.arange(node_mask.sum())
+        assert old_edge_indices.shape == new_edge_indices.shape
+        edge_index_mapping = np.vectorize(
+            dict(zip(old_edge_indices, new_edge_indices)).get
+        )
+        edge_index = torch.stack(
+            [
+                torch.Tensor(edge_index_mapping(data.edge_index[0][edge_mask])),
+                torch.Tensor(edge_index_mapping(data.edge_index[1][edge_mask])),
+            ]
+        ).long()
+        return Data(
+            x=data.x[node_mask],
+            y=data.y[edge_mask],
+            edge_index=edge_index,
+            edge_attr=data.edge_attr[edge_mask],
+            pt=data.pt[node_mask],
+            particle_id=data.particle_id[node_mask],
+            reconstructable=data.reconstructable[node_mask],
+            sector=data.sector[node_mask],
+        )
+
+    def evaluate_model(
+        self, data: Data, mask_pids_reco=True, apply_truth_cuts=False
+    ) -> dict[str, Tensor]:
         """Evaluate the model on the data and return a dictionary of outputs
 
         Args:
             data:
             mask_pids_reco: If True, mask out PIDs for non-reconstructables
+            apply_truth_cuts: If True, apply pre-configured truth cuts (see
+                `_apply_mask`)
         """
         data = data.to(self.device)
-        out = self.model(data)
+        if apply_truth_cuts:
+            node_mask, edge_mask = self._get_training_mask(data)
+            data = self._apply_mask(data, node_mask, edge_mask)
+            out = self.model(data)
+        else:
+            out = self.model(data)
         if mask_pids_reco:
             pid_field = data.particle_id * data.reconstructable.long()
         else:
@@ -194,10 +253,13 @@ class TCNTrainer:
             "beta": out["B"].squeeze(),
             "y": data.y,
             "particle_id": pid_field,
+            # fixme: One of these is wrong
             "track_params": data.pt,
             "pt": data.pt,
             "reconstructable": data.reconstructable.long(),
             "pred": out["P"],
+            "edge_index": data.edge_index,
+            "sector": data.sector,
         }
         return dct
 
@@ -298,7 +360,7 @@ class TCNTrainer:
             data = data.to(self.device)
             if max_batches and batch_idx > max_batches:
                 break
-            model_output = self.evaluate_model(data)
+            model_output = self.evaluate_model(data, apply_truth_cuts=True)
             batch_loss, batch_losses = self.get_batch_losses(model_output)
 
             self.optimizer.zero_grad()
@@ -338,12 +400,14 @@ class TCNTrainer:
         pt_b = pt[edge_index[1]]
         return (pt_a > pt_min) | (pt_b > pt_min)
 
-    def test_step(self, thld=0.5, val=True) -> dict[str, float]:
+    def test_step(self, thld=0.5, val=True, apply_truth_cuts=False) -> dict[str, float]:
         """Test the model on the validation or test set
 
         Args:
             thld: Threshold for edge classification
             val: Use validation dataset rather than test dataset
+            apply_truth_cuts: Apply truth cuts (e.g., truth level pt cut) during
+                the evaluation
 
         Returns:
             Dictionary of metrics
@@ -362,13 +426,15 @@ class TCNTrainer:
             loader = self.val_loader if val else self.test_loader
             for _batch_idx, data in enumerate(loader):
                 data = data.to(self.device)
-                model_output = self.evaluate_model(data, mask_pids_reco=False)
+                model_output = self.evaluate_model(
+                    data, mask_pids_reco=False, apply_truth_cuts=apply_truth_cuts
+                )
                 batch_loss, these_batch_losses = self.get_batch_losses(model_output)
 
                 if model_output["w"] is not None:
                     for pt_min in self.pt_thlds:
                         edge_pt_mask = self._edge_pt_mask(
-                            data.edge_index, data.pt, pt_min
+                            model_output["edge_index"], model_output["pt"], pt_min
                         )
                         bcs = BinaryClassificationStats(
                             output=model_output["w"][edge_pt_mask],
@@ -391,7 +457,7 @@ class TCNTrainer:
                 ):
                     graphs.append(model_output["x"].detach().cpu().numpy())
                     truths.append(model_output["particle_id"].detach().cpu().numpy())
-                    sectors.append(data.sector.detach().cpu().numpy())
+                    sectors.append(model_output["sector"].detach().cpu().numpy())
                     pts.append(model_output["pt"].detach().cpu().numpy())
                     reconstructable.append(
                         model_output["reconstructable"].detach().cpu().numpy()
@@ -434,6 +500,16 @@ class TCNTrainer:
             train_losses = self.train_step(max_batches=max_batches)
         with timing(f"Test step for epoch {self._epoch}"):
             test_results = self.test_step(thld=0.5, val=True)
+            if self.training_pt_thld > 0 or self.training_without_noise:
+                test_results.update(
+                    add_key_suffix(
+                        self.test_step(
+                            thld=0.5,
+                            val=True,
+                            apply_truth_cuts=True,
+                        )
+                    )
+                )
         results = {
             **{f"{k}_train": v for k, v in train_losses.items()},
             **test_results,
