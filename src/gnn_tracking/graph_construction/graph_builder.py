@@ -29,6 +29,21 @@ class GraphBuilder:
         write_output=True,
         log_level=0,
     ):
+        """Build graphs out of the input data.
+
+        Args:
+            indir:
+            outdir:
+            pixel_only: Only consider pixel detector
+            redo:
+            phi_slope_max:
+            z0_max:
+            dR_max:
+            directed:
+            measurement_mode:
+            write_output:
+            log_level:
+        """
         self.indir = indir
         os.makedirs(outdir, exist_ok=True)
         self.outdir = outdir
@@ -37,7 +52,9 @@ class GraphBuilder:
         self.phi_slope_max = phi_slope_max
         self.z0_max = z0_max
         self.dR_max = dR_max
+        #: Name/meaning of the node features
         self.feature_names = ["r", "phi", "z", "eta_rz", "u", "v"]
+        #: Scaling of node features
         self.feature_scale = np.array(
             [1000.0, np.pi, 1000.0, 1, 1 / 1000.0, 1 / 1000.0]
         )
