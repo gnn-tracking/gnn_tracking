@@ -191,7 +191,9 @@ class TCNTrainer:
         Returns:
             node mask, edge mask
         """
-        node_mask = torch.full((len(data.x),), True, dtype=torch.bool)
+        node_mask = torch.full(
+            (len(data.x),), True, dtype=torch.bool, device=self.device
+        )
         if self.training_pt_thld > 0:
             node_mask &= data.pt > 0
         if self.training_without_noise:
