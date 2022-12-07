@@ -266,6 +266,7 @@ class TCNTrainer:
             "pred": out["P"],
             "edge_index": data.edge_index,
             "sector": data.sector,
+            "node_features": data.x,
         }
         return dct
 
