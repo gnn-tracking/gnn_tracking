@@ -142,6 +142,8 @@ class TCNTrainer:
         self._train_hooks = list[hook_type]()
         #: Hooks to be called after testing (please use `add_hook` to add them)
         self._test_hooks = list[hook_type]()
+        #: Hooks called after processing a batch (please use `add_hook` to add them)
+        self._batch_hooks = list[hook_type]()
 
         #: Mapping of cluster function name to best parameter
         self._best_cluster_params: dict[str, dict[str, Any] | None] = {}
@@ -182,6 +184,8 @@ class TCNTrainer:
             self._train_hooks.append(hook)
         elif called_at == "test":
             self._test_hooks.append(hook)
+        elif called_at == "batch":
+            self._batch_hooks.append(hook)
         else:
             raise ValueError("Invalid value for called_at")
 
@@ -368,6 +372,9 @@ class TCNTrainer:
             if max_batches and batch_idx > max_batches:
                 break
             model_output = self.evaluate_model(data, apply_truth_cuts=True)
+            for hook in self._batch_hooks:
+                hook(self, model_output)
+
             batch_loss, batch_losses = self.get_batch_losses(model_output)
 
             self.optimizer.zero_grad()
