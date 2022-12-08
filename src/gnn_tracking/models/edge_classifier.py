@@ -55,6 +55,8 @@ class ECForGraphTCN(nn.Module):
         *,
         node_indim: int,
         edge_indim: int,
+        interaction_node_hidden_dim=5,
+        interaction_edge_hidden_dim=4,
         h_dim=5,
         e_dim=4,
         hidden_dim=40,
@@ -67,6 +69,12 @@ class ECForGraphTCN(nn.Module):
         Args:
             node_indim: Node feature dim
             edge_indim: Edge feature dim
+            interaction_node_hidden_dim: Hidden dimension of interaction networks.
+                Defaults to 5 for backward compatibility, but this is probably
+                not reasonable.
+            interaction_edge_hidden_dim: Hidden dimension of interaction networks
+                Defaults to 4 for backward compatibility, but this is probably
+                not reasonable.
             h_dim: node dimension in latent space
             e_dim: edge dimension in latent space
             hidden_dim: width of hidden layers in all perceptrons
@@ -88,8 +96,8 @@ class ECForGraphTCN(nn.Module):
             edge_indim=e_dim,
             node_outdim=h_dim,
             edge_outdim=e_dim,
-            node_hidden_dim=h_dim,
-            edge_hidden_dim=e_dim,
+            node_hidden_dim=interaction_node_hidden_dim,
+            edge_hidden_dim=interaction_edge_hidden_dim,
             object_hidden_dim=hidden_dim,
             relational_hidden_dim=hidden_dim,
             alpha=alpha_ec,

@@ -224,6 +224,8 @@ class GraphTCN(nn.Module):
         e_dim=4,
         h_outdim=2,
         hidden_dim=40,
+        interaction_node_hidden_dim=5,
+        interaction_edge_hidden_dim=4,
         L_ec=3,
         L_hc=3,
         alpha_ec: float = 0.5,
@@ -241,6 +243,12 @@ class GraphTCN(nn.Module):
             e_dim: edge dimension in latent space
             h_outdim: output dimension in clustering space
             hidden_dim: width of hidden layers in all perceptrons
+            interaction_node_hidden_dim: Hidden dimension of interaction networks.
+                Defaults to 5 for backward compatibility, but this is probably
+                not reasonable.
+            interaction_edge_hidden_dim: Hidden dimension of interaction networks
+                Defaults to 4 for backward compatibility, but this is probably
+                not reasonable.
             L_ec: message passing depth for edge classifier
             L_hc: message passing depth for track condenser
             alpha_ec: strength of residual connection for multi-layer interaction
@@ -256,14 +264,16 @@ class GraphTCN(nn.Module):
             h_dim=h_dim,
             e_dim=e_dim,
             hidden_dim=hidden_dim,
+            interaction_node_hidden_dim=interaction_node_hidden_dim,
+            interaction_edge_hidden_dim=interaction_edge_hidden_dim,
             L_ec=L_ec,
             alpha_ec=alpha_ec,
         )
         hc_in = ResIN.identical_in_layers(
             node_indim=h_dim,
             edge_indim=e_dim,
-            node_hidden_dim=h_dim,
-            edge_hidden_dim=e_dim,
+            node_hidden_dim=interaction_node_hidden_dim,
+            edge_hidden_dim=interaction_edge_hidden_dim,
             node_outdim=h_dim,
             edge_outdim=e_dim,
             object_hidden_dim=hidden_dim,
@@ -314,12 +324,8 @@ class PerfectECGraphTCN(nn.Module):
         Args:
             node_indim: Node feature dim. Determined by input data.
             edge_indim: Edge feature dim. Determined by input data.
-            interaction_node_hidden_dim: Hidden dimension of interaction networks.
-                Defaults to 5 for backward compatibility, but this is probably
-                not reasonable.
-            interaction_edge_hidden_dim: Hidden dimension of interaction networks
-                Defaults to 4 for backward compatibility, but this is probably
-                not reasonable.
+            interaction_node_hidden_dim: See `GraphTCN`
+            interaction_edge_hidden_dim: See `GraphTCN`
             h_dim: node dimension after encoding
             e_dim: edge dimension after encoding
             h_outdim: output dimension in clustering space
