@@ -4,12 +4,14 @@ from torch import Tensor, nn
 from torch.nn.functional import relu
 
 from gnn_tracking.models.interaction_network import InteractionNetwork
+from gnn_tracking.models.mlp import MLP
 
 
 class ResIN(nn.Module):
     def __init__(self, layers: list[nn.Module], alpha: float = 0.5):
-        """Apply a list of layers in sequence. Built for interaction networks, but any
-        network that returns a node feature tensor and an edge feature tensor should
+        """Apply a list of layers in sequence with residual connections for the nodes.
+        Built for interaction networks, but any network that returns a node feature
+        tensor and an edge feature tensor should
         work.
 
         Note that a ReLu activation function is applied to the node result of the
@@ -22,6 +24,10 @@ class ResIN(nn.Module):
         super().__init__()
         self.layers = nn.ModuleList(layers)
         self.alpha = alpha
+        #: Because of the residual connections, we need map the output of the previous
+        #: layer to the dimension of the next layer (if they are different). This
+        #: can be done with these encoders.
+        self.residue_encoders: list[nn.Module | None] = [None for _ in layers]
 
     @classmethod
     def identical_in_layers(
@@ -40,6 +46,9 @@ class ResIN(nn.Module):
     ) -> ResIN:
         """Create a ResIN with identical layers of interaction networks except for
         the first and last one (different dimensions)
+
+        If the input/hidden/output dimensions for the nodes are not the same, MLPs are
+        used to map the previous output for the residual connection.
 
         Args:
             node_indim: Node feature dimension
@@ -61,6 +70,16 @@ class ResIN(nn.Module):
             node_hidden_dim=object_hidden_dim,
             edge_hidden_dim=relational_hidden_dim,
         )
+        if node_indim != node_hidden_dim:
+            first_encoder = MLP(
+                input_size=node_indim,
+                output_size=node_hidden_dim,
+                hidden_dim=node_hidden_dim,
+                L=2,
+                include_last_activation=True,
+            )
+        else:
+            first_encoder = None
         hidden_layers = [
             InteractionNetwork(
                 node_indim=node_hidden_dim,
@@ -72,6 +91,7 @@ class ResIN(nn.Module):
             )
             for _ in range(n_layers - 2)
         ]
+        hidden_encoders = [None for _ in hidden_layers]
         last_layer = InteractionNetwork(
             node_indim=node_hidden_dim,
             edge_indim=edge_hidden_dim,
@@ -80,9 +100,22 @@ class ResIN(nn.Module):
             node_hidden_dim=object_hidden_dim,
             edge_hidden_dim=relational_hidden_dim,
         )
+        if node_hidden_dim != node_outdim:
+            last_encoder = MLP(
+                input_size=node_hidden_dim,
+                output_size=node_outdim,
+                hidden_dim=node_outdim,
+                L=2,
+                include_last_activation=True,
+            )
+        else:
+            last_encoder = None
         layers = [first_layer, *hidden_layers, last_layer]
-        assert len(layers) == n_layers
-        return cls(layers, alpha)
+        encoders = [first_encoder, *hidden_encoders, last_encoder]
+        assert len(layers) == n_layers == len(encoders)
+        mod = cls(layers, alpha)
+        mod.residue_encoders = encoders
+        return mod
 
     def forward(
         self, h, edge_index, edge_attr
@@ -100,9 +133,13 @@ class ResIN(nn.Module):
         """
         edge_attrs = [edge_attr]
         hs = [h]
-        for layer in self.layers:
+        for layer, re in zip(self.layers, self.residue_encoders):
             delta_h, edge_attr = layer(h, edge_index, edge_attr)
-            h = self.alpha * h + (1 - self.alpha) * relu(delta_h)
+            if re is None:
+                h_ec = h
+            else:
+                h_ec = re(h)
+            h = self.alpha * h_ec + (1 - self.alpha) * relu(delta_h)
             hs.append(h)
             edge_attrs.append(edge_attr)
         return h, hs, edge_attrs

@@ -4,10 +4,17 @@ import torch.nn as nn
 
 
 class MLP(nn.Module):
-    def __init__(self, input_size, output_size, hidden_dim, L=3, bias=True):
+    def __init__(
+        self,
+        input_size,
+        output_size,
+        hidden_dim,
+        L=3,
+        *,
+        bias=True,
+        include_last_activation=False,
+    ):
         """Multi Layer Perceptron, using ReLu as activation function.
-
-        Note that no activation function is applied to the output of the last layer.
 
         Args:
             input_size: Input feature dimension
@@ -16,6 +23,7 @@ class MLP(nn.Module):
             L: Total number of layers (1 initial layer, L-2 hidden layers, 1 output
                 layer)
             bias: Include bias in linear layer?
+            include_last_activation: Include activation function for the last layer?
         """
         super().__init__()
         layers = [nn.Linear(input_size, hidden_dim, bias=bias)]
@@ -24,6 +32,8 @@ class MLP(nn.Module):
             layers.append(nn.Linear(hidden_dim, hidden_dim, bias=bias))
         layers.append(nn.ReLU())
         layers.append(nn.Linear(hidden_dim, output_size, bias=bias))
+        if include_last_activation:
+            layers.append(nn.ReLU())
         self.layers = nn.ModuleList(layers)
 
     def reset_parameters(self):
