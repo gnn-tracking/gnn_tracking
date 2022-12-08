@@ -124,7 +124,7 @@ class PerfectEdgeClassification(nn.Module):
             tnr: False positive rate
             false_below_pt: If not 0.0, all true edges between hits corresponding to
                 particles with a pt lower than this threshold are set to false.
-                This is not counted towards the TPR/TNR.
+                This is not counted towards the TPR/TNR but applied afterwards.
         """
         super().__init__()
         assert 0.0 <= tpr <= 1.0
