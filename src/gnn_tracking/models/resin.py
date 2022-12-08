@@ -26,18 +26,62 @@ class ResIN(nn.Module):
     @classmethod
     def identical_in_layers(
         cls,
+        *,
+        node_indim: int,
+        edge_indim: int,
+        hidden_node_dim: int,
+        hidden_edge_dim: int,
+        node_outdim=3,
+        edge_outdim=4,
+        object_hidden_dim=40,
+        relational_hidden_dim=40,
         alpha: float = 0.5,
         n_layers=1,
-        **kwargs,
     ) -> ResIN:
-        """Create a ResIN with identical layers of interaction networks
+        """Create a ResIN with identical layers of interaction networks except for
+        the first and last one (different dimensions)
 
         Args:
+            node_indim: Node feature dimension
+            edge_indim: Edge feature dimension
+            hidden_node_dim: Node feature dimension for the hidden layers
+            hidden_edge_dim: Edge feature dimension for the hidden layers
+            node_outdim: Output node feature dimension
+            edge_outdim: Output edge feature dimension
+            object_hidden_dim: Hidden dimension for the object model MLP
+            relational_hidden_dim: Hidden dimension for the relational model MLP
             alpha: Strength of the residual connection
-            n_layers: Number of layers
-            **kwargs: Keyword arguments to pass to the interaction network layers
+            n_layers: Total number of layers
         """
-        layers = [InteractionNetwork(**kwargs) for _ in range(n_layers)]
+        first_layer = InteractionNetwork(
+            node_indim=node_indim,
+            edge_indim=edge_indim,
+            node_outdim=hidden_node_dim,
+            edge_outdim=hidden_edge_dim,
+            node_hidden_dim=object_hidden_dim,
+            edge_hidden_dim=relational_hidden_dim,
+        )
+        hidden_layers = [
+            InteractionNetwork(
+                node_indim=hidden_node_dim,
+                edge_indim=hidden_edge_dim,
+                node_outdim=hidden_node_dim,
+                edge_outdim=hidden_edge_dim,
+                node_hidden_dim=object_hidden_dim,
+                edge_hidden_dim=relational_hidden_dim,
+            )
+            for _ in range(n_layers - 2)
+        ]
+        last_layer = InteractionNetwork(
+            node_indim=hidden_node_dim,
+            edge_indim=hidden_edge_dim,
+            node_outdim=node_outdim,
+            edge_outdim=edge_outdim,
+            node_hidden_dim=object_hidden_dim,
+            edge_hidden_dim=relational_hidden_dim,
+        )
+        layers = [first_layer, *hidden_layers, last_layer]
+        assert len(layers) == n_layers
         return cls(layers, alpha)
 
     def forward(

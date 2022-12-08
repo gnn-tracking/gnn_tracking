@@ -130,12 +130,12 @@ class ModularGraphTCN(nn.Module):
         with initial step of edge classification.
 
         Args:
-            ec: Edge encoder
+            ec: Edge classifier
             hc_in: Track condensor interaction network
             node_indim: Node feature dimension
             edge_indim: Edge feature dimension
-            h_dim: node dimension in latent space
-            e_dim: edge dimension in latent space
+            h_dim: node dimension after encoding with the initial MLP
+            e_dim: edge dimension after encoding with the initial MLP
             h_outdim: output dimension in clustering space
             hidden_dim: width of hidden layers in all perceptrons
             L_hc: message passing depth for track condenser
@@ -240,8 +240,10 @@ class GraphTCN(nn.Module):
             hidden_dim: width of hidden layers in all perceptrons
             L_ec: message passing depth for edge classifier
             L_hc: message passing depth for track condenser
-            alpha_ec: strength of residual connection for EC
-            alpha_hc: strength of residual connection for HC
+            alpha_ec: strength of residual connection for multi-layer interaction
+                networks in edge classifier
+            alpha_hc: strength of residual connection for multi-layer interaction
+                networks in track condenser
             feed_edge_weights: whether to feed edge weights to the track condenser
         """
         super().__init__()
@@ -257,10 +259,12 @@ class GraphTCN(nn.Module):
         hc_in = ResIN.identical_in_layers(
             node_indim=h_dim,
             edge_indim=e_dim,
+            hidden_node_dim=h_dim,
+            hidden_edge_dim=e_dim,
             node_outdim=h_dim,
             edge_outdim=e_dim,
-            node_hidden_dim=hidden_dim,
-            edge_hidden_dim=hidden_dim,
+            object_hidden_dim=hidden_dim,
+            relational_hidden_dim=hidden_dim,
             alpha=alpha_hc,
             n_layers=L_hc,
         )
@@ -305,14 +309,15 @@ class PerfectECGraphTCN(nn.Module):
         Args:
             node_indim: Node feature dim
             edge_indim: Edge feature dim
-            h_dim: node dimension in latent space
-            e_dim: edge dimension in latent space
+            h_dim: node dimension after encoding
+            e_dim: edge dimension after encoding
             h_outdim: output dimension in clustering space
-            hidden_dim: width of hidden layers in all perceptrons
+            hidden_dim: dimension of hidden layers in all MLPs used in the interaction
+                networks
             L_ec: message passing depth for edge classifier
             L_hc: message passing depth for track condenser
-            alpha_ec: strength of residual connection for EC
-            alpha_hc: strength of residual connection for HC
+            alpha_hc: strength of residual connection for multi-layer interaction
+                networks
             ec_tpr: true positive rate of the perfect edge classifier
             ec_tnr: true negative rate of the perfect edge classifier
         """
@@ -321,10 +326,12 @@ class PerfectECGraphTCN(nn.Module):
         hc_in = ResIN.identical_in_layers(
             node_indim=h_dim,
             edge_indim=e_dim,
+            hidden_node_dim=h_dim,
+            hidden_edge_dim=e_dim,
             node_outdim=h_dim,
             edge_outdim=e_dim,
-            node_hidden_dim=hidden_dim,
-            edge_hidden_dim=hidden_dim,
+            object_hidden_dim=hidden_dim,
+            relational_hidden_dim=hidden_dim,
             alpha=alpha_hc,
             n_layers=L_hc,
         )
