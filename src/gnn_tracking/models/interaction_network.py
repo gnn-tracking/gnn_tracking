@@ -7,7 +7,6 @@ from torch_geometric.nn import MessagePassing
 from gnn_tracking.models.mlp import MLP
 
 
-# fixme: Missing abstract methods!
 class InteractionNetwork(MessagePassing):
     def __init__(
         self,
@@ -19,6 +18,18 @@ class InteractionNetwork(MessagePassing):
         edge_hidden_dim=40,
         aggr="add",
     ):
+        """Interaction Network, consisting of a relational model and an object model,
+        both represented as MLPs.
+
+        Args:
+            node_indim: Node feature dimension
+            edge_indim: Edge feature dimension
+            node_outdim: Output node feature dimension
+            edge_outdim: Output edge feature dimension
+            node_hidden_dim: Hidden dimension for the object model MLP
+            edge_hidden_dim: Hidden dimension for the relational model MLP
+            aggr: How to aggregate the messages
+        """
         super().__init__(aggr=aggr, flow="source_to_target")
         self.relational_model = MLP(
             2 * node_indim + edge_indim,
@@ -44,5 +55,7 @@ class InteractionNetwork(MessagePassing):
         return self.E_tilde
 
     def update(self, aggr_out, x):
+        # aggr_output: Output of aggregating all messages
+        # x: Input node features
         c = torch.cat([x, aggr_out], dim=1)
         return self.object_model(c)

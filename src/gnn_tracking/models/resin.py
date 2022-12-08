@@ -3,7 +3,7 @@ from __future__ import annotations
 from torch import Tensor, nn
 from torch.nn.functional import relu
 
-from gnn_tracking.models.interaction_network import InteractionNetwork as IN
+from gnn_tracking.models.interaction_network import InteractionNetwork
 
 
 class ResIN(nn.Module):
@@ -37,7 +37,7 @@ class ResIN(nn.Module):
             n_layers: Number of layers
             **kwargs: Keyword arguments to pass to the interaction network layers
         """
-        layers = [IN(**kwargs) for _ in range(n_layers)]
+        layers = [InteractionNetwork(**kwargs) for _ in range(n_layers)]
         return cls(layers, alpha)
 
     def forward(
