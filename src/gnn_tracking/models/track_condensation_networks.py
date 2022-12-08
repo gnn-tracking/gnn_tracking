@@ -219,6 +219,7 @@ class GraphTCN(nn.Module):
         self,
         node_indim: int,
         edge_indim: int,
+        *,
         h_dim=5,
         e_dim=4,
         h_outdim=2,
