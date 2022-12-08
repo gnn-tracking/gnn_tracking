@@ -1,3 +1,5 @@
+"""This module holds the main training models for GNN tracking."""
+
 from __future__ import annotations
 
 import torch
@@ -70,7 +72,7 @@ class PointCloudTCN(nn.Module):
         N_blocks=3,
         L=3,
     ):
-        """
+        """Model to directly process point clouds rather than start with a graph.
 
         Args:
             node_indim:
@@ -294,6 +296,8 @@ class PerfectECGraphTCN(nn.Module):
         *,
         node_indim: int,
         edge_indim: int,
+        interaction_node_hidden_dim=5,
+        interaction_edge_hidden_dim=4,
         h_dim=5,
         e_dim=4,
         h_outdim=2,
@@ -303,12 +307,18 @@ class PerfectECGraphTCN(nn.Module):
         ec_tpr=1.0,
         ec_tnr=1.0,
     ):
-        """Identical to `GraphTCN` but with a "perfect" (i.e., truth based) edge
+        """Similar to `GraphTCN` but with a "perfect" (i.e., truth based) edge
         classifier.
 
         Args:
-            node_indim: Node feature dim
-            edge_indim: Edge feature dim
+            node_indim: Node feature dim. Determined by input data.
+            edge_indim: Edge feature dim. Determined by input data.
+            interaction_node_hidden_dim: Hidden dimension of interaction networks.
+                Defaults to 5 for backward compatibility, but this is probably
+                not reasonable.
+            interaction_edge_hidden_dim: Hidden dimension of interaction networks
+                Defaults to 4 for backward compatibility, but this is probably
+                not reasonable.
             h_dim: node dimension after encoding
             e_dim: edge dimension after encoding
             h_outdim: output dimension in clustering space
@@ -325,8 +335,8 @@ class PerfectECGraphTCN(nn.Module):
         hc_in = ResIN.identical_in_layers(
             node_indim=h_dim,
             edge_indim=e_dim,
-            node_hidden_dim=h_dim,
-            edge_hidden_dim=e_dim,
+            node_hidden_dim=interaction_node_hidden_dim,
+            edge_hidden_dim=interaction_edge_hidden_dim,
             node_outdim=h_dim,
             edge_outdim=e_dim,
             object_hidden_dim=hidden_dim,
