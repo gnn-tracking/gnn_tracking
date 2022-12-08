@@ -259,8 +259,8 @@ class GraphTCN(nn.Module):
         hc_in = ResIN.identical_in_layers(
             node_indim=h_dim,
             edge_indim=e_dim,
-            hidden_node_dim=h_dim,
-            hidden_edge_dim=e_dim,
+            node_hidden_dim=h_dim,
+            edge_hidden_dim=e_dim,
             node_outdim=h_dim,
             edge_outdim=e_dim,
             object_hidden_dim=hidden_dim,
@@ -314,7 +314,6 @@ class PerfectECGraphTCN(nn.Module):
             h_outdim: output dimension in clustering space
             hidden_dim: dimension of hidden layers in all MLPs used in the interaction
                 networks
-            L_ec: message passing depth for edge classifier
             L_hc: message passing depth for track condenser
             alpha_hc: strength of residual connection for multi-layer interaction
                 networks
@@ -326,8 +325,8 @@ class PerfectECGraphTCN(nn.Module):
         hc_in = ResIN.identical_in_layers(
             node_indim=h_dim,
             edge_indim=e_dim,
-            hidden_node_dim=h_dim,
-            hidden_edge_dim=e_dim,
+            node_hidden_dim=h_dim,
+            edge_hidden_dim=e_dim,
             node_outdim=h_dim,
             edge_outdim=e_dim,
             object_hidden_dim=hidden_dim,
