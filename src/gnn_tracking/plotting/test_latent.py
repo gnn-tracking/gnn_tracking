@@ -12,21 +12,21 @@ from gnn_tracking.plotting.latent import (
 
 
 @dataclasses.dataclass
-class TestData:
+class _TestData:
     x: np.ndarray
     pid: np.ndarray
 
 
-test_data = TestData(x=np.random.rand(100, 3), pid=np.random.randint(0, 10, 100))
+_test_data = _TestData(x=np.random.rand(100, 3), pid=np.random.randint(0, 10, 100))
 
 
 def test_draw_coordinates_flat():
-    plot_coordinates_flat(test_data.x)
+    plot_coordinates_flat(_test_data.x)
 
 
 def test_draw_coordinates_3d():
-    plot_coordinates_3d(test_data.x, test_data.pid)
+    plot_coordinates_3d(_test_data.x, _test_data.pid)
 
 
 def test_draw_selected_pids():
-    plot_selected_pids(test_data.x, test_data.pid)
+    plot_selected_pids(_test_data.x, _test_data.pid)
