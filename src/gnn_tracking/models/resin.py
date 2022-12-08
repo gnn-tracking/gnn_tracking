@@ -29,8 +29,8 @@ class ResIN(nn.Module):
         *,
         node_indim: int,
         edge_indim: int,
-        hidden_node_dim: int,
-        hidden_edge_dim: int,
+        node_hidden_dim: int,
+        edge_hidden_dim: int,
         node_outdim=3,
         edge_outdim=4,
         object_hidden_dim=40,
@@ -44,8 +44,8 @@ class ResIN(nn.Module):
         Args:
             node_indim: Node feature dimension
             edge_indim: Edge feature dimension
-            hidden_node_dim: Node feature dimension for the hidden layers
-            hidden_edge_dim: Edge feature dimension for the hidden layers
+            node_hidden_dim: Node feature dimension for the hidden layers
+            edge_hidden_dim: Edge feature dimension for the hidden layers
             node_outdim: Output node feature dimension
             edge_outdim: Output edge feature dimension
             object_hidden_dim: Hidden dimension for the object model MLP
@@ -56,25 +56,25 @@ class ResIN(nn.Module):
         first_layer = InteractionNetwork(
             node_indim=node_indim,
             edge_indim=edge_indim,
-            node_outdim=hidden_node_dim,
-            edge_outdim=hidden_edge_dim,
+            node_outdim=node_hidden_dim,
+            edge_outdim=edge_hidden_dim,
             node_hidden_dim=object_hidden_dim,
             edge_hidden_dim=relational_hidden_dim,
         )
         hidden_layers = [
             InteractionNetwork(
-                node_indim=hidden_node_dim,
-                edge_indim=hidden_edge_dim,
-                node_outdim=hidden_node_dim,
-                edge_outdim=hidden_edge_dim,
+                node_indim=node_hidden_dim,
+                edge_indim=edge_hidden_dim,
+                node_outdim=node_hidden_dim,
+                edge_outdim=edge_hidden_dim,
                 node_hidden_dim=object_hidden_dim,
                 edge_hidden_dim=relational_hidden_dim,
             )
             for _ in range(n_layers - 2)
         ]
         last_layer = InteractionNetwork(
-            node_indim=hidden_node_dim,
-            edge_indim=hidden_edge_dim,
+            node_indim=node_hidden_dim,
+            edge_indim=edge_hidden_dim,
             node_outdim=node_outdim,
             edge_outdim=edge_outdim,
             node_hidden_dim=object_hidden_dim,
