@@ -167,6 +167,9 @@ class TCNTrainer:
         #: step
         self.pt_thlds = [0.9, 1.5]
 
+        #: Do not run test step after training epoch
+        self.skip_test_during_training = False
+
     def add_hook(
         self, hook: train_hook_type | test_hook_type | batch_hook_type, called_at: str
     ) -> None:
@@ -516,19 +519,20 @@ class TCNTrainer:
         self._epoch += 1
         with timing(f"Training for epoch {self._epoch}"):
             train_losses = self.train_step(max_batches=max_batches)
-        with timing(f"Test step for epoch {self._epoch}"):
-            test_results = self.test_step(thld=0.5, val=True)
-            if self.training_pt_thld > 0 or self.training_without_noise:
-                test_results.update(
-                    add_key_suffix(
-                        self.test_step(
-                            thld=0.5,
-                            val=True,
-                            apply_truth_cuts=True,
+        if not self.skip_test_during_training:
+            with timing(f"Test step for epoch {self._epoch}"):
+                test_results = self.test_step(thld=0.5, val=True)
+                if self.training_pt_thld > 0 or self.training_without_noise:
+                    test_results.update(
+                        add_key_suffix(
+                            self.test_step(
+                                thld=0.5,
+                                val=True,
+                                apply_truth_cuts=True,
+                            ),
+                            "tc_",
                         ),
-                        "tc_",
-                    ),
-                )
+                    )
         results = {
             **{f"{k}_train": v for k, v in train_losses.items()},
             **test_results,
