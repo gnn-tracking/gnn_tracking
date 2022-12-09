@@ -533,6 +533,8 @@ class TCNTrainer:
                             "tc_",
                         ),
                     )
+        else:
+            test_results = {}
         results = {
             **{f"{k}_train": v for k, v in train_losses.items()},
             **test_results,
