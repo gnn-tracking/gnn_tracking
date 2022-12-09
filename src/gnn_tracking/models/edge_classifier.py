@@ -146,12 +146,12 @@ class PerfectEdgeClassification(nn.Module):
     def forward(self, data: Data) -> Tensor:
         r = data.y.bool()
         if not np.isclose(self.tpr, 1.0):
-            true_mask = r.clone()
-            rand = torch.rand(int(true_mask.sum()))
+            true_mask = r.detach().clone()
+            rand = torch.rand(int(true_mask.sum()), device=r.device)
             r[true_mask] = rand <= self.tpr
         if not np.isclose(self.tnr, 1.0):
-            false_mask = (~r).clone()
-            rand = torch.rand(int(false_mask.sum()))
+            false_mask = (~r).detach().clone()
+            rand = torch.rand(int(false_mask.sum()), device=r.device)
             r[false_mask] = ~(rand <= self.tnr)
         if self.false_below_pt > 0.0:
             false_mask = data.pt < self.false_below_pt
