@@ -53,6 +53,11 @@ repos:
     hooks:
       - id: nbstripout
         args: ["--extra-keys", "cell.metadata.pycharm"]
+  - repo: https://github.com/hadialqattan/pycln
+    rev: v2.1.2
+    hooks:
+      - id: pycln
+        args: [--config=pyproject.toml]
 
 ci:
   autoupdate_schedule: monthly

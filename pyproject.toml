@@ -2,3 +2,6 @@
 minversion = "6.0"
 addopts = ["--cov=gnn_tracking", "-ra", "--strict-markers", "--strict-config"]
 xfail_strict = true
+
+[tool.pycln]
+all = true
