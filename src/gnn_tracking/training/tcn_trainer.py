@@ -162,6 +162,8 @@ class TCNTrainer:
         self.training_pt_thld = 0.0
         #: Remove noise hits during training
         self.training_without_noise = False
+        #: Remove hits that are not reconstructable during training
+        self.training_without_non_reconstructable = False
 
         #: pT thresholds that are being used in the evaluation of metrics in the test
         #: step
@@ -209,6 +211,8 @@ class TCNTrainer:
             node_mask &= data.pt > self.training_pt_thld
         if self.training_without_noise:
             node_mask &= data.particle_id > 0
+        if self.training_without_non_reconstructable:
+            node_mask &= data.reconstructable > 0
         edge_mask = node_mask[data.edge_index[0]] & node_mask[data.edge_index[1]]
         return node_mask, edge_mask
 

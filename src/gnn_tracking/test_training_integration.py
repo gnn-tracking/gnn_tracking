@@ -69,6 +69,7 @@ def test_train(tmp_path, built_graphs, loss_weights: str) -> None:
     trainer.checkpoint_dir = tmp_path
     trainer.training_pt_thld = 0.01
     trainer.training_without_noise = True
+    trainer.training_without_non_reconstructable = True
 
     trainer.train(epochs=2, max_batches=1)
     trainer.test_step()
