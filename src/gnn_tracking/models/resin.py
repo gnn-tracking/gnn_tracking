@@ -71,6 +71,29 @@ class ResIN(nn.Module):
             alpha: Strength of the residual connection
             n_layers: Total number of layers
         """
+        if n_layers == 1:
+            first_layer = InteractionNetwork(
+                node_indim=node_indim,
+                edge_indim=edge_indim,
+                node_outdim=node_outdim,
+                edge_outdim=edge_outdim,
+                node_hidden_dim=object_hidden_dim,
+                edge_hidden_dim=relational_hidden_dim,
+            )
+            mod = cls([first_layer], edge_outdim, alpha=alpha)
+            if node_indim != node_outdim:
+                first_encoder = MLP(
+                    input_size=node_indim,
+                    output_size=node_outdim,
+                    hidden_dim=node_outdim,
+                    L=2,
+                    include_last_activation=True,
+                )
+            else:
+                first_encoder = None
+            mod.residue_encoders = nn.ModuleList([first_encoder])
+            return mod
+
         first_layer = InteractionNetwork(
             node_indim=node_indim,
             edge_indim=edge_indim,
@@ -119,19 +142,8 @@ class ResIN(nn.Module):
             )
         else:
             last_encoder = None
-        if n_layers >= 3:
-            layers = [first_layer, *hidden_layers, last_layer]
-            encoders = [first_encoder, *hidden_encoders, last_encoder]
-        elif n_layers == 2:
-            layers = [
-                first_layer,
-            ]
-            encoders = [
-                first_encoder,
-            ]
-        else:
-            layers = [first_layer, last_layer]
-            encoders = [first_encoder, last_encoder]
+        layers = [first_layer, *hidden_layers, last_layer]
+        encoders = [first_encoder, *hidden_encoders, last_encoder]
         assert len(layers) == n_layers == len(encoders)
         length_concatenated_edge_attrs = edge_hidden_dim * (n_layers - 1) + edge_outdim
         mod = cls(layers, length_concatenated_edge_attrs, alpha=alpha)
