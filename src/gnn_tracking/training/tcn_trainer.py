@@ -31,7 +31,9 @@ from gnn_tracking.utils.timing import timing
 #: Function type that can be used as hook for the training/test step in the
 #: `TCNTrainer` class. The function takes the trainer instance as first argument and
 #: a dictionary of losses/metrics as second argument.
-hook_type = Callable[["TCNTrainer", dict[str, Tensor]], None]
+train_hook_type = Callable[["TCNTrainer", dict[str, Tensor]], None]
+test_hook_type = Callable[["TCNTrainer", dict[str, Tensor]], None]
+batch_hook_type = Callable[["TCNTrainer", int, int, dict[str, Tensor], Data], None]
 
 
 class LossFctType(Protocol):
@@ -139,11 +141,11 @@ class TCNTrainer:
         self._epoch = 0
 
         #: Hooks to be called after training epoch (please use `add_hook` to add them)
-        self._train_hooks = list[hook_type]()
+        self._train_hooks = list[train_hook_type]()
         #: Hooks to be called after testing (please use `add_hook` to add them)
-        self._test_hooks = list[hook_type]()
+        self._test_hooks = list[test_hook_type]()
         #: Hooks called after processing a batch (please use `add_hook` to add them)
-        self._batch_hooks = list[hook_type]()
+        self._batch_hooks = list[batch_hook_type]()
 
         #: Mapping of cluster function name to best parameter
         self._best_cluster_params: dict[str, dict[str, Any] | None] = {}
@@ -165,7 +167,9 @@ class TCNTrainer:
         #: step
         self.pt_thlds = [0.9, 1.5]
 
-    def add_hook(self, hook: hook_type, called_at: str) -> None:
+    def add_hook(
+        self, hook: train_hook_type | test_hook_type | batch_hook_type, called_at: str
+    ) -> None:
         """Add a hook to training/test step
 
         Args:
@@ -373,7 +377,7 @@ class TCNTrainer:
                 break
             model_output = self.evaluate_model(data, apply_truth_cuts=True)
             for hook in self._batch_hooks:
-                hook(self, model_output)
+                hook(self, self._epoch, batch_idx, model_output, data)
 
             batch_loss, batch_losses = self.get_batch_losses(model_output)
 
