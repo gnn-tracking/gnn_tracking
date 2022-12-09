@@ -119,8 +119,18 @@ class ResIN(nn.Module):
             )
         else:
             last_encoder = None
-        layers = [first_layer, *hidden_layers, last_layer]
-        encoders = [first_encoder, *hidden_encoders, last_encoder]
+        if n_layers >= 3:
+            layers = [first_layer, *hidden_layers, last_layer]
+            encoders = [first_encoder, *hidden_encoders, last_encoder]
+        else:
+            layers = [
+                first_layer,
+                *hidden_layers,
+            ]
+            encoders = [
+                first_encoder,
+                *hidden_encoders,
+            ]
         assert len(layers) == n_layers == len(encoders)
         length_concatenated_edge_attrs = edge_hidden_dim * (n_layers - 1) + edge_outdim
         mod = cls(layers, length_concatenated_edge_attrs, alpha=alpha)
