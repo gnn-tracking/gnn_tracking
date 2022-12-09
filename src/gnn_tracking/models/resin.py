@@ -27,7 +27,7 @@ class ResIN(nn.Module):
         #: Because of the residual connections, we need map the output of the previous
         #: layer to the dimension of the next layer (if they are different). This
         #: can be done with these encoders.
-        self.residue_encoders: list[nn.Module | None] = [None for _ in layers]
+        self.residue_encoders = nn.ModuleList([nn.Identity() for _ in layers])
 
     @classmethod
     def identical_in_layers(
@@ -91,7 +91,7 @@ class ResIN(nn.Module):
             )
             for _ in range(n_layers - 2)
         ]
-        hidden_encoders = [None for _ in hidden_layers]
+        hidden_encoders = [nn.Identity() for _ in hidden_layers]
         last_layer = InteractionNetwork(
             node_indim=node_hidden_dim,
             edge_indim=edge_hidden_dim,
@@ -114,7 +114,7 @@ class ResIN(nn.Module):
         encoders = [first_encoder, *hidden_encoders, last_encoder]
         assert len(layers) == n_layers == len(encoders)
         mod = cls(layers, alpha)
-        mod.residue_encoders = encoders
+        mod.residue_encoders = nn.ModuleList(encoders)
         return mod
 
     def forward(
