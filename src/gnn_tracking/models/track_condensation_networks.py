@@ -133,7 +133,8 @@ class ModularGraphTCN(nn.Module):
 
         Args:
             ec: Edge classifier
-            hc_in: Track condensor interaction network
+            hc_in: Track condensor interaction network. Must have the
+                ``length_concatenated_edge_attrs`` attribute (see `ResIN` module)
             node_indim: Node feature dimension
             edge_indim: Edge feature dimension
             h_dim: node dimension after encoding with the initial MLP
@@ -171,7 +172,7 @@ class ModularGraphTCN(nn.Module):
         #: NN to predict track parameters
         self.p_track_param = IN(
             h_dim,
-            e_dim * (L_hc + 1),
+            e_dim + hc_in.length_concatenated_edge_attrs,
             node_outdim=1,
             edge_outdim=1,
             node_hidden_dim=hidden_dim,

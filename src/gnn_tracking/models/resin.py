@@ -8,7 +8,13 @@ from gnn_tracking.models.mlp import MLP
 
 
 class ResIN(nn.Module):
-    def __init__(self, layers: list[nn.Module], alpha: float = 0.5):
+    def __init__(
+        self,
+        layers: list[nn.Module],
+        length_concatenated_edge_attrs: int,
+        *,
+        alpha: float = 0.5,
+    ):
         """Apply a list of layers in sequence with residual connections for the nodes.
         Built for interaction networks, but any network that returns a node feature
         tensor and an edge feature tensor should
@@ -19,6 +25,8 @@ class ResIN(nn.Module):
 
         Args:
             layers: List of layers
+            length_concatenated_edge_attrs: Length of the concatenated edge attributes
+                (from all the different layers)
             alpha: Strength of the residual connection
         """
         super().__init__()
@@ -28,6 +36,7 @@ class ResIN(nn.Module):
         #: layer to the dimension of the next layer (if they are different). This
         #: can be done with these encoders.
         self.residue_encoders = nn.ModuleList([nn.Identity() for _ in layers])
+        self.length_concatenated_edge_attrs = length_concatenated_edge_attrs
 
     @classmethod
     def identical_in_layers(
@@ -113,7 +122,8 @@ class ResIN(nn.Module):
         layers = [first_layer, *hidden_layers, last_layer]
         encoders = [first_encoder, *hidden_encoders, last_encoder]
         assert len(layers) == n_layers == len(encoders)
-        mod = cls(layers, alpha)
+        length_concatenated_edge_attrs = edge_hidden_dim * (n_layers - 1) + edge_outdim
+        mod = cls(layers, length_concatenated_edge_attrs, alpha=alpha)
         mod.residue_encoders = nn.ModuleList(encoders)
         return mod
 

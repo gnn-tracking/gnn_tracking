@@ -104,7 +104,9 @@ class ECForGraphTCN(nn.Module):
             n_layers=L_ec,
         )
 
-        self.W = MLP(e_dim * (L_ec + 1), 1, hidden_dim, L=3)
+        self.W = MLP(
+            e_dim + self.ec_resin.length_concatenated_edge_attrs, 1, hidden_dim, L=3
+        )
 
     def forward(
         self,

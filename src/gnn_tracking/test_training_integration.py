@@ -40,7 +40,14 @@ def test_train(tmp_path, built_graphs, loss_weights: str) -> None:
     }
 
     # set up a model and trainer
-    model = GraphTCN(node_indim, edge_indim, h_dim=2, hidden_dim=64)
+    model = GraphTCN(
+        node_indim,
+        edge_indim,
+        h_dim=2,
+        hidden_dim=64,
+        interaction_edge_hidden_dim=3,
+        interaction_node_hidden_dim=3,
+    )
 
     _loss_weights = None
     if loss_weights == "default":
