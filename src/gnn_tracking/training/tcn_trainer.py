@@ -425,7 +425,9 @@ class TCNTrainer:
         pt_b = pt[edge_index[1]]
         return (pt_a > pt_min) | (pt_b > pt_min)
 
-    def test_step(self, thld=0.5, val=True, apply_truth_cuts=False) -> dict[str, float]:
+    def single_test_step(
+        self, thld=0.5, val=True, apply_truth_cuts=False
+    ) -> dict[str, float]:
         """Test the model on the validation or test set
 
         Args:
@@ -514,6 +516,28 @@ class TCNTrainer:
             hook(self, losses)
         return losses
 
+    def test_step(self, val=True) -> dict[str, float]:
+        """Validate the model and test the model on the validation/test set.
+        This method is called during training and makes multiple calls to
+        `single_test_step` corresponding to truth cut or uncut data.
+
+        Args:
+            val: Use validation dataset rather than test dataset
+        """
+        test_results = self.single_test_step(thld=0.5, val=val)
+        if self.training_pt_thld > 0 or self.training_without_noise:
+            test_results.update(
+                add_key_suffix(
+                    self.single_test_step(
+                        thld=0.5,
+                        val=val,
+                        apply_truth_cuts=True,
+                    ),
+                    "tc_",
+                ),
+            )
+        return test_results
+
     def step(self, *, max_batches: int | None = None) -> dict[str, float]:
         """Train one epoch and test
 
@@ -525,18 +549,7 @@ class TCNTrainer:
             train_losses = self.train_step(max_batches=max_batches)
         if not self.skip_test_during_training:
             with timing(f"Test step for epoch {self._epoch}"):
-                test_results = self.test_step(thld=0.5, val=True)
-                if self.training_pt_thld > 0 or self.training_without_noise:
-                    test_results.update(
-                        add_key_suffix(
-                            self.test_step(
-                                thld=0.5,
-                                val=True,
-                                apply_truth_cuts=True,
-                            ),
-                            "tc_",
-                        ),
-                    )
+                return self.test_step()
         else:
             test_results = {}
         results = {
