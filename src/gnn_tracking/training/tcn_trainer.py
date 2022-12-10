@@ -3,6 +3,7 @@ from __future__ import annotations
 import collections
 import logging
 import os
+from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path, PurePath
 from typing import Any, Callable, Mapping, Protocol
@@ -60,6 +61,47 @@ class ClusterFctType(Protocol):
         start_params: dict[str, Any] | None = None,
     ) -> ClusterScanResult:
         ...
+
+
+@dataclass
+class TrainingTruthCutConfig:
+    """Configuration for truth cuts applied during training"""
+
+    #: Truth cut on pt during training
+    pt_thld: float = field(default=0.0)
+    #: Remove noise hits during training
+    without_noise: bool = field(default=False)
+    #: Remove hits that are not reconstructable during training
+    without_non_reconstructable: bool = field(default=False)
+
+    def is_trivial(self) -> bool:
+        """Return true if the truth cut is disabled"""
+        return (
+            np.isclose(self.pt_thld, 0.0)
+            and not self.without_noise
+            and not self.without_non_reconstructable
+        )
+
+    def get_masks(
+        self,
+        data: Data,
+    ) -> tuple[Tensor, Tensor]:
+        """Get mask for hits that are considered in training
+
+        Returns:
+            node mask, edge mask
+        """
+        node_mask = torch.full(
+            (len(data.x),), True, dtype=torch.bool, device=data.x.device
+        )
+        if self.pt_thld > 0:
+            node_mask &= data.pt > self.pt_thld
+        if self.without_noise:
+            node_mask &= data.particle_id > 0
+        if self.without_non_reconstructable:
+            node_mask &= data.reconstructable > 0
+        edge_mask = node_mask[data.edge_index[0]] & node_mask[data.edge_index[1]]
+        return node_mask, edge_mask
 
 
 # The following abbreviations are used throughout the code:
@@ -158,12 +200,7 @@ class TCNTrainer:
         #: evaluation of the related metrics.
         self.max_batches_for_clustering = 10
 
-        #: Truth cut on pt during training
-        self.training_pt_thld = 0.0
-        #: Remove noise hits during training
-        self.training_without_noise = False
-        #: Remove hits that are not reconstructable during training
-        self.training_without_non_reconstructable = False
+        self.training_truth_cuts = TrainingTruthCutConfig()
 
         #: pT thresholds that are being used in the evaluation of metrics in the test
         #: step
@@ -197,24 +234,6 @@ class TCNTrainer:
             self._batch_hooks.append(hook)
         else:
             raise ValueError("Invalid value for called_at")
-
-    def _get_training_mask(self, data: Data) -> tuple[Tensor, Tensor]:
-        """Get mask for hits that are considered in training
-
-        Returns:
-            node mask, edge mask
-        """
-        node_mask = torch.full(
-            (len(data.x),), True, dtype=torch.bool, device=self.device
-        )
-        if self.training_pt_thld > 0:
-            node_mask &= data.pt > self.training_pt_thld
-        if self.training_without_noise:
-            node_mask &= data.particle_id > 0
-        if self.training_without_non_reconstructable:
-            node_mask &= data.reconstructable > 0
-        edge_mask = node_mask[data.edge_index[0]] & node_mask[data.edge_index[1]]
-        return node_mask, edge_mask
 
     def _apply_mask(self, data: Data, node_mask: Tensor, edge_mask: Tensor) -> Data:
         """Apply mask to data"""
@@ -259,7 +278,7 @@ class TCNTrainer:
         """
         data = data.to(self.device)
         if apply_truth_cuts:
-            node_mask, edge_mask = self._get_training_mask(data)
+            node_mask, edge_mask = self.training_truth_cuts.get_masks(data)
             data = self._apply_mask(data, node_mask, edge_mask)
             out = self.model(data)
         else:
@@ -525,7 +544,7 @@ class TCNTrainer:
             val: Use validation dataset rather than test dataset
         """
         test_results = self.single_test_step(thld=0.5, val=val)
-        if self.training_pt_thld > 0 or self.training_without_noise:
+        if self.training_truth_cuts.is_trivial():
             test_results.update(
                 add_key_suffix(
                     self.single_test_step(
