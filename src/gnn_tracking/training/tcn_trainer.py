@@ -294,9 +294,15 @@ class TCNTrainer:
             except KeyError:
                 return None
 
+        def get_if_defined(key: str):
+            try:
+                return out[key]
+            except KeyError:
+                return None
+
         dct = {
             "w": squeeze_if_defined("W"),
-            "x": out["H"] if "H" in out else None,
+            "x": get_if_defined("H"),
             "beta": squeeze_if_defined("B"),
             "y": data.y,
             "particle_id": pid_field,
@@ -304,7 +310,7 @@ class TCNTrainer:
             "track_params": data.pt,
             "pt": data.pt,
             "reconstructable": data.reconstructable.long(),
-            "pred": out["P"] if "P" in out else None,
+            "pred": get_if_defined("P"),
             "edge_index": data.edge_index,
             "sector": data.sector,
             "node_features": data.x,
