@@ -557,7 +557,7 @@ class TCNTrainer:
             val: Use validation dataset rather than test dataset
         """
         test_results = self.single_test_step(thld=0.5, val=val)
-        if self.training_truth_cuts.is_trivial():
+        if not self.training_truth_cuts.is_trivial():
             test_results.update(
                 add_key_suffix(
                     self.single_test_step(
