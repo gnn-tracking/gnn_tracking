@@ -287,17 +287,24 @@ class TCNTrainer:
             pid_field = data.particle_id * data.reconstructable.long()
         else:
             pid_field = data.particle_id
+
+        def squeeze_if_defined(key: str):
+            try:
+                return out[key].squeeze()
+            except KeyError:
+                return None
+
         dct = {
-            "w": out["W"].squeeze() if out.get("W") is not None else None,
-            "x": out.get("H"),
-            "beta": out["B"].squeeze() if out.get("B") is not None else None,
+            "w": squeeze_if_defined("W"),
+            "x": out["H"] if "H" in out else None,
+            "beta": squeeze_if_defined("B"),
             "y": data.y,
             "particle_id": pid_field,
             # fixme: One of these is wrong
             "track_params": data.pt,
             "pt": data.pt,
             "reconstructable": data.reconstructable.long(),
-            "pred": out.get("P"),
+            "pred": out["P"] if "P" in out else None,
             "edge_index": data.edge_index,
             "sector": data.sector,
             "node_features": data.x,
