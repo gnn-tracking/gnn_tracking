@@ -288,16 +288,16 @@ class TCNTrainer:
         else:
             pid_field = data.particle_id
         dct = {
-            "w": out["W"].squeeze() if out["W"] is not None else None,
-            "x": out["H"],
-            "beta": out["B"].squeeze(),
+            "w": out["W"].squeeze() if out.get("W") is not None else None,
+            "x": out.get("H"),
+            "beta": out["B"].squeeze() if out.get("B") is not None else None,
             "y": data.y,
             "particle_id": pid_field,
             # fixme: One of these is wrong
             "track_params": data.pt,
             "pt": data.pt,
             "reconstructable": data.reconstructable.long(),
-            "pred": out["P"],
+            "pred": out.get("P"),
             "edge_index": data.edge_index,
             "sector": data.sector,
             "node_features": data.x,
