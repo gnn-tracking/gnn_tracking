@@ -95,7 +95,9 @@ class TrainingTruthCutConfig:
             (len(data.x),), True, dtype=torch.bool, device=data.x.device
         )
         if self.pt_thld > 0:
-            node_mask &= data.pt > self.pt_thld
+            # noise will also have pt = 0, so let's make sure we keep this independent
+            noise_mask = data.particle_id > 0
+            node_mask[noise_mask] &= data.pt[noise_mask] > self.pt_thld
         if self.without_noise:
             node_mask &= data.particle_id > 0
         if self.without_non_reconstructable:
