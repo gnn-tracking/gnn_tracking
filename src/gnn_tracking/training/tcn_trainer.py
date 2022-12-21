@@ -12,6 +12,7 @@ import numpy as np
 import pandas as pd
 import tabulate
 import torch
+from sklearn.metrics import roc_auc_score
 from torch import Tensor
 from torch.optim import Adam
 from torch_geometric.data import Data
@@ -497,13 +498,27 @@ class TCNTrainer:
                         edge_pt_mask = self._edge_pt_mask(
                             model_output["edge_index"], model_output["pt"], pt_min
                         )
+                        predicted = model_output["w"][edge_pt_mask]
+                        true = model_output["y"][edge_pt_mask].long()
+
                         bcs = BinaryClassificationStats(
-                            output=model_output["w"][edge_pt_mask],
-                            y=model_output["y"][edge_pt_mask].long(),
+                            output=predicted,
+                            y=true,
                             thld=thld,
                         )
                         for k, v in bcs.get_all().items():
                             batch_losses[denote_pt(k, pt_min)].append(v)
+                        batch_losses[denote_pt("roc_auc", pt_min)].append(
+                            roc_auc_score(y_true=true, y_score=predicted)
+                        )
+                        for max_fpr in [0.5, 0.7]:
+                            batch_losses[
+                                denote_pt(f"roc_auc_{max_fpr*10:.0f}FPR", pt_min)
+                            ].append(
+                                roc_auc_score(
+                                    y_true=true, y_score=predicted, max_fpr=max_fpr
+                                )
+                            )
 
                 batch_losses["total"].append(batch_loss.item())
                 for key, loss in these_batch_losses.items():
