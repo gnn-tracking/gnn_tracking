@@ -395,9 +395,12 @@ class TCNTrainer:
 
     def highlight_metric(self, metric: str) -> bool:
         """Should a metric be highlighted in the log output?"""
+        metric = metric.casefold()
         if "double_majority" in metric:
             return True
-        if "tpr" in metric.casefold():
+        if "tpr" in metric:
+            return True
+        if "roc_auc" in metric and "pt" not in metric:
             return True
         return False
 
@@ -511,9 +514,13 @@ class TCNTrainer:
                         batch_losses[denote_pt("roc_auc", pt_min)].append(
                             roc_auc_score(y_true=true.cpu(), y_score=predicted.cpu())
                         )
-                        for max_fpr in [0.5, 0.7]:
+                        for max_fpr in [
+                            0.05,
+                            0.1,
+                            0.2,
+                        ]:
                             batch_losses[
-                                denote_pt(f"roc_auc_{max_fpr*10:.0f}FPR", pt_min)
+                                denote_pt(f"roc_auc_{max_fpr*100:.0f}FPR", pt_min)
                             ].append(
                                 roc_auc_score(
                                     y_true=true.cpu(),
