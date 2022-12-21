@@ -370,3 +370,58 @@ class PerfectECGraphTCN(nn.Module):
         data: Data,
     ) -> dict[str, Tensor]:
         return self._gtcn.forward(data=data)
+
+
+class PreTrainedECGraphTCN(nn.Module):
+    def __init__(
+        self,
+        ec,
+        *,
+        node_indim: int,
+        edge_indim: int,
+        interaction_node_hidden_dim=5,
+        interaction_edge_hidden_dim=4,
+        h_dim=5,
+        e_dim=4,
+        h_outdim=2,
+        hidden_dim=40,
+        L_hc=3,
+        alpha_hc: float = 0.5,
+    ):
+        """GraphTCN for the use with a pre-trained edge classifier
+
+        Args:
+            ec: Pre-trained edge classifier
+            all others: See `PerfectECGraphTCN`
+        """
+        super().__init__()
+        hc_in = ResIN.identical_in_layers(
+            node_indim=h_dim,
+            edge_indim=e_dim,
+            node_hidden_dim=interaction_node_hidden_dim,
+            edge_hidden_dim=interaction_edge_hidden_dim,
+            node_outdim=h_dim,
+            edge_outdim=e_dim,
+            object_hidden_dim=hidden_dim,
+            relational_hidden_dim=hidden_dim,
+            alpha=alpha_hc,
+            n_layers=L_hc,
+        )
+        self._gtcn = ModularGraphTCN(
+            ec=ec,
+            hc_in=hc_in,
+            node_indim=node_indim,
+            edge_indim=edge_indim,
+            h_dim=h_dim,
+            e_dim=e_dim,
+            h_outdim=h_outdim,
+            hidden_dim=hidden_dim,
+            L_hc=L_hc,
+            feed_edge_weights=False,
+        )
+
+    def forward(
+        self,
+        data: Data,
+    ) -> dict[str, Tensor]:
+        return self._gtcn.forward(data=data)
