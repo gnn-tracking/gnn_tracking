@@ -509,14 +509,16 @@ class TCNTrainer:
                         for k, v in bcs.get_all().items():
                             batch_losses[denote_pt(k, pt_min)].append(v)
                         batch_losses[denote_pt("roc_auc", pt_min)].append(
-                            roc_auc_score(y_true=true, y_score=predicted)
+                            roc_auc_score(y_true=true.cpu(), y_score=predicted.cpu())
                         )
                         for max_fpr in [0.5, 0.7]:
                             batch_losses[
                                 denote_pt(f"roc_auc_{max_fpr*10:.0f}FPR", pt_min)
                             ].append(
                                 roc_auc_score(
-                                    y_true=true, y_score=predicted, max_fpr=max_fpr
+                                    y_true=true.cpu(),
+                                    y_score=predicted.cpu(),
+                                    max_fpr=max_fpr,
                                 )
                             )
 
