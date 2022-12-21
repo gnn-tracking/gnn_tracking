@@ -583,7 +583,7 @@ class TCNTrainer:
             train_losses = self.train_step(max_batches=max_batches)
         if not self.skip_test_during_training:
             with timing(f"Test step for epoch {self._epoch}"):
-                return self.test_step()
+                test_results = self.test_step()
         else:
             test_results = {}
         results = {
