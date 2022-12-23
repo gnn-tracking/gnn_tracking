@@ -126,6 +126,7 @@ class ModularGraphTCN(nn.Module):
         h_outdim=2,
         hidden_dim=40,
         feed_edge_weights=False,
+        ec_threshold=0.5,
     ):
         """General form of track condensation network based on preconstructed graphs
         with initial step of edge classification.
@@ -141,6 +142,7 @@ class ModularGraphTCN(nn.Module):
             h_outdim: output dimension in clustering space
             hidden_dim: width of hidden layers in all perceptrons
             feed_edge_weights: whether to feed edge weights to the track condenser
+            ec_threshold: threshold for edge classification
         """
         super().__init__()
         self.relu = nn.ReLU()
@@ -177,6 +179,7 @@ class ModularGraphTCN(nn.Module):
             edge_hidden_dim=hidden_dim,
         )
         self._feed_edge_weights = feed_edge_weights
+        self.threshold = ec_threshold
 
     def forward(
         self,
@@ -190,7 +193,7 @@ class ModularGraphTCN(nn.Module):
 
         # apply edge weight threshold
         row, col = edge_index
-        mask = (edge_weights > 0.5).squeeze()
+        mask = (edge_weights > self.threshold).squeeze()
         row, col = row[mask], col[mask]
         edge_index = torch.stack([row, col], dim=0)
         if self._feed_edge_weights:
@@ -383,11 +386,13 @@ class PreTrainedECGraphTCN(nn.Module):
         hidden_dim=40,
         L_hc=3,
         alpha_hc: float = 0.5,
+        ec_threshold: float = 0.5,
     ):
         """GraphTCN for the use with a pre-trained edge classifier
 
         Args:
             ec: Pre-trained edge classifier
+            ec_threshold: Threshold for the edge classifier
             all others: See `PerfectECGraphTCN`
         """
         super().__init__()
@@ -413,6 +418,7 @@ class PreTrainedECGraphTCN(nn.Module):
             h_outdim=h_outdim,
             hidden_dim=hidden_dim,
             feed_edge_weights=False,
+            ec_threshold=ec_threshold,
         )
 
     def forward(
