@@ -125,7 +125,6 @@ class ModularGraphTCN(nn.Module):
         e_dim=4,
         h_outdim=2,
         hidden_dim=40,
-        L_hc=3,
         feed_edge_weights=False,
     ):
         """General form of track condensation network based on preconstructed graphs
@@ -141,7 +140,6 @@ class ModularGraphTCN(nn.Module):
             e_dim: edge dimension after encoding with the initial MLP
             h_outdim: output dimension in clustering space
             hidden_dim: width of hidden layers in all perceptrons
-            L_hc: message passing depth for track condenser
             feed_edge_weights: whether to feed edge weights to the track condenser
         """
         super().__init__()
@@ -291,7 +289,6 @@ class GraphTCN(nn.Module):
             e_dim=e_dim,
             h_outdim=h_outdim,
             hidden_dim=hidden_dim,
-            L_hc=L_hc,
             feed_edge_weights=feed_edge_weights,
         )
 
@@ -361,7 +358,6 @@ class PerfectECGraphTCN(nn.Module):
             e_dim=e_dim,
             h_outdim=h_outdim,
             hidden_dim=hidden_dim,
-            L_hc=L_hc,
             feed_edge_weights=False,
         )
 
@@ -416,7 +412,6 @@ class PreTrainedECGraphTCN(nn.Module):
             e_dim=e_dim,
             h_outdim=h_outdim,
             hidden_dim=hidden_dim,
-            L_hc=L_hc,
             feed_edge_weights=False,
         )
 
