@@ -212,6 +212,10 @@ class TCNTrainer:
         #: Do not run test step after training epoch
         self.skip_test_during_training = False
 
+        #: Threshold for edge classification in test step (does not
+        #: affect training)
+        self.ec_threshold = 0.5
+
     def add_hook(
         self, hook: train_hook_type | test_hook_type | batch_hook_type, called_at: str
     ) -> None:
@@ -582,12 +586,12 @@ class TCNTrainer:
         Args:
             val: Use validation dataset rather than test dataset
         """
-        test_results = self.single_test_step(thld=0.5, val=val)
+        test_results = self.single_test_step(thld=self.ec_threshold, val=val)
         if not self.training_truth_cuts.is_trivial():
             test_results.update(
                 add_key_suffix(
                     self.single_test_step(
-                        thld=0.5,
+                        thld=self.ec_threshold,
                         val=val,
                         apply_truth_cuts=True,
                     ),
