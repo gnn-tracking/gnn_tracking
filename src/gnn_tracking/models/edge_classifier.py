@@ -157,28 +157,3 @@ class PerfectEdgeClassification(nn.Module):
             false_mask = data.pt < self.false_below_pt
             r[false_mask] = False
         return r
-
-
-class TrainableThldEC(nn.Module):
-    def __init__(self, ec: nn.Module):
-        """Edge classifier with a trainable threshold based on an existing
-        classifier. If the parameters of the existing classifier are fixed, the
-        threshold is the only trainable parameter.
-
-        Args:
-            ec: Edge classifier
-        """
-        super().__init__()
-        self.ec = ec
-        #: The threshold to use for the edge classifier
-        self.threshold = nn.parameter.Parameter(torch.tensor(0.5), requires_grad=True)
-
-    def _evaluate_ec(self, data) -> Tensor:
-        r = self.ec(data)
-        if isinstance(r, dict):
-            return r["W"]
-        else:
-            return r
-
-    def forward(self, data: Data) -> Tensor:
-        return self._evaluate_ec(data) > self.threshold  # type: ignore
