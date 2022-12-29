@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import math
 from abc import ABC, abstractmethod
 
 import torch
@@ -94,11 +95,41 @@ def binary_focal_loss(
     return loss
 
 
+def falsify_low_pt_edges(*, y: T, edge_index: T, pt: T, pt_thld: float = 0.0):
+    """Modify the ground truth to-be-predicted by the edge classification
+    to consider edges that include a hit with pt < pt_thld as false.
+
+    Args:
+        y: True classification
+        edge_index:
+        pt: Hit pt
+        pt_thld: Apply pt threshold
+
+    Returns:
+        True classification with additional criteria applied
+    """
+    if math.isclose(pt_thld, 0.0):
+        return y
+    # Because false edges are already falsified, we can
+    # it's enough to check the first hit of the edge for its pt
+    return y & pt[edge_index[0, :]] > pt_thld
+
+
 class AbstractEdgeWeightLoss(torch.nn.Module, ABC):
     """Abstract base class for loss functions for edge classification."""
 
+    def __init__(self, *, pt_thld: float = 0.0, **kwargs):
+        super().__init__(**kwargs)
+        self.pt_thld = pt_thld
+
+    def forward(self, *, w: T, y: T, edge_index: T, pt: T, **kwargs) -> T:
+        y = falsify_low_pt_edges(
+            y=y, edge_index=edge_index, pt=pt, pt_thld=self.pt_thld
+        )
+        return self._forward(y=y, w=w)
+
     @abstractmethod
-    def forward(self, *, w, y, **kwargs) -> T:
+    def _forward(self, *, w: T, y: T, **kwargs) -> T:
         pass
 
 
@@ -106,7 +137,7 @@ class EdgeWeightBCELoss(AbstractEdgeWeightLoss):
     """Binary Cross Entropy loss function for edge classification"""
 
     @staticmethod
-    def forward(*, w, y, **kwargs) -> T:
+    def _forward(*, w: T, y: T, **kwargs) -> T:
         bce_loss = binary_cross_entropy(w, y, reduction="mean")
         return bce_loss
 
@@ -129,7 +160,7 @@ class EdgeWeightFocalLoss(AbstractEdgeWeightLoss):
         self.pos_weight = pos_weight
         self.reduction = reduction
 
-    def forward(self, *, w, y, **kwargs) -> T:
+    def _forward(self, *, w: T, y: T, **kwargs) -> T:
         focal_loss = binary_focal_loss(
             inpt=w,
             target=y,
