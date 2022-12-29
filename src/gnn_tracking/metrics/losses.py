@@ -150,11 +150,12 @@ class EdgeWeightFocalLoss(AbstractEdgeWeightLoss):
         gamma=2.0,
         pos_weight=None,
         reduction="mean",
+        **kwargs,
     ):
         """Loss function based on focal loss for edge classification.
         See `binary_focal_loss` for details.
         """
-        super().__init__()
+        super().__init__(**kwargs)
         self.alpha = alpha
         self.gamma = gamma
         self.pos_weight = pos_weight
