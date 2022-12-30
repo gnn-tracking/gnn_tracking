@@ -62,6 +62,14 @@ class BinaryClassificationStats:
     def FNR(self) -> float:
         return zero_divide(self.FN, self.FN + self.TP)
 
+    @cached_property
+    def balanced_acc(self) -> float:
+        return (self.TPR + self.TNR) / 2
+
+    @cached_property
+    def F1(self) -> float:
+        return zero_divide(2 * self.TP, 2 * self.TP + self.FP + self.FN)
+
     def get_all(self) -> dict[str, float]:
         return {
             "acc": self.acc,
@@ -69,6 +77,8 @@ class BinaryClassificationStats:
             "TNR": self.TNR,
             "FPR": self.FPR,
             "FNR": self.FNR,
+            "balanced_acc": self.balanced_acc,
+            "F1": self.F1,
         }
 
 
