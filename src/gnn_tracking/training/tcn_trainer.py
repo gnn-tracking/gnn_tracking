@@ -18,7 +18,10 @@ from torch.optim import Adam
 from torch_geometric.data import Data
 from torch_geometric.loader import DataLoader
 
-from gnn_tracking.metrics.binary_classification import BinaryClassificationStats
+from gnn_tracking.metrics.binary_classification import (
+    BinaryClassificationStats,
+    get_maximized_bcs,
+)
 from gnn_tracking.postprocessing.clusterscanner import ClusterScanResult
 from gnn_tracking.training.dynamiclossweights import (
     ConstantLossWeights,
@@ -514,6 +517,8 @@ class TCNTrainer:
                             thld=thld,
                         )
                         for k, v in bcs.get_all().items():
+                            batch_losses[denote_pt(k, pt_min)].append(v)
+                        for k, v in get_maximized_bcs(output=predicted, y=true).items():
                             batch_losses[denote_pt(k, pt_min)].append(v)
                         batch_losses[denote_pt("roc_auc", pt_min)].append(
                             roc_auc_score(y_true=true.cpu(), y_score=predicted.cpu())
