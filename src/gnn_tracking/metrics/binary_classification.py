@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from functools import cached_property
 
+import numpy as np
 import torch
 
 from gnn_tracking.utils.types import assert_int
@@ -70,6 +71,18 @@ class BinaryClassificationStats:
     def F1(self) -> float:
         return zero_divide(2 * self.TP, 2 * self.TP + self.FP + self.FN)
 
+    @cached_property
+    def MCC(self) -> float:
+        return zero_divide(
+            self.TP * self.TN - self.FP * self.FN,
+            np.sqrt(
+                (self.TP + self.FP)
+                * (self.TP + self.FN)
+                * (self.TN + self.FP)
+                * (self.TN + self.FN)
+            ),
+        )
+
     def get_all(self) -> dict[str, float]:
         return {
             "acc": self.acc,
@@ -79,6 +92,7 @@ class BinaryClassificationStats:
             "FNR": self.FNR,
             "balanced_acc": self.balanced_acc,
             "F1": self.F1,
+            "MCC": self.MCC,
         }
 
 
@@ -86,3 +100,50 @@ def zero_divide(a: float, b: float) -> float:
     if b == 0:
         return 0
     return a / b
+
+
+def get_maximized_bcs(
+    *, output: torch.Tensor, y: torch.Tensor, n_samples=200
+) -> dict[str, torch.Tensor]:
+    """Calculate the best possible binary classification stats for a given output and y.
+
+    Args:
+        output: Weights
+        y: True
+        n_samples: Number of thresholds to sample
+
+    Returns:
+        Dictionary of metrics
+    """
+    thlds = np.linspace(0.0, 1.0, n_samples)
+
+    def getter(bcs: BinaryClassificationStats):
+        return bcs.balanced_acc, bcs.F1, bcs.TPR, bcs.TNR, bcs.MCC
+
+    results = torch.asarray(
+        [
+            getter(BinaryClassificationStats(y=y, output=output, thld=thld))
+            for thld in thlds
+        ],
+        device=output.device,
+    ).T
+
+    assert results.shape[0] == 5
+
+    bas = results[0, :]
+    f1s = results[1, :]
+    tprs = results[2, :]
+    tnrs = results[3, :]
+    mccs = results[4, :]
+    r_diff = torch.abs(tprs - tnrs)
+    min_diff_idx = torch.argmin(r_diff)
+    tpr_eq_tnr = (tprs[min_diff_idx] + tnrs[min_diff_idx]) / 2
+    return {
+        "max_ba": bas.max(),
+        "max_f1": f1s.max(),
+        "max_mcc": mccs.max(),
+        "tpr_eq_tnr": tpr_eq_tnr,
+        "tpr_eq_tnr_at": torch.scalar_tensor(
+            thlds[min_diff_idx], device=output.device, dtype=output.dtype
+        ),
+    }
