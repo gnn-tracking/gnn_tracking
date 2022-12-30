@@ -13,6 +13,10 @@ from torch_geometric.data import Data
 from gnn_tracking.utils.log import get_logger, logger
 
 
+# todo: This class needs refactoring: Loading should be done separately; many of the
+#   methods are actually static and might better be extracted; some of the __init__
+#   arguments are better for the process method; internal methods should be marked
+#   as private; pathlib should be used instead of os.path/string manipulations
 class GraphBuilder:
     def __init__(
         self,
@@ -385,47 +389,43 @@ class GraphBuilder:
             if f in self.outfiles and not self.redo:
                 graph = torch.load(join(self.outdir, name))
                 self._data_list.append(graph)
-            else:
-                try:
-                    evtid, s = self.get_event_id_sector_from_str(name)
-                except (ValueError, KeyError) as e:
-                    raise ValueError(f"{name} is not a valid file name") from e
-                self.logger.debug(f"Processing {f}")
-                f = join(self.indir, f)
-                graph = torch.load(f)
-                df = self.get_dataframe(graph, evtid)
-                edge_index, edge_attr, y, edge_pt = self.build_edges(df)
+                continue
+            try:
+                evtid, s = self.get_event_id_sector_from_str(name)
+            except (ValueError, KeyError) as e:
+                raise ValueError(f"{name} is not a valid file name") from e
+            self.logger.debug(f"Processing {f}")
+            f = join(self.indir, f)
+            graph = torch.load(f)
+            df = self.get_dataframe(graph, evtid)
+            edge_index, edge_attr, y, edge_pt = self.build_edges(df)
 
-                if self.measurement_mode:
-                    n_truth_edges = self.get_n_truth_edges(df)
-                    edge_purity = sum(y) / len(y)
-                    edge_efficiencies = {}
-                    for pt, denominator in n_truth_edges.items():
-                        numerator = sum(y[edge_pt > pt])
-                        edge_efficiencies[f"edge_efficiency_{pt}"] = (
-                            numerator / denominator
-                        )
-                    n_truth_edges = {
-                        f"n_truth_edge_{pt}": n for pt, n in n_truth_edges.items()
-                    }
-                    measurements = {
-                        "n_edges": len(y),
-                        "n_true_edges": sum(y),
-                        "n_false_edges": len(y) - sum(y),
-                        **n_truth_edges,
-                        "edge_purity": edge_purity,
-                        **edge_efficiencies,
-                    }
-                    self.measurements.append(measurements)
+            if self.measurement_mode:
+                n_truth_edges = self.get_n_truth_edges(df)
+                edge_purity = sum(y) / len(y)
+                edge_efficiencies = {}
+                for pt, denominator in n_truth_edges.items():
+                    numerator = sum(y[edge_pt > pt])
+                    edge_efficiencies[f"edge_efficiency_{pt}"] = numerator / denominator
+                n_truth_edges = {
+                    f"n_truth_edge_{pt}": n for pt, n in n_truth_edges.items()
+                }
+                measurements = {
+                    "n_edges": len(y),
+                    "n_true_edges": sum(y),
+                    "n_false_edges": len(y) - sum(y),
+                    **n_truth_edges,
+                    "edge_purity": edge_purity,
+                    **edge_efficiencies,
+                }
+                self.measurements.append(measurements)
 
-                graph = self.to_pyg_data(
-                    graph, edge_index, edge_attr, y, evtid=evtid, s=s
-                )
-                outfile = join(self.outdir, name)
-                self.logger.debug(f"Writing {outfile}")
-                if self.write_output:
-                    torch.save(graph, outfile)
-                self._data_list.append(graph)
+            graph = self.to_pyg_data(graph, edge_index, edge_attr, y, evtid=evtid, s=s)
+            outfile = join(self.outdir, name)
+            self.logger.debug(f"Writing {outfile}")
+            if self.write_output:
+                torch.save(graph, outfile)
+            self._data_list.append(graph)
 
         if self.measurement_mode:
             self.logger.info(self.get_measurements())
