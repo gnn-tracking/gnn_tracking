@@ -104,7 +104,7 @@ def zero_divide(a: float, b: float) -> float:
 
 def get_maximized_bcs(
     *, output: torch.Tensor, y: torch.Tensor, n_samples=200
-) -> dict[str, torch.Tensor]:
+) -> dict[str, float]:
     """Calculate the best possible binary classification stats for a given output and y.
 
     Args:
@@ -115,7 +115,7 @@ def get_maximized_bcs(
     Returns:
         Dictionary of metrics
     """
-    thlds = np.linspace(0.0, 1.0, n_samples)
+    thlds = torch.linspace(0.0, 1.0, n_samples)
 
     def getter(bcs: BinaryClassificationStats):
         return bcs.balanced_acc, bcs.F1, bcs.TPR, bcs.TNR, bcs.MCC
@@ -138,12 +138,16 @@ def get_maximized_bcs(
     r_diff = torch.abs(tprs - tnrs)
     min_diff_idx = torch.argmin(r_diff)
     tpr_eq_tnr = (tprs[min_diff_idx] + tnrs[min_diff_idx]) / 2
-    return {
-        "max_ba": bas.max(),
-        "max_f1": f1s.max(),
-        "max_mcc": mccs.max(),
-        "tpr_eq_tnr": tpr_eq_tnr,
-        "tpr_eq_tnr_at": torch.scalar_tensor(
-            thlds[min_diff_idx], device=output.device, dtype=output.dtype
-        ),
-    }
+
+    def add_max_and_max_at(dct, key, vals: torch.Tensor) -> None:
+        max_idx = torch.argmax(vals)
+        dct[key] = vals[max_idx].item()
+        dct[f"{key}_at"] = thlds[max_idx].item()
+
+    dct = {}
+    add_max_and_max_at(dct, "max_ba", bas)
+    add_max_and_max_at(dct, "max_f1", f1s)
+    add_max_and_max_at(dct, "max_mcc", mccs)
+    dct["tpr_eq_tnr"] = tpr_eq_tnr.item()
+    dct["tpr_eq_tnr_at"] = thlds[min_diff_idx].item()
+    return dct
