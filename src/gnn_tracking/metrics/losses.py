@@ -112,7 +112,7 @@ def falsify_low_pt_edges(*, y: T, edge_index: T, pt: T, pt_thld: float = 0.0):
         return y
     # Because false edges are already falsified, we can
     # it's enough to check the first hit of the edge for its pt
-    return y & pt[edge_index[0, :]] > pt_thld
+    return (y.bool() & (pt[edge_index[0, :]] > pt_thld)).long()
 
 
 class AbstractEdgeWeightLoss(torch.nn.Module, ABC):
