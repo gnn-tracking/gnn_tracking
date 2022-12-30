@@ -307,6 +307,19 @@ class GraphBuilder:
         return edge_index, edge_attr, y, edge_pt
 
     def to_pyg_data(self, graph, edge_index, edge_attr, y, evtid=-1, s=-1):
+        """
+
+        Args:
+            graph:
+            edge_index:
+            edge_attr:
+            y:
+            evtid:
+            s: Sector
+
+        Returns:
+
+        """
         x = (graph.x.clone() / self.feature_scale).float()
         edge_index = torch.tensor(edge_index).long()
         edge_attr = torch.from_numpy(edge_attr).float()
@@ -368,7 +381,18 @@ class GraphBuilder:
         sectorid = int(sectorid_s)
         return evtid, sectorid
 
-    def process(self, start=0, stop=1):
+    def process(self, start=0, stop=1, only_sector: int = -1):
+        """
+
+        Args:
+            start:
+            stop:
+            only_sector: Only process files for this sector. If < 0 (default): process
+                all sectors.
+
+        Returns:
+
+        """
         available_files = os.listdir(self.indir)
         if stop is not None and stop > len(available_files):
             # to avoid tracking wrong hyperparameters
@@ -386,14 +410,16 @@ class GraphBuilder:
             if f.split(".")[-1] != "pt":
                 continue
             name = f.split("/")[-1]
+            try:
+                evtid, sector = self.get_event_id_sector_from_str(name)
+            except (ValueError, KeyError) as e:
+                raise ValueError(f"{name} is not a valid file name") from e
+            if only_sector >= 0 and sector != only_sector:
+                continue
             if f in self.outfiles and not self.redo:
                 graph = torch.load(join(self.outdir, name))
                 self._data_list.append(graph)
                 continue
-            try:
-                evtid, s = self.get_event_id_sector_from_str(name)
-            except (ValueError, KeyError) as e:
-                raise ValueError(f"{name} is not a valid file name") from e
             self.logger.debug(f"Processing {f}")
             f = join(self.indir, f)
             graph = torch.load(f)
@@ -420,7 +446,9 @@ class GraphBuilder:
                 }
                 self.measurements.append(measurements)
 
-            graph = self.to_pyg_data(graph, edge_index, edge_attr, y, evtid=evtid, s=s)
+            graph = self.to_pyg_data(
+                graph, edge_index, edge_attr, y, evtid=evtid, s=sector
+            )
             outfile = join(self.outdir, name)
             self.logger.debug(f"Writing {outfile}")
             if self.write_output:
