@@ -124,7 +124,7 @@ def get_unconnected_node_mask(*, n_nodes, edge_index, min_connections=3):
         Mask for hits
     """
     if min_connections <= 0:
-        return torch.full(n_nodes, True, dtype=torch.bool, device=edge_index.device)
+        return torch.full((n_nodes,), True, dtype=torch.bool, device=edge_index.device)
     node_count_indices, node_counts = torch.unique(
         edge_index.flatten(), return_counts=True
     )
