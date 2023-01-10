@@ -76,10 +76,12 @@ class BinaryClassificationStats:
         return zero_divide(
             self.TP * self.TN - self.FP * self.FN,
             np.sqrt(
-                (self.TP + self.FP)
-                * (self.TP + self.FN)
-                * (self.TN + self.FP)
-                * (self.TN + self.FN)
+                float(
+                    (self.TP + self.FP)
+                    * (self.TP + self.FN)
+                    * (self.TN + self.FP)
+                    * (self.TN + self.FN)
+                )
             ),
         )
 
