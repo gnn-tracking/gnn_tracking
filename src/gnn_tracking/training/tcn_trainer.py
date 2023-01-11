@@ -29,6 +29,10 @@ from gnn_tracking.training.dynamiclossweights import (
 )
 from gnn_tracking.utils.device import guess_device
 from gnn_tracking.utils.dictionaries import add_key_suffix
+from gnn_tracking.utils.graph_masks import (
+    get_edge_index_after_node_mask,
+    get_edge_mask_from_node_mask,
+)
 from gnn_tracking.utils.log import get_logger
 from gnn_tracking.utils.nomenclature import denote_pt
 from gnn_tracking.utils.timing import timing
@@ -106,7 +110,9 @@ class TrainingTruthCutConfig:
             node_mask &= data.particle_id > 0
         if self.without_non_reconstructable:
             node_mask &= data.reconstructable > 0
-        edge_mask = node_mask[data.edge_index[0]] & node_mask[data.edge_index[1]]
+        edge_mask = get_edge_mask_from_node_mask(
+            node_mask=node_mask, edge_index=data.edge_index
+        )
         return node_mask, edge_mask
 
 
@@ -249,23 +255,11 @@ class TCNTrainer:
 
     def _apply_mask(self, data: Data, node_mask: Tensor, edge_mask: Tensor) -> Data:
         """Apply mask to data"""
-        # Somehow using tensors will mess up the call with np.vectorize
-        old_edge_indices = np.arange(len(node_mask))[node_mask.cpu()]
-        new_edge_indices = np.arange(node_mask.sum().cpu())
-        assert old_edge_indices.shape == new_edge_indices.shape
-        edge_index_mapping = np.vectorize(
-            dict(zip(old_edge_indices, new_edge_indices)).get
+        edge_index, edge_mask = get_edge_index_after_node_mask(
+            edge_index=data.edge_index,
+            node_mask=node_mask,
+            edge_mask=edge_mask,
         )
-        edge_index = torch.stack(
-            [
-                torch.from_numpy(
-                    edge_index_mapping(data.edge_index[0][edge_mask].cpu())
-                ).to(self.device),
-                torch.from_numpy(
-                    edge_index_mapping(data.edge_index[1][edge_mask].cpu())
-                ).to(self.device),
-            ]
-        ).long()
         return Data(
             x=data.x[node_mask],
             y=data.y[edge_mask],
