@@ -112,7 +112,7 @@ class PointCloudTCN(nn.Module):
         return {"W": None, "H": h_out, "B": beta, "P": None}
 
 
-def get_unconnected_node_mask(*, n_nodes, edge_index, min_connections=3):
+def mask_nodes_with_few_edges(*, n_nodes, edge_index, min_connections=3):
     """Returns a mask where all nodes that do not have at least
     `min_connections` edges are masked.
 
@@ -229,7 +229,7 @@ class ModularGraphTCN(nn.Module):
         else:
             edge_attr = edge_attr[edge_mask]
 
-        hit_mask = get_unconnected_node_mask(
+        hit_mask = mask_nodes_with_few_edges(
             n_nodes=len(x),
             edge_index=edge_index,
             min_connections=self.mask_nodes_with_leq_connections,
