@@ -23,8 +23,13 @@ def get_edge_index_after_node_mask(
         node_mask: Mask for all nodes
 
     Returns:
-        edge index (2 x n_edges tensor), edge mask
+        edge index (2 x n_edges tensor), edge mask (that is already included in the
+        edge index)
     """
+    if edge_index.shape[1] == 0:
+        # edge mask would also be empty tensor
+        return edge_index, T([]).bool().to(edge_index.device)
+
     implied_edge_mask = get_edge_mask_from_node_mask(node_mask, edge_index)
     if edge_mask is not None:
         implied_edge_mask &= edge_mask
