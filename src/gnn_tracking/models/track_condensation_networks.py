@@ -12,6 +12,7 @@ from gnn_tracking.models.edge_classifier import ECForGraphTCN, PerfectEdgeClassi
 from gnn_tracking.models.interaction_network import InteractionNetwork as IN
 from gnn_tracking.models.mlp import MLP
 from gnn_tracking.models.resin import ResIN
+from gnn_tracking.utils.graph_masks import get_edge_index_after_node_mask
 
 
 class INConvBlock(nn.Module):
@@ -233,6 +234,10 @@ class ModularGraphTCN(nn.Module):
             edge_index=edge_index,
             min_connections=self.mask_nodes_with_leq_connections,
         )
+        edge_index, _edge_mask = get_edge_index_after_node_mask(
+            edge_index=edge_index, node_mask=hit_mask
+        )
+        edge_mask[edge_mask.clone()] &= _edge_mask
 
         # apply the track condenser
         h_hc = self.relu(self.hc_node_encoder(x[hit_mask]))
