@@ -236,14 +236,16 @@ class ModularGraphTCN(nn.Module):
             edge_index=edge_index,
             min_connections=self.mask_nodes_with_leq_connections,
         )
-        edge_index, _edge_mask = get_edge_index_after_node_mask(
+        edge_index, edge_mask_from_node_mask = get_edge_index_after_node_mask(
             edge_index=edge_index, node_mask=hit_mask
         )
-        edge_mask[edge_mask.clone()] &= _edge_mask
+        edge_mask[edge_mask.clone()] &= edge_mask_from_node_mask
 
         # apply the track condenser
         h_hc = self.relu(self.hc_node_encoder(x[hit_mask]))
-        edge_attr_hc = self.relu(self.hc_edge_encoder(edge_attr))
+        edge_attr_hc = self.relu(
+            self.hc_edge_encoder(edge_attr[edge_mask_from_node_mask])
+        )
         h_hc, _, edge_attrs_hc = self.hc_in(h_hc, edge_index, edge_attr_hc)
         beta = torch.sigmoid(self.p_beta(h_hc))
         # protect against nans
@@ -254,7 +256,7 @@ class ModularGraphTCN(nn.Module):
             h_hc, edge_index, torch.cat(edge_attrs_hc, dim=1)
         )
         return {
-            "W": edge_weights,
+            "W": edge_weights[edge_mask],
             "H": h,
             "B": beta,
             "P": track_params,

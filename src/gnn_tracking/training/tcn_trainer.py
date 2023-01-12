@@ -289,6 +289,10 @@ class TCNTrainer:
             out = self.model(data)
         else:
             out = self.model(data)
+        if "ec_edge_mask" in out:
+            # We need to ensure that the data that is now used to evaluate the loss
+            # functions has the same mask as the output of the model
+            data = self._apply_mask(data, out["ec_hit_mask"], out["ec_edge_mask"])
         if mask_pids_reco:
             pid_field = data.particle_id * data.reconstructable.long()
         else:
