@@ -403,11 +403,13 @@ class TCNTrainer:
     def highlight_metric(self, metric: str) -> bool:
         """Should a metric be highlighted in the log output?"""
         metric = metric.casefold()
+        if "0.9" not in metric and "1.5" not in metric:
+            return False
         if "double_majority" in metric:
             return True
-        if "tpr" in metric:
-            return True
-        if "roc_auc" in metric and "pt" not in metric:
+        if "tpr_eq_tnr" in metric:
+            return "loc" not in metric
+        if "roc_auc_pt" in metric:
             return True
         return False
 
