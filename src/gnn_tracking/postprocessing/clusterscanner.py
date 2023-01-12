@@ -74,7 +74,7 @@ class ClusterHyperParamScanner(AbstractClusterHyperParamScanner):
         *,
         algorithm: ClusterAlgorithmType,
         suggest: Callable[[optuna.trial.Trial], dict[str, Any]],
-        graphs: list[np.ndarray],
+        data: list[np.ndarray],
         truth: list[np.ndarray],
         pts: list[np.ndarray],
         reconstructable: list[np.ndarray],
@@ -95,7 +95,7 @@ class ClusterHyperParamScanner(AbstractClusterHyperParamScanner):
         Args:
             algorithm: Takes graph and keyword arguments
             suggest: Function that suggest parameters to optuna
-            graphs:
+            data: Data to be clustered
             truth: Truth labels for clustering
             pts: Pt values for each graph
             reconstructable: Whether each hit belongs to a reconstructable true track
@@ -119,8 +119,8 @@ class ClusterHyperParamScanner(AbstractClusterHyperParamScanner):
             from sklearn import metrics
             from sklearn.cluster import DBSCAN
 
-            def dbscan(graph, eps, min_samples):
-                return DBSCAN(eps=eps, min_samples=min_samples).fit_predict(graph)
+            def dbscan(data, eps, min_samples):
+                return DBSCAN(eps=eps, min_samples=min_samples).fit_predict(data)
 
             def suggest(trial):
                 eps = trial.suggest_float("eps", 1e-5, 1.0)
@@ -130,7 +130,7 @@ class ClusterHyperParamScanner(AbstractClusterHyperParamScanner):
             chps = ClusterHyperParamScanner(
                 algorithm=dbscan,
                 suggest=suggest,
-                graphs=graphs,
+                data=data,
                 truth=truths,
                 pts=pts,
                 guide="v_measure_score",
@@ -139,20 +139,22 @@ class ClusterHyperParamScanner(AbstractClusterHyperParamScanner):
             study = chps.scan(n_trials=100)
             print(study.best_params)
         """
-        self.algorithm = algorithm
-        self.suggest = suggest
-        assert [len(g) for g in graphs] == [len(t) for t in truth]
-        assert len(graphs) > 0
-        self.graphs: list[np.ndarray] = graphs
-        self.truth: list[np.ndarray] = truth
-        self.pts: list[np.ndarray] = pts
-        self.reconstructable: list[np.ndarray] = reconstructable
-        self.metrics: dict[str, ClusterMetricType] = metrics
+        self._algorithm = algorithm
+        self._suggest = suggest
+        assert [len(g) for g in data] == [len(t) for t in truth]
+        assert len(data) > 0
+        self._data: list[np.ndarray] = data
+        self._truth: list[np.ndarray] = truth
+        self._pts: list[np.ndarray] = pts
+        self._reconstructable: list[np.ndarray] = reconstructable
+        self._metrics: dict[str, ClusterMetricType] = metrics
         if sectors is None:
-            self.sectors: list[np.ndarray] = [np.ones(t, dtype=int) for t in self.truth]
+            self._sectors: list[np.ndarray] = [
+                np.ones(t, dtype=int) for t in self._truth
+            ]
         else:
             assert [len(s) for s in sectors] == [len(t) for t in truth]
-            self.sectors = sectors
+            self._sectors = sectors
         self._es = early_stopping
         self._study = None
         self._cheap_metric = guide_proxy
@@ -176,7 +178,9 @@ class ClusterHyperParamScanner(AbstractClusterHyperParamScanner):
             return self._graph_to_sector[i_graph]
         except KeyError:
             pass
-        available: list[int] = np.unique(self.sectors[i_graph]).tolist()  # type: ignore
+        available: list[int] = np.unique(
+            self._sectors[i_graph]
+        ).tolist()  # type: ignore
         try:
             available.remove(-1)
         except ValueError:
@@ -205,29 +209,29 @@ class ClusterHyperParamScanner(AbstractClusterHyperParamScanner):
         if "." in name:
             metric, _, subkey = name.partition(".")
             try:
-                return self.metrics[metric](**arguments)[subkey]  # type: ignore
+                return self._metrics[metric](**arguments)[subkey]  # type: ignore
             except KeyError:
                 pass
-        return self.metrics[name](**arguments)  # type: ignore
+        return self._metrics[name](**arguments)  # type: ignore
 
     def _objective(self, trial: optuna.trial.Trial) -> float:
         """Objective function for optuna."""
-        params = self.suggest(trial)
+        params = self._suggest(trial)
         cheap_foms = []
         all_labels = []
         # Do a first run, looking only at the cheap metric, stopping early
         for i_graph, (graph, truth, pts, reconstructable) in enumerate(
-            zip(self.graphs, self.truth, self.pts, self.reconstructable)
+            zip(self._data, self._truth, self._pts, self._reconstructable)
         ):
             # Consider a random sector for each graph, but keep the sector consistent
             # between different trials.
             sector = self._get_sector_to_study(i_graph)
-            sector_mask = self.sectors[i_graph] == sector
+            sector_mask = self._sectors[i_graph] == sector
             graph = graph[sector_mask]
             truth = truth[sector_mask]
             pts = pts[sector_mask]
             reconstructable = reconstructable[sector_mask]
-            labels = self.algorithm(graph, **params)
+            labels = self._algorithm(graph, **params)
             all_labels.append(labels)
             cheap_foms.append(
                 self._get_explicit_metric(
@@ -252,10 +256,10 @@ class ClusterHyperParamScanner(AbstractClusterHyperParamScanner):
             # If we haven't stopped early, do a second run, looking at the expensive
             # metric
             for i_labels, (labels, truth, pts, reconstructable) in enumerate(
-                zip(all_labels, self.truth, self.pts, self.reconstructable)
+                zip(all_labels, self._truth, self._pts, self._reconstructable)
             ):
                 sector = self._get_sector_to_study(i_labels)
-                sector_mask = self.sectors[i_labels] == sector
+                sector_mask = self._sectors[i_labels] == sector
                 truth = truth[sector_mask]
                 expensive_fom = self._get_explicit_metric(
                     self._expensive_metric,
@@ -267,7 +271,7 @@ class ClusterHyperParamScanner(AbstractClusterHyperParamScanner):
                 expensive_foms.append(expensive_fom)
                 if i_labels >= 2:
                     trial.report(
-                        np.nanmean(expensive_foms).item(), i_labels + len(self.graphs)
+                        np.nanmean(expensive_foms).item(), i_labels + len(self._data)
                     )
                 if trial.should_prune():
                     self._n_trials_pruned += 1
@@ -296,7 +300,7 @@ class ClusterHyperParamScanner(AbstractClusterHyperParamScanner):
         """See _evaluate."""
         metric_values = defaultdict(list)
         for graph, truth, sectors, pts, reconstructable in zip(
-            self.graphs, self.truth, self.sectors, self.pts, self.reconstructable
+            self._data, self._truth, self._sectors, self._pts, self._reconstructable
         ):
             available_sectors: list[int] = np.unique(sectors).tolist()  # type: ignore
             try:
@@ -309,8 +313,8 @@ class ClusterHyperParamScanner(AbstractClusterHyperParamScanner):
                 sector_truth = truth[sector_mask]
                 sector_pts = pts[sector_mask]
                 sector_reconstructable = reconstructable[sector_mask]
-                labels = self.algorithm(sector_graph, **best_params)
-                for name, metric in self.metrics.items():
+                labels = self._algorithm(sector_graph, **best_params)
+                for name, metric in self._metrics.items():
                     r = metric(
                         truth=sector_truth,
                         predicted=labels,

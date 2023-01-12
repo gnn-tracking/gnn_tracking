@@ -489,7 +489,7 @@ class TCNTrainer:
         self.model.eval()
 
         # Objects in the following three lists are used for clustering
-        graphs = list[np.ndarray]()
+        cluster_coords = list[np.ndarray]()
         truths = list[np.ndarray]()
         sectors = list[np.ndarray]()
         pts = list[np.ndarray]()
@@ -551,7 +551,7 @@ class TCNTrainer:
                     self.clustering_functions
                     and _batch_idx <= self.max_batches_for_clustering
                 ):
-                    graphs.append(model_output["x"].detach().cpu().numpy())
+                    cluster_coords.append(model_output["x"].detach().cpu().numpy())
                     truths.append(model_output["particle_id"].detach().cpu().numpy())
                     sectors.append(model_output["sector"].detach().cpu().numpy())
                     pts.append(model_output["pt"].detach().cpu().numpy())
@@ -562,7 +562,7 @@ class TCNTrainer:
         losses = {k: np.nanmean(v) for k, v in batch_losses.items()}
         for k, f in self.clustering_functions.items():
             cluster_result = f(
-                graphs,
+                cluster_coords,
                 truths,
                 sectors,
                 pts,

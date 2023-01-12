@@ -1,3 +1,7 @@
+"""Metrics evaluating the quality of clustering/i.e., the usefulness of the
+algorithm for tracking.
+"""
+
 from __future__ import annotations
 
 import functools

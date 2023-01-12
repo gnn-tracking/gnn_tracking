@@ -112,7 +112,7 @@ def dbscan_scan(
     if n_jobs == 1:
         logger.warning("Only using 1 thread for DBSCAN scan")
     dbss = DBSCANHyperParamScanner(
-        graphs=graphs,
+        data=graphs,
         truth=truth,
         sectors=sectors,
         pts=pts,
