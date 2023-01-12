@@ -21,6 +21,7 @@ def get_edge_index_after_node_mask(
     Args:
         edge_index: 2 x n_edges tensor
         node_mask: Mask for all nodes
+        edge_mask: Additional edge mask (before node mask is applied)
 
     Returns:
         edge index (2 x n_edges tensor), edge mask (that is already included in the
@@ -33,6 +34,10 @@ def get_edge_index_after_node_mask(
     implied_edge_mask = get_edge_mask_from_node_mask(node_mask, edge_index)
     if edge_mask is not None:
         implied_edge_mask &= edge_mask
+
+    if not implied_edge_mask.any():
+        return T([[], []]).long().to(edge_index.device), implied_edge_mask
+
     # Somehow using tensors will mess up the call with np.vectorize
     old_edge_indices = np.arange(len(node_mask))[node_mask.cpu()]
     new_edge_indices = np.arange(node_mask.sum().cpu())
