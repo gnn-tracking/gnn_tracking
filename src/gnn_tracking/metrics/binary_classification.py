@@ -1,3 +1,6 @@
+"""This class collects figures of merit for binary classification"""
+
+
 from __future__ import annotations
 
 from functools import cached_property
@@ -14,12 +17,13 @@ class BinaryClassificationStats:
     def __init__(
         self, output: torch.Tensor, y: torch.Tensor, thld: torch.Tensor | float
     ):
-        """
+        """Calculator for binary classification metrics.
+        All properties are cached, so they are only calculated once.
 
         Args:
-            output:
-            y:
-            thld:
+            output: Output weights
+            y: True labels
+            thld: Threshold to consider something true
 
         Returns:
             accuracy, TPR, TNR
@@ -101,6 +105,7 @@ class BinaryClassificationStats:
 
 
 def zero_divide(a: float, b: float) -> float:
+    """Normal division a/b but return 0 for x/0"""
     if b == 0:
         return 0
     return a / b
