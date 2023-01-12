@@ -153,7 +153,7 @@ def get_maximized_bcs(
     add_max_and_max_at(dct, "max_f1", f1s)
     add_max_and_max_at(dct, "max_mcc", mccs)
     dct["tpr_eq_tnr"] = tpr_eq_tnr.item()
-    dct["tpr_eq_tnr_at"] = thlds[min_diff_idx].item()
+    dct["tpr_eq_tnr_loc"] = thlds[min_diff_idx].item()
     return dct
 
 
