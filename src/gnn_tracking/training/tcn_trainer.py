@@ -316,6 +316,9 @@ class TCNTrainer:
                 return None
 
         dct = {
+            "truth_cuts_applied": apply_truth_cuts,
+            "post_ec_hit_mask_applied": "ec_hit_mask" in out
+            and not out["ec_hit_mask"].all(),
             "w": squeeze_if_defined("W"),
             "x": get_if_defined("H"),
             "beta": squeeze_if_defined("B"),
@@ -503,11 +506,13 @@ class TCNTrainer:
         self.model.eval()
 
         # Objects in the following three lists are used for clustering
-        cluster_coords = list[np.ndarray]()
-        truths = list[np.ndarray]()
-        sectors = list[np.ndarray]()
-        pts = list[np.ndarray]()
-        reconstructable = list[np.ndarray]()
+        cluster_eval_input = {
+            "x": [],
+            "particle_id": [],
+            "sector": [],
+            "pt": [],
+            "reconstructable": [],
+        }
 
         batch_losses = collections.defaultdict(list)
         with torch.no_grad():
@@ -567,22 +572,36 @@ class TCNTrainer:
                     self.clustering_functions
                     and _batch_idx <= self.max_batches_for_clustering
                 ):
-                    cluster_coords.append(model_output["x"].detach().cpu().numpy())
-                    truths.append(model_output["particle_id"].detach().cpu().numpy())
-                    sectors.append(model_output["sector"].detach().cpu().numpy())
-                    pts.append(model_output["pt"].detach().cpu().numpy())
-                    reconstructable.append(
-                        model_output["reconstructable"].detach().cpu().numpy()
-                    )
+
+                    if not model_output["post_ec_hit_mask_applied"]:
+                        for key in cluster_eval_input:
+                            cluster_eval_input[key].append(
+                                model_output[key].detach().cpu().numpy()
+                            )
+                    else:
+                        if model_output["truth_cuts_applied"]:
+                            raise ValueError(
+                                "Evaluation with truth cuts and post EC hit mask is "
+                                "currently not implemented."
+                            )
+                        for key in cluster_eval_input:
+                            if key == "x":
+                                cluster_eval_input[key].append(
+                                    model_output[key].detach().cpu().numpy()
+                                )
+                        else:
+                            cluster_eval_input[key].append(
+                                getattr(data, key).detach().cpu().numpy()
+                            )
 
         losses = {k: np.nanmean(v) for k, v in batch_losses.items()}
         for k, f in self.clustering_functions.items():
             cluster_result = f(
-                cluster_coords,
-                truths,
-                sectors,
-                pts,
-                reconstructable,
+                cluster_eval_input["x"],
+                cluster_eval_input["particle_id"],
+                cluster_eval_input["sector"],
+                cluster_eval_input["pt"],
+                cluster_eval_input["reconstructable"],
                 epoch=self._epoch,
                 start_params=self._best_cluster_params.get(k, None),
             )
