@@ -12,7 +12,6 @@ import numpy as np
 import pandas as pd
 import tabulate
 import torch
-from sklearn.metrics import roc_auc_score
 from torch import Tensor
 from torch.optim import Adam
 from torch_geometric.data import Data
@@ -21,6 +20,7 @@ from torch_geometric.loader import DataLoader
 from gnn_tracking.metrics.binary_classification import (
     BinaryClassificationStats,
     get_maximized_bcs,
+    roc_auc_score,
 )
 from gnn_tracking.postprocessing.clusterscanner import ClusterScanResult
 from gnn_tracking.training.dynamiclossweights import (

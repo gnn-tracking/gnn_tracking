@@ -4,7 +4,9 @@ from functools import cached_property
 
 import numpy as np
 import torch
+from sklearn.metrics import roc_auc_score as _roc_auc_score
 
+from gnn_tracking.utils.log import logger
 from gnn_tracking.utils.types import assert_int
 
 
@@ -153,3 +155,14 @@ def get_maximized_bcs(
     dct["tpr_eq_tnr"] = tpr_eq_tnr.item()
     dct["tpr_eq_tnr_at"] = thlds[min_diff_idx].item()
     return dct
+
+
+def roc_auc_score(*args, **kwargs):
+    """Wrapper around `sklearn.metrics.roc_auc_score` that ignores exceptions
+    that can e.g., be raised if there's only one label present.
+    """
+    try:
+        return _roc_auc_score(*args, **kwargs)
+    except ValueError as e:
+        logger.error(e)
+        return np.nan
