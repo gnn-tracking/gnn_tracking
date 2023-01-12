@@ -146,7 +146,7 @@ def get_maximized_bcs(
     def add_max_and_max_at(dct, key, vals: torch.Tensor) -> None:
         max_idx = torch.argmax(vals)
         dct[key] = vals[max_idx].item()
-        dct[f"{key}_at"] = thlds[max_idx].item()
+        dct[f"{key}_loc"] = thlds[max_idx].item()
 
     dct = {}
     add_max_and_max_at(dct, "max_ba", bas)
