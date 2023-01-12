@@ -254,7 +254,7 @@ class ModularGraphTCN(nn.Module):
             h_hc, edge_index, torch.cat(edge_attrs_hc, dim=1)
         )
         return {
-            "W": edge_weights[edge_mask],
+            "W": edge_weights,
             "H": h,
             "B": beta,
             "P": track_params,
