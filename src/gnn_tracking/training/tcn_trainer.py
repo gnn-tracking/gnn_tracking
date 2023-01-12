@@ -253,7 +253,9 @@ class TCNTrainer:
         else:
             raise ValueError("Invalid value for called_at")
 
-    def _apply_mask(self, data: Data, node_mask: Tensor, edge_mask: Tensor) -> Data:
+    def _apply_mask(
+        self, data: Data, node_mask: Tensor, edge_mask: Tensor | None = None
+    ) -> Data:
         """Apply mask to data"""
         edge_index, edge_mask = get_edge_index_after_node_mask(
             edge_index=data.edge_index,
@@ -292,7 +294,10 @@ class TCNTrainer:
         if "ec_edge_mask" in out:
             # We need to ensure that the data that is now used to evaluate the loss
             # functions has the same mask as the output of the model
-            data = self._apply_mask(data, out["ec_hit_mask"], out["ec_edge_mask"])
+            # An exception to this are the edges, as everything that depends on the
+            # edges is independent of the post-EC edge mask, so should not be evaluated
+            # with them
+            data = self._apply_mask(data, out["ec_hit_mask"])
         if mask_pids_reco:
             pid_field = data.particle_id * data.reconstructable.long()
         else:
