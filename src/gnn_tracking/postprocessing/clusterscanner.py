@@ -162,8 +162,6 @@ class ClusterHyperParamScanner(AbstractClusterHyperParamScanner):
         """
         self._algorithm = algorithm
         self._suggest = suggest
-        assert [len(g) for g in data] == [len(t) for t in truth]
-        assert len(data) > 0
         self._data: list[np.ndarray] = data
         self._truth: list[np.ndarray] = sort_according_to_mask(truth, node_mask)
         self._pts: list[np.ndarray] = sort_according_to_mask(pts, node_mask)
@@ -191,6 +189,9 @@ class ClusterHyperParamScanner(AbstractClusterHyperParamScanner):
         #: Number of trials that were pruned
         self._n_trials_pruned = 0
         self.pt_thlds = list(pt_thlds)
+        if node_mask is None:
+            node_mask = [np.full_like(t, True) for t in truth]
+        self._node_mask = node_mask
 
     @staticmethod
     def _pad_output_with_noise(labels: np.ndarray, length: int) -> np.ndarray:
@@ -248,19 +249,25 @@ class ClusterHyperParamScanner(AbstractClusterHyperParamScanner):
         cheap_foms = []
         all_labels = []
         # Do a first run, looking only at the cheap metric, stopping early
-        for i_graph, (graph, truth, pts, reconstructable) in enumerate(
-            zip(self._data, self._truth, self._pts, self._reconstructable)
+        for i_graph, (data, truth, pts, reconstructable, node_mask) in enumerate(
+            zip(
+                self._data,
+                self._truth,
+                self._pts,
+                self._reconstructable,
+                self._node_mask,
+            )
         ):
             # Consider a random sector for each graph, but keep the sector consistent
             # between different trials.
             sector = self._get_sector_to_study(i_graph)
             sector_mask = self._sectors[i_graph] == sector
-            graph = graph[sector_mask]
+            data = data[sector_mask[node_mask]]
             truth = truth[sector_mask]
             pts = pts[sector_mask]
             reconstructable = reconstructable[sector_mask]
             labels = self._pad_output_with_noise(
-                self._algorithm(graph, **params), len(reconstructable)
+                self._algorithm(data, **params), len(reconstructable)
             )
             all_labels.append(labels)
             cheap_foms.append(
@@ -329,8 +336,13 @@ class ClusterHyperParamScanner(AbstractClusterHyperParamScanner):
     def __evaluate(self, best_params: dict[str, float]) -> dict[str, float]:
         """See _evaluate."""
         metric_values = defaultdict(list)
-        for graph, truth, sectors, pts, reconstructable in zip(
-            self._data, self._truth, self._sectors, self._pts, self._reconstructable
+        for graph, truth, sectors, pts, reconstructable, node_mask in zip(
+            self._data,
+            self._truth,
+            self._sectors,
+            self._pts,
+            self._reconstructable,
+            self._node_mask,
         ):
             available_sectors: list[int] = np.unique(sectors).tolist()  # type: ignore
             try:
@@ -339,7 +351,7 @@ class ClusterHyperParamScanner(AbstractClusterHyperParamScanner):
                 pass
             for sector in available_sectors:
                 sector_mask = sectors == sector
-                sector_graph = graph[sector_mask]
+                sector_graph = graph[sector_mask[node_mask]]
                 sector_truth = truth[sector_mask]
                 sector_pts = pts[sector_mask]
                 sector_reconstructable = reconstructable[sector_mask]
