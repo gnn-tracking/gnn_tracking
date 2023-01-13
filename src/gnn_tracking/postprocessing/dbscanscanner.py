@@ -84,7 +84,6 @@ def dbscan_scan(
         guide: See ClusterHyperParamScanner
         epoch: Epoch that is currently being processed
         start_params: Start here
-        **kwargs: Passed on to `DBSCANHyperParamScanner`
 
     Returns:
         ClusterScanResult

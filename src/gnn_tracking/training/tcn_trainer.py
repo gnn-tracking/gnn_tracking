@@ -506,7 +506,7 @@ class TCNTrainer:
         self.model.eval()
 
         # Objects in the following three lists are used for clustering
-        cluster_eval_input = {
+        cluster_eval_input: dict[str, list[np.ndarray]] = {
             "x": [],
             "particle_id": [],
             "sector": [],
@@ -594,7 +594,7 @@ class TCNTrainer:
                                 getattr(data, key).detach().cpu().numpy()
                             )
 
-        losses = {k: np.nanmean(v) for k, v in batch_losses.items()}
+        losses: dict[str, float] = {k: np.nanmean(v) for k, v in batch_losses.items()}
         for k, f in self.clustering_functions.items():
             cluster_result = f(
                 cluster_eval_input["x"],
