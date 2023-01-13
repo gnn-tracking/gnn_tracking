@@ -112,14 +112,16 @@ class PointCloudTCN(nn.Module):
         return {"W": None, "H": h_out, "B": beta, "P": None}
 
 
-def mask_nodes_with_few_edges(*, n_nodes, edge_index, min_connections=3):
+def mask_nodes_with_few_edges(
+    *, n_nodes: int, edge_index: torch.Tensor, min_connections=3
+) -> torch.Tensor:
     """Returns a mask where all nodes that do not have at least
     `min_connections` edges are masked.
 
     Args:
         n_nodes: Total number of hits
-        edge_index: Already masked
-        min_connection: Minimal number of edges that a node should have
+        edge_index: Edge index tensor (``2 x n_edges``)
+        min_connections: Minimal number of edges that a node should have
 
     Returns:
         Mask for hits
