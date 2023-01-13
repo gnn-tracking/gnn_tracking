@@ -283,6 +283,9 @@ class TCNTrainer:
             mask_pids_reco: If True, mask out PIDs for non-reconstructables
             apply_truth_cuts: If True, apply pre-configured truth cuts (see
                 `_apply_mask`)
+
+        Returns:
+            All values correspond to the truth cuts (if applied).
         """
         data = data.to(self.device)
         if apply_truth_cuts:
@@ -315,25 +318,30 @@ class TCNTrainer:
             except KeyError:
                 return None
 
+        post_ec_hit_mask_applied = (
+            "ec_hit_mask" in out and not out["ec_hit_mask"].all(),
+        )
         dct = {
+            # -------- flags
             "truth_cuts_applied": apply_truth_cuts,
-            "post_ec_hit_mask_applied": "ec_hit_mask" in out
-            and not out["ec_hit_mask"].all(),
+            "post_ec_hit_mask_applied": post_ec_hit_mask_applied,
+            # -------- model_outputs
             "w": squeeze_if_defined("W"),
             "x": get_if_defined("H"),
             "beta": squeeze_if_defined("B"),
+            "pred": get_if_defined("P"),
+            "ec_hit_mask": get_if_defined("ec_hit_mask"),
+            "ec_edge_mask": get_if_defined("ec_edge_mask"),
+            # -------- from data
             "y": data.y,
             "particle_id": pid_field,
             # fixme: One of these is wrong
             "track_params": data.pt,
             "pt": data.pt,
             "reconstructable": data.reconstructable.long(),
-            "pred": get_if_defined("P"),
             "edge_index": data.edge_index,
             "sector": data.sector,
             "node_features": data.x,
-            "ec_hit_mask": get_if_defined("ec_hit_mask"),
-            "ec_edge_mask": get_if_defined("ec_edge_mask"),
         }
         return dct
 
