@@ -1,11 +1,8 @@
 from __future__ import annotations
 
 import os
-import sys
 
 from point_cloud_builder import PointCloudBuilder
-
-sys.path.append("../")
 
 # configure initial params
 idx = int(os.environ["SLURM_ARRAY_TASK_ID"])
