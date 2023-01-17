@@ -542,7 +542,7 @@ class TCNTrainer:
                             0.1,
                         ]:
                             batch_losses[
-                                denote_pt(f"roc_auc_{max_fpr*100:.0f}FPR", pt_min)
+                                denote_pt(f"roc_auc_{max_fpr}FPR", pt_min)
                             ].append(
                                 roc_auc_score(
                                     y_true=true.cpu(),
