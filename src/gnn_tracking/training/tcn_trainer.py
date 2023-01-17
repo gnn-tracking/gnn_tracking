@@ -473,7 +473,7 @@ class TCNTrainer:
         return (pt_a > pt_min) | (pt_b > pt_min)
 
     def single_test_step(
-        self, thld=0.5, val=True, apply_truth_cuts=False
+        self, thld=0.5, val=True, apply_truth_cuts=False, max_batches: int | None = None
     ) -> dict[str, float]:
         """Test the model on the validation or test set
 
@@ -482,6 +482,7 @@ class TCNTrainer:
             val: Use validation dataset rather than test dataset
             apply_truth_cuts: Apply truth cuts (e.g., truth level pt cut) during
                 the evaluation
+            max_batches: Only process this many batches per epoch (useful for testing)
 
         Returns:
             Dictionary of metrics
@@ -499,6 +500,8 @@ class TCNTrainer:
         with torch.no_grad():
             loader = self.val_loader if val else self.test_loader
             for _batch_idx, data in enumerate(loader):
+                if max_batches and _batch_idx > max_batches:
+                    break
                 data = data.to(self.device)
                 model_output = self.evaluate_model(
                     data, mask_pids_reco=False, apply_truth_cuts=apply_truth_cuts
@@ -585,15 +588,18 @@ class TCNTrainer:
             hook(self, losses)
         return losses
 
-    def test_step(self, val=True) -> dict[str, float]:
+    def test_step(self, val=True, max_batches: int | None = None) -> dict[str, float]:
         """Validate the model and test the model on the validation/test set.
         This method is called during training and makes multiple calls to
         `single_test_step` corresponding to truth cut or uncut data.
 
         Args:
             val: Use validation dataset rather than test dataset
+            max_batches: Use a maximum number of batches for testing
         """
-        test_results = self.single_test_step(thld=self.ec_threshold, val=val)
+        test_results = self.single_test_step(
+            thld=self.ec_threshold, val=val, max_batches=max_batches
+        )
         if not self.training_truth_cuts.is_trivial():
             test_results.update(
                 add_key_suffix(
@@ -618,7 +624,7 @@ class TCNTrainer:
             train_losses = self.train_step(max_batches=max_batches)
         if not self.skip_test_during_training:
             with timing(f"Test step for epoch {self._epoch}"):
-                test_results = self.test_step()
+                test_results = self.test_step(max_batches=max_batches)
         else:
             test_results = {}
         results = {
