@@ -529,9 +529,9 @@ class TCNTrainer:
                             roc_auc_score(y_true=true.cpu(), y_score=predicted.cpu())
                         )
                         for max_fpr in [
-                            0.05,
+                            0.001,
+                            0.01,
                             0.1,
-                            0.2,
                         ]:
                             batch_losses[
                                 denote_pt(f"roc_auc_{max_fpr*100:.0f}FPR", pt_min)
