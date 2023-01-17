@@ -69,7 +69,6 @@ def test_train(tmp_path, built_graphs, loss_weights: str) -> None:
         cluster_functions={"dbscan": partial(dbscan_scan, n_trials=1)},  # type: ignore
         loss_weights=_loss_weights,
     )
-    trainer.pt_thlds = [0.0]
     trainer.checkpoint_dir = tmp_path
     tcc = TrainingTruthCutConfig(
         pt_thld=0.01,

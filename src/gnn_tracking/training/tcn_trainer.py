@@ -100,8 +100,8 @@ class TrainingTruthCutConfig:
         )
         if self.pt_thld > 0:
             # noise will also have pt = 0, so let's make sure we keep this independent
-            noise_mask = data.particle_id > 0
-            node_mask[noise_mask] &= data.pt[noise_mask] > self.pt_thld
+            no_noise_mask = data.particle_id > 0
+            node_mask[no_noise_mask] &= data.pt[no_noise_mask] > self.pt_thld
         if self.without_noise:
             node_mask &= data.particle_id > 0
         if self.without_non_reconstructable:
@@ -208,13 +208,15 @@ class TCNTrainer:
 
         self.training_truth_cuts = TrainingTruthCutConfig()
 
-        #: pT thresholds that are being used in the evaluation of metrics in the test
-        #: step
-        self.pt_thlds = [0.9, 1.5]
+        #: pT thresholds that are being used in the evaluation of edge classification
+        #: metrics in the test step
+        self.ec_eval_pt_thlds = [0.9, 1.5]
 
         #: Do not run test step after training epoch
         self.skip_test_during_training = False
 
+        # todo: This should rather be read from the model, because it makes only
+        #   sense if it actually amtches
         #: Threshold for edge classification in test step (does not
         #: affect training)
         self.ec_threshold = 0.5
@@ -467,7 +469,13 @@ class TCNTrainer:
             hook(self, losses)
         return losses
 
-    def _edge_pt_mask(self, edge_index: Tensor, pt: Tensor, pt_min=0.0) -> Tensor:
+    @staticmethod
+    def _edge_pt_mask(edge_index: Tensor, pt: Tensor, pt_min=0.0) -> Tensor:
+        """Mask edges where BOTH (!) nodes have pt <= pt_min.
+        Note how the resulting edge mask is different from the pt truth cut mask,
+        which only requires one of the nodes of the edge to have pt <= pt_min to
+        be masked.
+        """
         pt_a = pt[edge_index[0]]
         pt_b = pt[edge_index[1]]
         return (pt_a > pt_min) | (pt_b > pt_min)
@@ -509,7 +517,7 @@ class TCNTrainer:
                 batch_loss, these_batch_losses = self.get_batch_losses(model_output)
 
                 if model_output["w"] is not None:
-                    for pt_min in self.pt_thlds:
+                    for pt_min in self.ec_eval_pt_thlds:
                         edge_pt_mask = self._edge_pt_mask(
                             model_output["edge_index"], model_output["pt"], pt_min
                         )
