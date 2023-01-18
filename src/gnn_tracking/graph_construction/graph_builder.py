@@ -492,4 +492,16 @@ def load_graphs(
         len(considered_files),
         len(available_files),
     )
-    return [torch.load(f) for f in considered_files]
+
+    ret: list[Data] = []
+    for f in considered_files:
+        try:
+            data = torch.load(f)
+        except Exception as e:
+            logger.error(
+                f"Failed to load {f}, we're simply ignoring " f"this for now: {e}"
+            )
+        else:
+            ret.append(data)
+
+    return ret
