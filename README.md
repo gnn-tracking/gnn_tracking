@@ -1,3 +1,5 @@
+<div align="center">
+
 # GNNs for Charged Particle Tracking
 
 [![Documentation Status](https://readthedocs.org/projects/gnn-tracking/badge/?version=latest)](https://gnn-tracking.readthedocs.io/en/latest/?badge=latest)
@@ -8,6 +10,8 @@
 
 
 ![](readme_assets/banner.jpg)
+
+</div>
 
 ## Setup and testing
 
