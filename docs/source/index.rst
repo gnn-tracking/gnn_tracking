@@ -3,8 +3,8 @@
    You can adapt this file completely to your liking, but it should at least
    contain the root `toctree` directive.
 
-Welcome to gnn_tracking's documentation!
-========================================
+Charged Particle Tracking with GNNs
+===================================
 
 .. toctree::
    :maxdepth: 2
