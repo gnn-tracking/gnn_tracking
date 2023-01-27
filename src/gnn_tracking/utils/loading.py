@@ -1,9 +1,8 @@
 from __future__ import annotations
 
-import sklearn
+import sklearn.model_selection
 from gnn_tracking_hpo.util.log import logger
-from promise.dataloader import DataLoader
-from torch_geometric.data import Data
+from torch_geometric.data import Data, DataLoader
 
 
 def train_test_val_split(
