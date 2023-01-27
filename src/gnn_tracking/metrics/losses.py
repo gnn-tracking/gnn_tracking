@@ -263,7 +263,7 @@ class BackgroundLoss(torch.nn.Module):
         return loss
 
     # noinspection PyUnusedLocal
-    def forward(self, *, beta, particle_id, **kwargs):
+    def forward(self, *, beta: T, particle_id: T, **kwargs) -> T:
         return self._background_loss(beta=beta, particle_id=particle_id)
 
 
@@ -273,10 +273,10 @@ class ObjectLoss(torch.nn.Module):
         super().__init__()
         self.mode = mode
 
-    def _mse(self, *, pred, truth):
+    def _mse(self, *, pred: T, truth: T) -> T:
         return torch.sum(mse_loss(pred, truth, reduction="none"), dim=1)
 
-    def object_loss(self, *, pred, beta, truth, particle_id):
+    def object_loss(self, *, pred: T, beta: T, truth: T, particle_id: T) -> T:
         # shape: n_nodes
         mse = self._mse(pred=pred, truth=truth)
         if self.mode == "purity":
@@ -302,8 +302,15 @@ class ObjectLoss(torch.nn.Module):
 
     # noinspection PyUnusedLocal
     def forward(
-        self, *, beta, pred, particle_id, track_params, reconstructable, **kwargs
-    ):
+        self,
+        *,
+        beta: T,
+        pred: T,
+        particle_id: T,
+        track_params: T,
+        reconstructable: T,
+        **kwargs,
+    ) -> T:
         mask = reconstructable > 0
         return self.object_loss(
             pred=pred[mask],
