@@ -192,14 +192,14 @@ class ModularGraphTCN(nn.Module):
         # edge_attr = torch.cat((edge_weights, edge_attr), dim=1)
 
         # apply edge weight threshold
-        row, col = edge_index
-        mask = (edge_weights > self.threshold).squeeze()
-        row, col = row[mask], col[mask]
-        edge_index = torch.stack([row, col], dim=0)
+        edge_mask = (edge_weights > self.threshold).squeeze()
+        edge_index = edge_index[:, edge_mask]
         if self._feed_edge_weights:
-            edge_attr = torch.concat([edge_attr[mask], edge_weights[mask]], dim=1)
+            edge_attr = torch.concat(
+                [edge_attr[edge_mask], edge_weights[edge_mask]], dim=1
+            )
         else:
-            edge_attr = edge_attr[mask]
+            edge_attr = edge_attr[edge_mask]
 
         # apply the track condenser
         h_hc = self.relu(self.hc_node_encoder(x))
