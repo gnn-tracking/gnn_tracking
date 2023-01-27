@@ -113,7 +113,7 @@ class PointCloudTCN(nn.Module):
 
 
 def mask_nodes_with_few_edges(
-    *, n_nodes: int, edge_index: torch.Tensor, min_connections=3
+    *, n_nodes: int, edge_index: torch.Tensor, min_connections=1
 ) -> torch.Tensor:
     """Returns a mask where all nodes that do not have at least
     `min_connections` edges are masked.
@@ -153,7 +153,7 @@ class ModularGraphTCN(nn.Module):
         hidden_dim=40,
         feed_edge_weights=False,
         ec_threshold=0.5,
-        mask_nodes_with_leq_connections=0,
+        mask_nodes_with_no_connections=False,
     ):
         """General form of track condensation network based on preconstructed graphs
         with initial step of edge classification.
@@ -170,8 +170,7 @@ class ModularGraphTCN(nn.Module):
             hidden_dim: width of hidden layers in all perceptrons
             feed_edge_weights: whether to feed edge weights to the track condenser
             ec_threshold: threshold for edge classification
-            mask_nodes_with_leq_connections: Mask nodes that have less than this many
-                connections after EC. Set <=0 to disable.
+            mask_nodes_with_no_connections: Mask nodes with no connections after EC
         """
         super().__init__()
         self.relu = nn.ReLU()
@@ -209,7 +208,7 @@ class ModularGraphTCN(nn.Module):
         )
         self._feed_edge_weights = feed_edge_weights
         self.threshold = ec_threshold
-        self.mask_nodes_with_leq_connections = mask_nodes_with_leq_connections
+        self.mask_nodes_with_no_connections = mask_nodes_with_no_connections
 
     def forward(
         self,
@@ -234,7 +233,7 @@ class ModularGraphTCN(nn.Module):
         hit_mask = mask_nodes_with_few_edges(
             n_nodes=len(x),
             edge_index=edge_index,
-            min_connections=self.mask_nodes_with_leq_connections,
+            min_connections=1 if self.mask_nodes_with_no_connections else 0,
         )
         edge_index, edge_mask_from_node_mask = get_edge_index_after_node_mask(
             edge_index=edge_index, node_mask=hit_mask
