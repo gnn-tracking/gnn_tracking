@@ -68,13 +68,20 @@ class ClusterAlgorithmType(Protocol):
         ...
 
 
-def sort_according_to_mask(x: np.ndarray, mask: np.ndarray | None = None) -> np.ndarray:
+def sort_according_to_mask(
+    xs: list[np.ndarray], masks: list[np.ndarray] | None = None
+) -> list[np.ndarray]:
     """If mask is not `None`, sort vector `x` to first list all elements that are in
     the mask, then all that are masked
     """
-    if mask is None:
-        return x
-    return np.concatenate([x[mask], x[~mask]])
+
+    def inner(x: np.ndarray, mask: np.ndarray | None) -> np.ndarray:
+        if mask is None:
+            return x
+        else:
+            return np.concatenate([x[mask], x[~mask]])
+
+    return [inner(x, mask) for x, mask in zip(xs, masks)]
 
 
 class ClusterHyperParamScanner(AbstractClusterHyperParamScanner):
@@ -98,7 +105,7 @@ class ClusterHyperParamScanner(AbstractClusterHyperParamScanner):
             0.9,
             1.5,
         ),
-        node_mask: np.ndarray | None = None,
+        node_mask: list[np.ndarray] | None = None,
     ):
         """Class to scan hyperparameters of a clustering algorithm.
 
@@ -158,15 +165,11 @@ class ClusterHyperParamScanner(AbstractClusterHyperParamScanner):
         assert [len(g) for g in data] == [len(t) for t in truth]
         assert len(data) > 0
         self._data: list[np.ndarray] = data
-        self._truth: list[np.ndarray] = [
-            sort_according_to_mask(x, node_mask) for x in truth
-        ]
-        self._pts: list[np.ndarray] = [
-            sort_according_to_mask(x, node_mask) for x in pts
-        ]
-        self._reconstructable: list[np.ndarray] = [
-            sort_according_to_mask(x, node_mask) for x in reconstructable
-        ]
+        self._truth: list[np.ndarray] = sort_according_to_mask(truth, node_mask)
+        self._pts: list[np.ndarray] = sort_according_to_mask(pts, node_mask)
+        self._reconstructable: list[np.ndarray] = sort_according_to_mask(
+            reconstructable, node_mask
+        )
         self._metrics: dict[str, ClusterMetricType] = metrics
         if sectors is None:
             self._sectors: list[np.ndarray] = [
@@ -174,7 +177,7 @@ class ClusterHyperParamScanner(AbstractClusterHyperParamScanner):
             ]
         else:
             assert [len(s) for s in sectors] == [len(t) for t in truth]
-            self._sectors = [sort_according_to_mask(x, node_mask) for x in sectors]
+            self._sectors = sort_according_to_mask(sectors, node_mask)
         self._es = early_stopping
         self._study = None
         self._cheap_metric = guide_proxy

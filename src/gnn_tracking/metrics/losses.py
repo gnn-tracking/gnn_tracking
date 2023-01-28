@@ -237,8 +237,15 @@ class PotentialLoss(torch.nn.Module):
         particle_id: T,
         reconstructable: T,
         track_params: T,
+        ec_hit_mask: T,
         **kwargs,
     ) -> dict[str, T]:
+        # If a post-EC node mask was applied in the model, then all model outputs
+        # already include this mask, while everything gotten from the data
+        # does not. Hence, we apply it here.
+        particle_id = particle_id[ec_hit_mask]
+        reconstructable = reconstructable[ec_hit_mask]
+        track_params = track_params[ec_hit_mask]
         mask = (reconstructable > 0) & (track_params > self.pt_thld)
         return self._condensation_loss(
             beta=beta, x=x, particle_id=particle_id, mask=mask
@@ -263,8 +270,8 @@ class BackgroundLoss(torch.nn.Module):
         return loss
 
     # noinspection PyUnusedLocal
-    def forward(self, *, beta: T, particle_id: T, **kwargs) -> T:
-        return self._background_loss(beta=beta, particle_id=particle_id)
+    def forward(self, *, beta: T, particle_id: T, ec_hit_mask: T, **kwargs) -> T:
+        return self._background_loss(beta=beta, particle_id=particle_id[ec_hit_mask])
 
 
 class ObjectLoss(torch.nn.Module):

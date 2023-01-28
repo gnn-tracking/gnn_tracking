@@ -66,6 +66,7 @@ def dbscan_scan(
     guide="v_measure",
     epoch=None,
     start_params: dict[str, Any] | None = None,
+    node_mask: np.ndarray | None = None,
 ) -> ClusterScanResult:
     """Convenience function for scanning of DBSCAN hyperparameters to be given to
     `TCNTrainer` (see example below).
@@ -84,6 +85,7 @@ def dbscan_scan(
         guide: See ClusterHyperParamScanner
         epoch: Epoch that is currently being processed
         start_params: Start here
+        node_mask: See ClusterHyperParamScanner
 
     Returns:
         ClusterScanResult
@@ -118,6 +120,7 @@ def dbscan_scan(
         reconstructable=reconstructable,
         guide=guide,
         metrics=common_metrics,
+        node_mask=node_mask,
     )
     if isinstance(n_trials, int):
         pass

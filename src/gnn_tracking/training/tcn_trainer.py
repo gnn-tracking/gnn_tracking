@@ -67,6 +67,7 @@ class ClusterFctType(Protocol):
         reconstructable: list[np.ndarray],
         epoch=None,
         start_params: dict[str, Any] | None = None,
+        node_mask: list[np.ndarray] | None = None,
     ) -> ClusterScanResult:
         ...
 
@@ -294,13 +295,6 @@ class TCNTrainer:
             out = self.model(data)
         else:
             out = self.model(data)
-        if "ec_edge_mask" in out:
-            # We need to ensure that the data that is now used to evaluate the loss
-            # functions has the same mask as the output of the model
-            # An exception to this are the edges, as everything that depends on the
-            # edges is independent of the post-EC edge mask, so should not be evaluated
-            # with them
-            data = self._apply_mask(data, out["ec_hit_mask"])
         if mask_pids_reco:
             pid_field = data.particle_id * data.reconstructable.long()
         else:
@@ -318,20 +312,23 @@ class TCNTrainer:
             except KeyError:
                 return None
 
-        post_ec_hit_mask_applied = (
-            "ec_hit_mask" in out and not out["ec_hit_mask"].all(),
-        )
+        ec_hit_mask = out.get("ec_hit_mask", None)
+        ec_edge_mask = out.get("ec_edge_mask", None)
+        if ec_hit_mask is None:
+            ec_hit_mask = torch.full_like(data.pt, True, device=self.device)
+        if ec_edge_mask is None:
+            ec_edge_mask = torch.full_like(data.y, True, device=self.device)
+
         dct = {
             # -------- flags
             "truth_cuts_applied": apply_truth_cuts,
-            "post_ec_hit_mask_applied": post_ec_hit_mask_applied,
             # -------- model_outputs
             "w": squeeze_if_defined("W"),
             "x": get_if_defined("H"),
             "beta": squeeze_if_defined("B"),
             "pred": get_if_defined("P"),
-            "ec_hit_mask": get_if_defined("ec_hit_mask"),
-            "ec_edge_mask": get_if_defined("ec_edge_mask"),
+            "ec_hit_mask": ec_hit_mask,
+            "ec_edge_mask": ec_edge_mask,
             # -------- from data
             "y": data.y,
             "particle_id": pid_field,
@@ -520,6 +517,7 @@ class TCNTrainer:
             "sector": [],
             "pt": [],
             "reconstructable": [],
+            "ec_hit_mask": [],
         }
 
         batch_losses = collections.defaultdict(list)
@@ -580,27 +578,10 @@ class TCNTrainer:
                     self.clustering_functions
                     and _batch_idx <= self.max_batches_for_clustering
                 ):
-
-                    if not model_output["post_ec_hit_mask_applied"]:
-                        for key in cluster_eval_input:
-                            cluster_eval_input[key].append(
-                                model_output[key].detach().cpu().numpy()
-                            )
-                    else:
-                        if model_output["truth_cuts_applied"]:
-                            raise ValueError(
-                                "Evaluation with truth cuts and post EC hit mask is "
-                                "currently not implemented."
-                            )
-                        for key in cluster_eval_input:
-                            if key == "x":
-                                cluster_eval_input[key].append(
-                                    model_output[key].detach().cpu().numpy()
-                                )
-                        else:
-                            cluster_eval_input[key].append(
-                                getattr(data, key).detach().cpu().numpy()
-                            )
+                    for key in cluster_eval_input:
+                        cluster_eval_input[key].append(
+                            model_output[key].detach().cpu().numpy()
+                        )
 
         losses: dict[str, float] = {k: np.nanmean(v) for k, v in batch_losses.items()}
         for k, f in self.clustering_functions.items():
@@ -612,6 +593,7 @@ class TCNTrainer:
                 cluster_eval_input["reconstructable"],
                 epoch=self._epoch,
                 start_params=self._best_cluster_params.get(k, None),
+                node_mask=cluster_eval_input["ec_hit_mask"],
             )
             if cluster_result is not None:
                 losses.update(cluster_result.metrics)
