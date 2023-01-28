@@ -300,13 +300,13 @@ class TCNTrainer:
         else:
             pid_field = data.particle_id
 
-        def squeeze_if_defined(key: str):
+        def squeeze_if_defined(key: str) -> None | Tensor:
             try:
                 return out[key].squeeze()
             except KeyError:
                 return None
 
-        def get_if_defined(key: str):
+        def get_if_defined(key: str) -> None | Tensor:
             try:
                 return out[key]
             except KeyError:
@@ -326,6 +326,8 @@ class TCNTrainer:
             "edge_index": data.edge_index,
             "sector": data.sector,
             "node_features": data.x,
+            "ec_hit_mask": get_if_defined("ec_hit_mask"),
+            "ec_edge_mask": get_if_defined("ec_edge_mask"),
         }
         return dct
 

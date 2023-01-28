@@ -111,6 +111,31 @@ class PointCloudTCN(nn.Module):
         return {"W": None, "H": h_out, "B": beta, "P": None}
 
 
+def get_unconnected_node_mask(*, n_nodes, edge_index, min_connections=3):
+    """Returns a mask where all nodes that do not have at least
+    `min_connections` edges are masked.
+
+    Args:
+        n_nodes: Total number of hits
+        edge_index: Already masked
+        min_connection: Minimal number of edges that a node should have
+
+    Returns:
+        Mask for hits
+    """
+    if min_connections <= 0:
+        return torch.full(n_nodes, True, dtype=torch.bool, device=edge_index.device)
+    node_count_indices, node_counts = torch.unique(
+        edge_index.flatten(), return_counts=True
+    )
+    node_mask = node_counts >= min_connections
+    allowed_node_indices = node_count_indices[node_mask]
+    node_indices = torch.arange(n_nodes, device=edge_index.device)
+    assert len(node_indices) == n_nodes > len(node_count_indices)
+    assert n_nodes > node_count_indices.max()
+    return torch.isin(node_indices, allowed_node_indices)
+
+
 class ModularGraphTCN(nn.Module):
     def __init__(
         self,
@@ -125,6 +150,7 @@ class ModularGraphTCN(nn.Module):
         hidden_dim=40,
         feed_edge_weights=False,
         ec_threshold=0.5,
+        mask_nodes_with_leq_connections=0,
     ):
         """General form of track condensation network based on preconstructed graphs
         with initial step of edge classification.
@@ -141,6 +167,8 @@ class ModularGraphTCN(nn.Module):
             hidden_dim: width of hidden layers in all perceptrons
             feed_edge_weights: whether to feed edge weights to the track condenser
             ec_threshold: threshold for edge classification
+            mask_nodes_with_leq_connections: Mask nodes that have less than this many
+                connections after EC. Set <=0 to disable.
         """
         super().__init__()
         self.relu = nn.ReLU()
@@ -178,6 +206,7 @@ class ModularGraphTCN(nn.Module):
         )
         self._feed_edge_weights = feed_edge_weights
         self.threshold = ec_threshold
+        self.mask_nodes_with_leq_connections = mask_nodes_with_leq_connections
 
     def forward(
         self,
@@ -199,8 +228,14 @@ class ModularGraphTCN(nn.Module):
         else:
             edge_attr = edge_attr[edge_mask]
 
+        hit_mask = get_unconnected_node_mask(
+            n_nodes=len(x),
+            edge_index=edge_index,
+            min_connections=self.mask_nodes_with_leq_connections,
+        )
+
         # apply the track condenser
-        h_hc = self.relu(self.hc_node_encoder(x))
+        h_hc = self.relu(self.hc_node_encoder(x[hit_mask]))
         edge_attr_hc = self.relu(self.hc_edge_encoder(edge_attr))
         h_hc, _, edge_attrs_hc = self.hc_in(h_hc, edge_index, edge_attr_hc)
         beta = torch.sigmoid(self.p_beta(h_hc))
@@ -211,7 +246,14 @@ class ModularGraphTCN(nn.Module):
         track_params, _ = self.p_track_param(
             h_hc, edge_index, torch.cat(edge_attrs_hc, dim=1)
         )
-        return {"W": edge_weights, "H": h, "B": beta, "P": track_params}
+        return {
+            "W": edge_weights,
+            "H": h,
+            "B": beta,
+            "P": track_params,
+            "ec_hit_mask": hit_mask,
+            "ec_edge_mask": edge_mask,
+        }
 
 
 class GraphTCN(nn.Module):
@@ -255,7 +297,6 @@ class GraphTCN(nn.Module):
                 networks in edge classifier
             alpha_hc: strength of residual connection for multi-layer interaction
                 networks in track condenser
-            feed_edge_weights: whether to feed edge weights to the track condenser
         """
         super().__init__()
         ec = ECForGraphTCN(
@@ -316,6 +357,7 @@ class PerfectECGraphTCN(nn.Module):
         alpha_hc: float = 0.5,
         ec_tpr=1.0,
         ec_tnr=1.0,
+        **kwargs,
     ):
         """Similar to `GraphTCN` but with a "perfect" (i.e., truth based) edge
         classifier.
@@ -335,6 +377,7 @@ class PerfectECGraphTCN(nn.Module):
                 networks
             ec_tpr: true positive rate of the perfect edge classifier
             ec_tnr: true negative rate of the perfect edge classifier
+            **kwargs: Passed to `ModularGraphTCN`
         """
         super().__init__()
         ec = PerfectEdgeClassification(tpr=ec_tpr, tnr=ec_tnr)
@@ -359,7 +402,7 @@ class PerfectECGraphTCN(nn.Module):
             e_dim=e_dim,
             h_outdim=h_outdim,
             hidden_dim=hidden_dim,
-            feed_edge_weights=False,
+            **kwargs,
         )
 
     def forward(
@@ -384,14 +427,13 @@ class PreTrainedECGraphTCN(nn.Module):
         hidden_dim=40,
         L_hc=3,
         alpha_hc: float = 0.5,
-        ec_threshold: float = 0.5,
+        **kwargs,
     ):
         """GraphTCN for the use with a pre-trained edge classifier
 
         Args:
             ec: Pre-trained edge classifier
-            ec_threshold: Threshold for the edge classifier
-            all others: See `PerfectECGraphTCN`
+            **kwargs: Additional keyword arguments for `PerfectECGraphTCN`
         """
         super().__init__()
         hc_in = ResIN.identical_in_layers(
@@ -415,8 +457,7 @@ class PreTrainedECGraphTCN(nn.Module):
             e_dim=e_dim,
             h_outdim=h_outdim,
             hidden_dim=hidden_dim,
-            feed_edge_weights=False,
-            ec_threshold=ec_threshold,
+            **kwargs,
         )
 
     def forward(
