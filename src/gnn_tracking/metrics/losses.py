@@ -103,7 +103,7 @@ def binary_focal_loss(
     return loss
 
 
-def falsify_low_pt_edges(*, y: T, edge_index: T, pt: T, pt_thld: float = 0.0):
+def falsify_low_pt_edges(*, y: T, edge_index: T, pt: T, pt_thld: float = 0.0) -> T:
     """Modify the ground truth to-be-predicted by the edge classification
     to consider edges that include a hit with pt < pt_thld as false.
 
