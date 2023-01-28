@@ -29,5 +29,7 @@ def get_commit_hash(module: None | ModuleType | str | PathLike = None) -> str:
         )
         return "invalid"
     if repo.is_dirty():
-        logger.warning("Repository is dirty, commit hash may not be accurate.")
+        logger.warning(
+            "Repository %s is dirty, commit hash may not be accurate.", base_path
+        )
     return repo.head.object.hexsha
