@@ -6,13 +6,14 @@ import torch
 import torch.nn as nn
 from torch import Tensor
 from torch_geometric.data import Data
+from torch_geometric.utils import index_to_mask
 
 from gnn_tracking.models.dynamic_edge_conv import DynamicEdgeConv
 from gnn_tracking.models.edge_classifier import ECForGraphTCN, PerfectEdgeClassification
 from gnn_tracking.models.interaction_network import InteractionNetwork as IN
 from gnn_tracking.models.mlp import MLP
 from gnn_tracking.models.resin import ResIN
-from gnn_tracking.utils.graph_masks import get_edge_index_after_node_mask
+from gnn_tracking.utils.graph_masks import edge_subgraph
 
 
 class INConvBlock(nn.Module):
@@ -216,48 +217,39 @@ class ModularGraphTCN(nn.Module):
         self,
         data: Data,
     ) -> dict[str, Tensor]:
-        # apply the edge classifier to generate edge weights
-        x, edge_index, edge_attr = data.x, data.edge_index, data.edge_attr
+        # Assign it to the data object, so that the cuts will be applied to it as well
+        data.edge_weights = self.ec(data)
+        edge_weights_unmasked = data.edge_weights.clone().detach()
+        edge_mask = (data.edge_weights > self.threshold).squeeze()
+        data = edge_subgraph(data, edge_mask)
 
-        edge_weights = self.ec(data)
-        # edge_attr = torch.cat((edge_weights, edge_attr), dim=1)
-
-        # apply edge weight threshold
-        edge_mask = (edge_weights > self.threshold).squeeze()
-        edge_index = edge_index[:, edge_mask]
-        if self._feed_edge_weights:
-            edge_attr = torch.concat(
-                [edge_attr[edge_mask], edge_weights[edge_mask]], dim=1
-            )
+        if self.mask_nodes_with_no_connections:
+            connected_nodes = data.edge_index.flatten().unique()
+            hit_mask = index_to_mask(connected_nodes, size=data.num_nodes)
+            data = data.subgraph(connected_nodes)
         else:
-            edge_attr = edge_attr[edge_mask]
+            hit_mask = torch.ones(
+                data.num_nodes, dtype=torch.bool, device=data.x.device
+            )
 
-        hit_mask = mask_nodes_with_few_edges(
-            n_nodes=len(x),
-            edge_index=edge_index,
-            min_connections=1 if self.mask_nodes_with_no_connections else 0,
-        )
-        edge_index, edge_mask_from_node_mask = get_edge_index_after_node_mask(
-            edge_index=edge_index, node_mask=hit_mask
-        )
-        edge_mask[edge_mask.clone()] &= edge_mask_from_node_mask
+        edge_attr = data.edge_attr
+        if self._feed_edge_weights:
+            edge_attr = torch.concat([data.edge_attr, data.edge_weights], dim=1)
 
         # apply the track condenser
-        h_hc = self.relu(self.hc_node_encoder(x[hit_mask]))
-        edge_attr_hc = self.relu(
-            self.hc_edge_encoder(edge_attr[edge_mask_from_node_mask])
-        )
-        h_hc, _, edge_attrs_hc = self.hc_in(h_hc, edge_index, edge_attr_hc)
+        h_hc = self.relu(self.hc_node_encoder(data.x))
+        edge_attr_hc = self.relu(self.hc_edge_encoder(edge_attr))
+        h_hc, _, edge_attrs_hc = self.hc_in(h_hc, data.edge_index, edge_attr_hc)
         beta = torch.sigmoid(self.p_beta(h_hc))
         # protect against nans
         beta = beta + torch.ones_like(beta) * 10e-9
 
         h = self.p_cluster(h_hc)
         track_params, _ = self.p_track_param(
-            h_hc, edge_index, torch.cat(edge_attrs_hc, dim=1)
+            h_hc, data.edge_index, torch.cat(edge_attrs_hc, dim=1)
         )
         return {
-            "W": edge_weights,
+            "W": edge_weights_unmasked,
             "H": h,
             "B": beta,
             "P": track_params,

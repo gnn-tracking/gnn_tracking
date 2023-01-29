@@ -1,56 +1,65 @@
 from __future__ import annotations
 
-import numpy as np
+import copy
+
 import torch
 from torch import Tensor as T
+from torch_geometric.data import Data
 
 
 def get_edge_mask_from_node_mask(node_mask: T, edge_index: T) -> T:
     return node_mask[edge_index[0].long()] & node_mask[edge_index[1].long()]
 
 
-def get_edge_index_after_node_mask(
-    node_mask: T, edge_index: T, *, edge_mask: T | None = None
-) -> tuple[T, T]:
-    """A node mask is applied to all nodes.
-    All edges that connect to a masked node are removed.
-    Because the edge index refers to node
-    by their index in the node list, the edge index needs to be updated to
-    match this.
+# This will be updated in the next pytorch geometric version.
+# Copied directly from the current beta implementation
+def mask_select(src: T, dim: int, mask: T) -> T:
+    r"""Returns a new tensor which masks the :obj:`src` tensor along the
+    dimension :obj:`dim` according to the boolean mask :obj:`mask`.
 
     Args:
-        edge_index: 2 x n_edges tensor
-        node_mask: Mask for all nodes
-        edge_mask: Additional edge mask (before node mask is applied)
-
-    Returns:
-        edge index (2 x n_edges tensor), edge mask (that is already included in the
-        edge index)
+        src (torch.T): The input tensor.
+        dim (int): The dimension in which to mask.
+        mask (torch.BoolT): The 1-D tensor containing the binary mask to
+            index with.
     """
-    if edge_index.shape[1] == 0:
-        # edge mask would also be empty tensor
-        return edge_index, T([]).bool().to(edge_index.device)
+    assert mask.dim() == 1
+    assert src.size(dim) == mask.numel()
+    dim = dim + src.dim() if dim < 0 else dim
+    assert dim >= 0 and dim < src.dim()
 
-    implied_edge_mask = get_edge_mask_from_node_mask(node_mask, edge_index)
-    if edge_mask is not None:
-        implied_edge_mask &= edge_mask
+    size = [1] * src.dim()
+    size[dim] = mask.numel()
 
-    if not implied_edge_mask.any():
-        return T([[], []]).long().to(edge_index.device), implied_edge_mask
+    out = src.masked_select(mask.view(size))
 
-    # Somehow using tensors will mess up the call with np.vectorize
-    old_edge_indices = np.arange(len(node_mask))[node_mask.cpu()]
-    new_edge_indices = np.arange(node_mask.sum().cpu())
-    assert old_edge_indices.shape == new_edge_indices.shape
-    edge_index_mapping = np.vectorize(dict(zip(old_edge_indices, new_edge_indices)).get)
-    edge_index = torch.stack(
-        [
-            torch.from_numpy(
-                edge_index_mapping(edge_index[0][implied_edge_mask].cpu())
-            ),
-            torch.from_numpy(
-                edge_index_mapping(edge_index[1][implied_edge_mask].cpu())
-            ),
-        ]
-    ).to(edge_index.device)
-    return edge_index.long(), implied_edge_mask
+    size = list(src.size())
+    size[dim] = -1
+
+    return out.view(size)
+
+
+# This will be updated in the next pytorch geometric version.
+# Copied directly from the current beta implementation
+def edge_subgraph(data: Data, subset: T) -> Data:
+    r"""Returns the induced subgraph given by the edge indices
+    :obj:`subset`.
+    Will currently preserve all the nodes in the graph, even if they are
+    isolated after subgraph computation.
+
+    Args:
+        subset (LongT or BoolT): The edges to keep.
+    """
+    # We need to be very careful here, because we need to preserve the
+    # is_edge_attr logic and similar things from the old object
+    new_data = copy.copy(data)
+
+    for key, value in data:
+        if data.is_edge_attr(key):
+            cat_dim = data.__cat_dim__(key, value)
+            if subset.dtype == torch.bool:
+                new_data[key] = mask_select(value, cat_dim, subset)
+            else:
+                new_data[key] = value.index_select(cat_dim, subset)
+
+    return new_data
