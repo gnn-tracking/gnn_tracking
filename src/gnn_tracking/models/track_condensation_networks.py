@@ -154,7 +154,7 @@ class ModularGraphTCN(nn.Module):
         hidden_dim=40,
         feed_edge_weights=False,
         ec_threshold=0.5,
-        mask_nodes_with_no_connections=False,
+        mask_orphan_nodes=False,
     ):
         """General form of track condensation network based on preconstructed graphs
         with initial step of edge classification.
@@ -171,7 +171,7 @@ class ModularGraphTCN(nn.Module):
             hidden_dim: width of hidden layers in all perceptrons
             feed_edge_weights: whether to feed edge weights to the track condenser
             ec_threshold: threshold for edge classification
-            mask_nodes_with_no_connections: Mask nodes with no connections after EC
+            mask_orphan_nodes: Mask nodes with no connections after EC
         """
         super().__init__()
         self.relu = nn.ReLU()
@@ -209,7 +209,7 @@ class ModularGraphTCN(nn.Module):
         )
         self._feed_edge_weights = feed_edge_weights
         self.threshold = ec_threshold
-        self.mask_nodes_with_no_connections = mask_nodes_with_no_connections
+        self._mask_orphan_nodes = mask_orphan_nodes
 
     def forward(
         self,
@@ -221,7 +221,7 @@ class ModularGraphTCN(nn.Module):
         edge_mask = (data.edge_weights > self.threshold).squeeze()
         data = edge_subgraph(data, edge_mask)
 
-        if self.mask_nodes_with_no_connections:
+        if self._mask_orphan_nodes:
             connected_nodes = data.edge_index.flatten().unique()
             hit_mask = index_to_mask(connected_nodes, size=data.num_nodes)
             data = data.subgraph(connected_nodes)
