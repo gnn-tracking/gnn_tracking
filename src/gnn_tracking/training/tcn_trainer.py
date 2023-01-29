@@ -16,6 +16,7 @@ from torch import Tensor
 from torch.optim import Adam
 from torch_geometric.data import Data
 from torch_geometric.loader import DataLoader
+from torch_geometric.utils import mask_to_index
 
 from gnn_tracking.metrics.binary_classification import (
     BinaryClassificationStats,
@@ -29,10 +30,7 @@ from gnn_tracking.training.dynamiclossweights import (
 )
 from gnn_tracking.utils.device import guess_device
 from gnn_tracking.utils.dictionaries import add_key_suffix
-from gnn_tracking.utils.graph_masks import (
-    get_edge_index_after_node_mask,
-    get_edge_mask_from_node_mask,
-)
+from gnn_tracking.utils.graph_masks import edge_subgraph, get_edge_mask_from_node_mask
 from gnn_tracking.utils.log import get_logger
 from gnn_tracking.utils.nomenclature import denote_pt
 from gnn_tracking.utils.timing import timing
@@ -258,21 +256,11 @@ class TCNTrainer:
         self, data: Data, node_mask: Tensor, edge_mask: Tensor | None = None
     ) -> Data:
         """Apply mask to data"""
-        edge_index, edge_mask = get_edge_index_after_node_mask(
-            edge_index=data.edge_index,
-            node_mask=node_mask,
-            edge_mask=edge_mask,
-        )
-        return Data(
-            x=data.x[node_mask],
-            y=data.y[edge_mask],
-            edge_index=edge_index,
-            edge_attr=data.edge_attr[edge_mask],
-            pt=data.pt[node_mask],
-            particle_id=data.particle_id[node_mask],
-            reconstructable=data.reconstructable[node_mask],
-            sector=data.sector[node_mask],
-        )
+        if edge_mask is not None:
+            data = edge_subgraph(data, mask_to_index(edge_mask))
+        node_index = mask_to_index(node_mask)
+        data = data.subgraph(node_index)
+        return data
 
     def evaluate_model(
         self, data: Data, mask_pids_reco=True, apply_truth_cuts=False
