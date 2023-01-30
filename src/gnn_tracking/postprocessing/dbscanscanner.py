@@ -55,18 +55,18 @@ class DBSCANHyperParamScanner(AbstractClusterHyperParamScanner):
 
 
 def dbscan_scan(
-    graphs: np.ndarray,
-    truth: np.ndarray,
-    sectors: np.ndarray,
-    pts: np.ndarray,
-    reconstructable: np.ndarray,
+    graphs: list[np.ndarray],
+    truth: list[np.ndarray],
+    sectors: list[np.ndarray],
+    pts: list[np.ndarray],
+    reconstructable: list[np.ndarray],
     *,
     n_jobs=1,
     n_trials: int | Callable[[int], int] = 100,
     guide="v_measure",
     epoch=None,
     start_params: dict[str, Any] | None = None,
-    node_mask: np.ndarray | None = None,
+    node_mask: list[np.ndarray] | None = None,
 ) -> ClusterScanResult:
     """Convenience function for scanning of DBSCAN hyperparameters to be given to
     `TCNTrainer` (see example below).

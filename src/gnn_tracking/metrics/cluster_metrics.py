@@ -88,6 +88,10 @@ def tracking_metrics(
     Returns:
         See `CustomMetrics`
     """
+    for ar in (truth, predicted, pts, reconstructable):
+        # Tensors behave differently when counting, so this is absolutely
+        # vital!
+        assert isinstance(ar, np.ndarray)
     assert predicted.shape == truth.shape == pts.shape, (
         predicted.shape,
         truth.shape,
