@@ -123,10 +123,9 @@ def falsify_low_pt_edges(*, y: T, edge_index: T, pt: T, pt_thld: float = 0.0):
     return (y.bool() & (pt[edge_index[0, :]] > pt_thld)).long()
 
 
-class AbstractEdgeWeightLoss(torch.nn.Module, ABC):
-    """Abstract base class for loss functions for edge classification."""
-
+class FalsifyLowPtEdgeWeightLoss(torch.nn.Module, ABC):
     def __init__(self, *, pt_thld: float = 0.0, **kwargs):
+        """Add an option to falsify edges with low pt to edge classification losses."""
         super().__init__(**kwargs)
         self.pt_thld = pt_thld
 
@@ -141,7 +140,7 @@ class AbstractEdgeWeightLoss(torch.nn.Module, ABC):
         pass
 
 
-class EdgeWeightBCELoss(AbstractEdgeWeightLoss):
+class EdgeWeightBCELoss(FalsifyLowPtEdgeWeightLoss):
     """Binary Cross Entropy loss function for edge classification"""
 
     @staticmethod
@@ -150,7 +149,7 @@ class EdgeWeightBCELoss(AbstractEdgeWeightLoss):
         return bce_loss
 
 
-class EdgeWeightFocalLoss(AbstractEdgeWeightLoss):
+class EdgeWeightFocalLoss(FalsifyLowPtEdgeWeightLoss):
     def __init__(
         self,
         *,
