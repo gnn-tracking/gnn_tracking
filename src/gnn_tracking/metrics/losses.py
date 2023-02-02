@@ -181,6 +181,35 @@ class EdgeWeightFocalLoss(FalsifyLowPtEdgeWeightLoss):
         return focal_loss
 
 
+class HaughtyFocalLoss(torch.nn.Module):
+    def __init__(
+        self,
+        *,
+        alpha: float = 0.25,
+        gamma: float = 2.0,
+        pt_thld=0.0,
+    ):
+        super().__init__()
+        self._alpha = alpha
+        self._gamma = gamma
+        self._pt_thld = pt_thld
+
+    def forward(self, *, w: T, y: T, edge_index: T, pt: T, **kwargs) -> T:
+        pos_weight = falsify_low_pt_edges(
+            y=y, edge_index=edge_index, pt=pt, pt_thld=self._pt_thld
+        )
+        focal_loss = binary_focal_loss(
+            inpt=w,
+            target=y,
+            alpha=self.alpha,
+            gamma=self.gamma,
+            pos_weight=pos_weight,
+            reduction="mean",
+            mask_outliers=True,
+        )
+        return focal_loss
+
+
 class PotentialLoss(torch.nn.Module):
     def __init__(self, q_min=0.01, radius_threshold=10.0, attr_pt_thld=0.9):
         """Potential/condensation loss (specific to object condensation approach).
