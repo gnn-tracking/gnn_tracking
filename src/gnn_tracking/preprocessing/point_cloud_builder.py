@@ -85,7 +85,6 @@ class PointCloudBuilder:
                     key = f"data{evtid}_s{s}.pt"
                     self.exists[key] = key in outfiles
                 self.prefixes.append(join(indir, prefix))
-
         self.data_list: list[Data] = []
         self.logger = get_logger("PointCloudBuilder", level=log_level)
 
@@ -95,13 +94,12 @@ class PointCloudBuilder:
 
     def restrict_to_subdetectors(self, hits: pd.DataFrame) -> pd.DataFrame:
         # select barrel layers and assign convenient layer number [0-9]
+        pixel_barrel = [(8, 2), (8, 4), (8, 6), (8, 8)]
+        pixel_LEC = [(7, 14), (7, 12), (7, 10), (7, 8), (7, 6), (7, 4), (7, 2)]
+        pixel_REC = [(9, 2), (9, 4), (9, 6), (9, 8), (9, 10), (9, 12), (9, 14)]
+        allowed_layers = None
         if self.pixel_only:
-            pixel_barrel = [(8, 2), (8, 4), (8, 6), (8, 8)]
-            pixel_LEC = [(7, 14), (7, 12), (7, 10), (7, 8), (7, 6), (7, 4), (7, 2)]
-            pixel_REC = [(9, 2), (9, 4), (9, 6), (9, 8), (9, 10), (9, 12), (9, 14)]
             allowed_layers = pixel_barrel + pixel_REC + pixel_LEC
-        else:
-            allowed_layers = None
 
         hit_layer_groups = hits.groupby(["volume_id", "layer_id"])
         if allowed_layers is not None:
@@ -119,7 +117,11 @@ class PointCloudBuilder:
         return hits
 
     def append_features(
-        self, hits: pd.DataFrame, particles: pd.DataFrame, truth: pd.DataFrame
+        self,
+        hits: pd.DataFrame,
+        particles: pd.DataFrame,
+        truth: pd.DataFrame,
+        cells: pd.DataFrame,
     ) -> pd.DataFrame:
         """Add additional features to the hits dataframe and return it."""
         particles["pt"] = np.sqrt(particles.px**2 + particles.py**2)
@@ -136,6 +138,19 @@ class PointCloudBuilder:
         # optionally add noise
         if not self.remove_noise:
             truth = pd.concat([truth, truth_noise])
+
+        # add in channel-specific info
+        cells = cells.groupby(["hit_id"]).agg(
+            charge_sum=pd.NamedAgg(column="value", aggfunc="sum"),
+            channel_counts=pd.NamedAgg(column="value", aggfunc="size"),
+        )
+        cells["charge_frac"] = cells.charge_sum / cells.channel_counts
+        hits = pd.merge(hits, cells, on="hit_id", how="left")
+
+        # append volume labels
+        volume_labels = ["V7", "V8", "V9", "V12", "V13", "V14", "V16", "V17", "V18"]
+        for v in volume_labels:
+            hits[v] = (hits.volume_id == int(v[1:])).astype(int)
 
         hits["r"] = np.sqrt(hits.x**2 + hits.y**2)
         hits["phi"] = np.arctan2(hits.y, hits.x)
@@ -156,6 +171,7 @@ class PointCloudBuilder:
                 "volume_id",
                 "layer",
             ]
+            + volume_labels
         ].merge(truth[["hit_id", "particle_id", "pt", "eta_pt"]], on="hit_id")
         return hits
 
@@ -174,7 +190,6 @@ class PointCloudBuilder:
         hits["vr"] = hits["u"] * np.sin(2 * s * theta) + hits["v"] * np.cos(
             2 * s * theta
         )
-
         sector = hits[
             ((hits.vr > -slope * hits.ur) & (hits.vr < slope * hits.ur) & (hits.ur > 0))
         ]
@@ -280,10 +295,12 @@ class PointCloudBuilder:
             self.logger.debug(f"Processing {f}")
 
             evtid = int(f[-9:])
-            hits, particles, truth = load_event(f, parts=["hits", "particles", "truth"])
+            hits, particles, truth, cells = load_event(
+                f, parts=["hits", "particles", "truth", "cells"]
+            )
 
             hits = self.restrict_to_subdetectors(hits)
-            hits = self.append_features(hits, particles, truth)
+            hits = self.append_features(hits, particles, truth, cells)
             hits_by_pid = hits.groupby("particle_id")
 
             particle_id_counts = {pid: len(hit_group) for pid, hit_group in hits_by_pid}
