@@ -1,6 +1,6 @@
 repos:
   - repo: https://github.com/psf/black
-    rev: 22.12.0
+    rev: 23.1.0
     hooks:
       - id: black
   - repo: https://github.com/pre-commit/pre-commit-hooks
@@ -14,7 +14,7 @@ repos:
         exclude: '.*\.ipynb'
       - id: trailing-whitespace
   - repo: https://github.com/pycqa/isort
-    rev: 5.11.4
+    rev: 5.12.0
     hooks:
       - id: isort
         name: isort (python)
@@ -54,7 +54,7 @@ repos:
       - id: nbstripout
         args: ["--extra-keys", "cell.metadata.pycharm"]
   - repo: https://github.com/hadialqattan/pycln
-    rev: v2.1.2
+    rev: v2.1.3
     hooks:
       - id: pycln
         args: [--config=pyproject.toml]
