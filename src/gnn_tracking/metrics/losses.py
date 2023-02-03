@@ -201,8 +201,8 @@ class HaughtyFocalLoss(torch.nn.Module):
         focal_loss = binary_focal_loss(
             inpt=w,
             target=y,
-            alpha=self.alpha,
-            gamma=self.gamma,
+            alpha=self._alpha,
+            gamma=self._gamma,
             pos_weight=pos_weight,
             reduction="mean",
             mask_outliers=True,
