@@ -481,6 +481,7 @@ class TCNTrainer:
         pt_b = pt[edge_index[1]]
         return (pt_a > pt_min) | (pt_b > pt_min)
 
+    @torch.no_grad()
     def single_test_step(
         self, thld=0.5, val=True, apply_truth_cuts=False, max_batches: int | None = None
     ) -> dict[str, float]:
@@ -509,67 +510,64 @@ class TCNTrainer:
         }
 
         batch_losses = collections.defaultdict(list)
-        with torch.no_grad():
-            loader = self.val_loader if val else self.test_loader
-            for _batch_idx, data in enumerate(loader):
-                if max_batches and _batch_idx > max_batches:
-                    break
-                data = data.to(self.device)
-                model_output = self.evaluate_model(
-                    data, mask_pids_reco=False, apply_truth_cuts=apply_truth_cuts
-                )
-                batch_loss, these_batch_losses = self.get_batch_losses(model_output)
+        loader = self.val_loader if val else self.test_loader
+        for _batch_idx, data in enumerate(loader):
+            if max_batches and _batch_idx > max_batches:
+                break
+            data = data.to(self.device)
+            model_output = self.evaluate_model(
+                data, mask_pids_reco=False, apply_truth_cuts=apply_truth_cuts
+            )
+            batch_loss, these_batch_losses = self.get_batch_losses(model_output)
 
-                if model_output["w"] is not None:
-                    for pt_min in self.ec_eval_pt_thlds:
-                        edge_pt_mask = self._edge_pt_mask(
-                            model_output["edge_index"], model_output["pt"], pt_min
-                        )
-                        predicted = model_output["w"][edge_pt_mask]
-                        true = model_output["y"][edge_pt_mask].long()
-
-                        bcs = BinaryClassificationStats(
-                            output=predicted,
-                            y=true,
-                            thld=thld,
-                        )
-                        for k, v in bcs.get_all().items():
-                            batch_losses[denote_pt(k, pt_min)].append(v)
-                        for k, v in get_maximized_bcs(output=predicted, y=true).items():
-                            batch_losses[denote_pt(k, pt_min)].append(v)
-                        batch_losses[denote_pt("roc_auc", pt_min)].append(
-                            roc_auc_score(y_true=true.cpu(), y_score=predicted.cpu())
-                        )
-                        for max_fpr in [
-                            0.001,
-                            0.01,
-                            0.1,
-                        ]:
-                            batch_losses[
-                                denote_pt(f"roc_auc_{max_fpr}FPR", pt_min)
-                            ].append(
-                                roc_auc_score(
-                                    y_true=true.cpu(),
-                                    y_score=predicted.cpu(),
-                                    max_fpr=max_fpr,
-                                )
-                            )
-
-                batch_losses["total"].append(batch_loss.item())
-                for key, loss in these_batch_losses.items():
-                    batch_losses[key].append(loss.item())
-                    batch_losses[f"{key}_weighted"].append(
-                        loss.item() * self._loss_weight_setter[key]
+            if model_output["w"] is not None:
+                for pt_min in self.ec_eval_pt_thlds:
+                    edge_pt_mask = self._edge_pt_mask(
+                        model_output["edge_index"], model_output["pt"], pt_min
                     )
+                    predicted = model_output["w"][edge_pt_mask]
+                    true = model_output["y"][edge_pt_mask].long()
 
-                if (
-                    self.clustering_functions
-                    and _batch_idx <= self.max_batches_for_clustering
-                ):
-                    for key in cluster_eval_input:
-                        cluster_eval_input[key].append(
-                            model_output[key].detach().cpu().numpy()
+                    bcs = BinaryClassificationStats(
+                        output=predicted,
+                        y=true,
+                        thld=thld,
+                    )
+                    for k, v in bcs.get_all().items():
+                        batch_losses[denote_pt(k, pt_min)].append(v)
+                    for k, v in get_maximized_bcs(output=predicted, y=true).items():
+                        batch_losses[denote_pt(k, pt_min)].append(v)
+                    batch_losses[denote_pt("roc_auc", pt_min)].append(
+                        roc_auc_score(y_true=true.cpu(), y_score=predicted.cpu())
+                    )
+                    for max_fpr in [
+                        0.001,
+                        0.01,
+                        0.1,
+                    ]:
+                        batch_losses[denote_pt(f"roc_auc_{max_fpr}FPR", pt_min)].append(
+                            roc_auc_score(
+                                y_true=true.cpu(),
+                                y_score=predicted.cpu(),
+                                max_fpr=max_fpr,
+                            )
                         )
+
+            batch_losses["total"].append(batch_loss.item())
+            for key, loss in these_batch_losses.items():
+                batch_losses[key].append(loss.item())
+                batch_losses[f"{key}_weighted"].append(
+                    loss.item() * self._loss_weight_setter[key]
+                )
+
+            if (
+                self.clustering_functions
+                and _batch_idx <= self.max_batches_for_clustering
+            ):
+                for key in cluster_eval_input:
+                    cluster_eval_input[key].append(
+                        model_output[key].detach().cpu().numpy()
+                    )
 
         losses: dict[str, float] = {k: np.nanmean(v) for k, v in batch_losses.items()}
         for k, f in self.clustering_functions.items():
