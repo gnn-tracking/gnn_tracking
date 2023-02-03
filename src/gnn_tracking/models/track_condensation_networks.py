@@ -48,7 +48,6 @@ class INConvBlock(nn.Module):
         x: Tensor,
         alpha: float = 0.5,
     ) -> Tensor:
-
         h, edge_index = self.edge_conv(x)
         h = self.relu(h)
         edge_attr = torch.cat([h[edge_index[0]], h[edge_index[1]]], dim=1)
@@ -99,7 +98,6 @@ class PointCloudTCN(nn.Module):
         data: Data,
         alpha: float = 0.5,
     ) -> dict[str, Tensor]:
-
         # apply the edge classifier to generate edge weights
         h = data.x
         for layer in self.layers:

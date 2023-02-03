@@ -39,7 +39,6 @@ class DynamicEdgeConv(MessagePassing):
         x: Tensor | PairTensor,
         batch: OptTensor | PairTensor | None = None,
     ) -> Tensor:
-
         if isinstance(x, Tensor):
             x: PairTensor = (x, x)
 

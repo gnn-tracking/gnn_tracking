@@ -267,7 +267,7 @@ class GraphBuilder:
             layer_pairs = []
         groups = hits.groupby("layer")
         edges = []
-        for (layer1, layer2) in layer_pairs:
+        for layer1, layer2 in layer_pairs:
             try:
                 hits1 = groups.get_group(layer1)
                 hits2 = groups.get_group(layer2)
