@@ -82,7 +82,7 @@ def binary_focal_loss(
     if torch.isnan(loss).any():
         logger.error(
             "NaN loss in focal loss. Here's some more information: "
-            "sum input: %s, max input: %s, min input: %s",
+            "sum input: %s, max input: %s, min input: %s"
             "sum pos_term: %s, sum neg_term: %s, sum loss_tmp: %s, "
             "max probs_pos: %s, max probs_neg: %s, max target: %s, "
             "min probs_pos: %s, min probs_neg: %s, min target: %s, ",
