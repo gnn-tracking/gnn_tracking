@@ -438,7 +438,7 @@ class TCNTrainer:
 
             batch_loss, batch_losses = self.get_batch_losses(model_output)
 
-            self.optimizer.zero_grad()
+            self.optimizer.zero_grad(set_to_none=True)
             batch_loss.backward()
             self.optimizer.step()
 
