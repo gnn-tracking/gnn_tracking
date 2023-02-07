@@ -9,8 +9,8 @@ from torch.nn.functional import binary_cross_entropy
 from typing_extensions import TypeAlias
 
 from gnn_tracking.metrics.losses import (
-    BackgroundLoss,
     ObjectLoss,
+    _background_loss,
     _condensation_loss,
     binary_focal_loss,
 )
@@ -59,11 +59,7 @@ def get_condensation_loss(td: MockData) -> float:
 
 
 def get_background_loss(td: MockData) -> float:
-    return (
-        BackgroundLoss(sb=0.1)
-        ._background_loss(beta=td.beta, particle_id=td.particle_id)
-        .item()
-    )
+    return _background_loss(sb=0.1, beta=td.beta, particle_id=td.particle_id).item()
 
 
 def get_object_loss(td: MockData, **kwargs) -> float:
