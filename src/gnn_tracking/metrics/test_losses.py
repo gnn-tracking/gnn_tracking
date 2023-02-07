@@ -98,5 +98,9 @@ def test_focal_loss_vs_bce():
     inpt = torch.rand(10)
     target = (torch.rand(10) > 0.5).float()
     assert binary_focal_loss(inpt=inpt, target=target, alpha=0.5, gamma=0.0) == approx(
-        0.5 * binary_cross_entropy(inpt, target, reduction="mean")
+        0.5
+        * binary_cross_entropy(
+            inpt,
+            target,
+        )
     )
