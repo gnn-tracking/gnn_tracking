@@ -14,6 +14,33 @@ from gnn_tracking.utils.log import logger
 T: TypeAlias = torch.Tensor
 
 
+@torch.jit.script
+def _binary_focal_loss(
+    *,
+    inpt: T,
+    target: T,
+    mask: T,
+    alpha: float,
+    gamma: float,
+    pos_weight: T,
+) -> T:
+    """Extracted function for JIT compilation."""
+    inpt = inpt[mask]
+    target = target[mask]
+    pos_weight = pos_weight[mask]
+
+    probs_pos = inpt
+    probs_neg = 1 - inpt
+
+    pos_term = -alpha * pos_weight * probs_neg.pow(gamma) * target * probs_pos.log()
+    neg_term = -(1 - alpha) * probs_pos.pow(gamma) * (1.0 - target) * probs_neg.log()
+    loss_tmp = pos_term + neg_term
+
+    loss = torch.mean(loss_tmp)
+
+    return loss
+
+
 # Follows the implementation in kornia at
 # https://github.com/kornia/kornia/blob/master/kornia/losses/focal.py
 # (binary_focal_loss_with_logits function)
@@ -52,20 +79,14 @@ def binary_focal_loss(
             "Masking %d/%d as outliers in focal loss", (~mask).sum(), len(mask)
         )
 
-    inpt = inpt[mask]
-    target = target[mask]
-    pos_weight = pos_weight[mask]
-
-    probs_pos = inpt
-    probs_neg = 1 - inpt
-
-    pos_term = -alpha * pos_weight * probs_neg.pow(gamma) * target * probs_pos.log()
-    neg_term = -(1 - alpha) * probs_pos.pow(gamma) * (1.0 - target) * probs_neg.log()
-    loss_tmp = pos_term + neg_term
-
-    loss = torch.mean(loss_tmp)
-
-    return loss
+    return _binary_focal_loss(
+        inpt=inpt,
+        target=target,
+        mask=mask,
+        alpha=alpha,
+        gamma=gamma,
+        pos_weight=pos_weight,
+    )
 
 
 def falsify_low_pt_edges(*, y: T, edge_index: T, pt: T, pt_thld: float = 0.0) -> T:
