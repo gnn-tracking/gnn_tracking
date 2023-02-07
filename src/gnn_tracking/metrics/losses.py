@@ -23,9 +23,7 @@ def binary_focal_loss(
     target: T,
     alpha: float = 0.25,
     gamma: float = 2.0,
-    reduction: str = "mean",
     pos_weight: T | None = None,
-    mask_outliers=True,
 ) -> T:
     """Binary Focal Loss, following https://arxiv.org/abs/1708.02002.
 
@@ -34,9 +32,7 @@ def binary_focal_loss(
         target:
         alpha: Weight for positive/negative results
         gamma: Focusing parameter
-        reduction: 'none', 'mean', 'sum'
         pos_weight: Can be used to balance precision/recall
-        mask_outliers: Mask 0s and 1s in input.
     """
     assert gamma >= 0.0
     assert 0 <= alpha <= 1
@@ -44,20 +40,16 @@ def binary_focal_loss(
     if pos_weight is None:
         pos_weight = torch.ones(inpt.shape[-1], device=inpt.device, dtype=inpt.dtype)
 
-    if mask_outliers:
-        mask = torch.isclose(inpt, torch.Tensor([0.0]).to(inpt.device)) | torch.isclose(
-            inpt, torch.Tensor([1.0]).to(inpt.device)
-        )
-        n_outliers = mask.sum()
-        mask = ~mask.bool()
-        if n_outliers:
-            logger.warning(
-                "Masking %d/%d as outliers in focal loss", n_outliers, len(mask)
-            )
-            logger.debug(inpt[:10])
-            logger.debug(target[:10])
-    else:
-        mask = torch.full_like(inpt, True).bool()
+    # Masking outliers
+    mask = torch.isclose(inpt, torch.Tensor([0.0]).to(inpt.device)) | torch.isclose(
+        inpt, torch.Tensor([1.0]).to(inpt.device)
+    )
+    n_outliers = mask.sum()
+    mask = ~mask.bool()
+    if n_outliers:
+        logger.warning("Masking %d/%d as outliers in focal loss", n_outliers, len(mask))
+        logger.debug(inpt[:10])
+        logger.debug(target[:10])
 
     inpt = inpt[mask]
     target = target[mask]
@@ -70,14 +62,7 @@ def binary_focal_loss(
     neg_term = -(1 - alpha) * probs_pos.pow(gamma) * (1.0 - target) * probs_neg.log()
     loss_tmp = pos_term + neg_term
 
-    if reduction == "none":
-        loss = loss_tmp
-    elif reduction == "mean":
-        loss = torch.mean(loss_tmp)
-    elif reduction == "sum":
-        loss = torch.sum(loss_tmp)
-    else:
-        raise NotImplementedError(f"Invalid reduction mode: {reduction}")
+    loss = torch.mean(loss_tmp)
 
     if torch.isnan(loss).any():
         logger.error(
@@ -156,7 +141,6 @@ class EdgeWeightFocalLoss(FalsifyLowPtEdgeWeightLoss):
         alpha=0.25,
         gamma=2.0,
         pos_weight=None,
-        reduction="mean",
         **kwargs,
     ):
         """Loss function based on focal loss for edge classification.
@@ -166,7 +150,6 @@ class EdgeWeightFocalLoss(FalsifyLowPtEdgeWeightLoss):
         self.alpha = alpha
         self.gamma = gamma
         self.pos_weight = pos_weight
-        self.reduction = reduction
 
     def _forward(self, *, w: T, y: T, **kwargs) -> T:
         focal_loss = binary_focal_loss(
@@ -175,8 +158,6 @@ class EdgeWeightFocalLoss(FalsifyLowPtEdgeWeightLoss):
             alpha=self.alpha,
             gamma=self.gamma,
             pos_weight=self.pos_weight,
-            reduction=self.reduction,
-            mask_outliers=True,
         )
         return focal_loss
 
@@ -204,8 +185,6 @@ class HaughtyFocalLoss(torch.nn.Module):
             alpha=self._alpha,
             gamma=self._gamma,
             pos_weight=pos_weight,
-            reduction="mean",
-            mask_outliers=True,
         )
         return focal_loss
 
