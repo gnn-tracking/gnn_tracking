@@ -200,6 +200,7 @@ def _condensation_loss(
     q_min: float,
     radius_threshold: float,
 ) -> dict[str, T]:
+    """Extracted function for JIT-compilation. See `PotentialLoss` for details."""
     pids = torch.unique(particle_id[particle_id > 0])
     # n_nodes x n_pids
     pid_masks = particle_id[:, None] == pids[None, :]  # type: ignore
@@ -273,26 +274,31 @@ class PotentialLoss(torch.nn.Module):
         )
 
 
+@torch.jit.script
+def _background_loss(*, beta: T, particle_id: T, sb: float) -> T:
+    """Extracted function for JIT-compilation. See `BackgroundLoss` for details."""
+    pids = torch.unique(particle_id[particle_id > 0])
+    pid_masks = particle_id[:, None] == pids[None, :]
+    alphas = torch.argmax(pid_masks * beta[:, None], dim=0)
+    beta_alphas = beta[alphas]
+    loss = torch.mean(1 - beta_alphas)
+    noise_mask = particle_id == 0
+    if noise_mask.any():
+        loss = loss + sb * torch.mean(beta[noise_mask])
+    return loss
+
+
 class BackgroundLoss(torch.nn.Module):
     def __init__(self, sb=0.1):
         super().__init__()
         #: Strength of noise suppression
         self.sb = sb
 
-    def _background_loss(self, *, beta: T, particle_id: T) -> T:
-        pids = torch.unique(particle_id[particle_id > 0])
-        pid_masks = particle_id[:, None] == pids[None, :]
-        alphas = torch.argmax(pid_masks * beta[:, None], dim=0)
-        beta_alphas = beta[alphas]
-        loss = torch.mean(1 - beta_alphas)
-        noise_mask = particle_id == 0
-        if noise_mask.any():
-            loss = loss + self.sb * torch.mean(beta[noise_mask])
-        return loss
-
     # noinspection PyUnusedLocal
     def forward(self, *, beta: T, particle_id: T, ec_hit_mask: T, **kwargs) -> T:
-        return self._background_loss(beta=beta, particle_id=particle_id[ec_hit_mask])
+        return _background_loss(
+            beta=beta, particle_id=particle_id[ec_hit_mask], sb=self.sb
+        )
 
 
 class ObjectLoss(torch.nn.Module):
