@@ -190,6 +190,45 @@ class HaughtyFocalLoss(torch.nn.Module):
         return focal_loss
 
 
+@torch.jit.script
+def _condensation_loss(
+    *,
+    beta: T,
+    x: T,
+    particle_id: T,
+    mask: T,
+    q_min: float,
+    radius_threshold: float,
+) -> dict[str, T]:
+    pids = torch.unique(particle_id[particle_id > 0])
+    # n_nodes x n_pids
+    pid_masks = particle_id[:, None] == pids[None, :]  # type: ignore
+
+    q = torch.arctanh(beta) ** 2 + q_min
+    alphas = torch.argmax(q[:, None] * pid_masks, dim=0)
+    x_alphas = x[alphas].transpose(0, 1)
+    q_alphas = q[alphas][None, None, :]
+
+    diff = x[:, :, None] - x_alphas[None, :, :]
+    norm_sq = torch.sum(diff**2, dim=1)
+
+    # Attractive potential
+    va = q[:, None] * pid_masks * (norm_sq * q_alphas).squeeze(dim=0)
+    # Repulsive potential
+    vr = (
+        q[:, None]
+        * (~pid_masks)
+        * (relu(radius_threshold - torch.sqrt(norm_sq + 1e-8)) * q_alphas).squeeze(
+            dim=0
+        )
+    )
+
+    return {
+        "attractive": torch.sum(torch.mean(va[mask], dim=0)),
+        "repulsive": torch.sum(torch.mean(vr, dim=0)),
+    }
+
+
 class PotentialLoss(torch.nn.Module):
     def __init__(self, q_min=0.01, radius_threshold=10.0, attr_pt_thld=0.9):
         """Potential/condensation loss (specific to object condensation approach).
@@ -204,37 +243,6 @@ class PotentialLoss(torch.nn.Module):
         self.q_min = q_min
         self.radius_threshold = radius_threshold
         self.pt_thld = attr_pt_thld
-
-    def _condensation_loss(
-        self, *, beta: T, x: T, particle_id: T, mask: T
-    ) -> dict[str, T]:
-        pids = torch.unique(particle_id[particle_id > 0])
-        # n_nodes x n_pids
-        pid_masks = particle_id[:, None] == pids[None, :]  # type: ignore
-
-        q = torch.arctanh(beta) ** 2 + self.q_min
-        alphas = torch.argmax(q[:, None] * pid_masks, dim=0)
-        x_alphas = x[alphas].transpose(0, 1)
-        q_alphas = q[alphas][None, None, :]
-
-        diff = x[:, :, None] - x_alphas[None, :, :]
-        norm_sq = torch.sum(diff**2, dim=1)
-
-        # Attractive potential
-        va = q[:, None] * pid_masks * (norm_sq * q_alphas).squeeze(dim=0)
-        # Repulsive potential
-        vr = (
-            q[:, None]
-            * (~pid_masks)
-            * (
-                relu(self.radius_threshold - torch.sqrt(norm_sq + 1e-8)) * q_alphas
-            ).squeeze(dim=0)
-        )
-
-        return {
-            "attractive": torch.sum(torch.mean(va[mask], dim=0)),
-            "repulsive": torch.sum(torch.mean(vr, dim=0)),
-        }
 
     # noinspection PyUnusedLocal
     def forward(
@@ -255,8 +263,13 @@ class PotentialLoss(torch.nn.Module):
         reconstructable = reconstructable[ec_hit_mask]
         track_params = track_params[ec_hit_mask]
         mask = (reconstructable > 0) & (track_params > self.pt_thld)
-        return self._condensation_loss(
-            beta=beta, x=x, particle_id=particle_id, mask=mask
+        return _condensation_loss(
+            beta=beta,
+            x=x,
+            particle_id=particle_id,
+            mask=mask,
+            q_min=self.q_min,
+            radius_threshold=self.radius_threshold,
         )
 
 
