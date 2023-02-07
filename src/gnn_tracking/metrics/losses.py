@@ -36,20 +36,21 @@ def binary_focal_loss(
     """
     assert gamma >= 0.0
     assert 0 <= alpha <= 1
+    assert not torch.isnan(inpt).any()
+    assert not torch.isnan(target).any()
 
     if pos_weight is None:
         pos_weight = torch.ones(inpt.shape[-1], device=inpt.device, dtype=inpt.dtype)
 
     # Masking outliers
-    mask = torch.isclose(inpt, torch.Tensor([0.0]).to(inpt.device)) | torch.isclose(
-        inpt, torch.Tensor([1.0]).to(inpt.device)
-    )
-    n_outliers = mask.sum()
-    mask = ~mask.bool()
-    if n_outliers:
-        logger.warning("Masking %d/%d as outliers in focal loss", n_outliers, len(mask))
-        logger.debug(inpt[:10])
-        logger.debug(target[:10])
+    mask = ~(
+        torch.isclose(inpt, torch.Tensor([0.0]).to(inpt.device))
+        | torch.isclose(inpt, torch.Tensor([1.0]).to(inpt.device))
+    ).bool()
+    if not mask.all():
+        logger.warning(
+            "Masking %d/%d as outliers in focal loss", (~mask).sum(), len(mask)
+        )
 
     inpt = inpt[mask]
     target = target[mask]
@@ -63,27 +64,6 @@ def binary_focal_loss(
     loss_tmp = pos_term + neg_term
 
     loss = torch.mean(loss_tmp)
-
-    if torch.isnan(loss).any():
-        logger.error(
-            "NaN loss in focal loss. Here's some more information: "
-            "sum input: %s, max input: %s, min input: %s"
-            "sum pos_term: %s, sum neg_term: %s, sum loss_tmp: %s, "
-            "max probs_pos: %s, max probs_neg: %s, max target: %s, "
-            "min probs_pos: %s, min probs_neg: %s, min target: %s, ",
-            inpt.sum(),
-            inpt.max(),
-            inpt.min(),
-            pos_term.sum(),
-            neg_term.sum(),
-            loss_tmp.sum(),
-            probs_pos.max(),
-            probs_neg.max(),
-            target.max(),
-            probs_pos.min(),
-            probs_neg.min(),
-            target.min(),
-        )
 
     return loss
 
