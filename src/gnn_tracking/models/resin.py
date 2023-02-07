@@ -1,10 +1,19 @@
 from __future__ import annotations
 
-from torch import Tensor, nn
+import torch
+from torch import Tensor
+from torch import Tensor as T
+from torch import nn
 from torch.nn.functional import relu
 
 from gnn_tracking.models.interaction_network import InteractionNetwork
 from gnn_tracking.models.mlp import MLP
+
+
+@torch.jit.script
+def convex_combination(*, delta: T, residue: T, alpha_residue: float) -> T:
+    """Convex combination of ``relu(delta)`` and the residue."""
+    return alpha_residue * residue + (1 - alpha_residue) * relu(delta)
 
 
 class ResIN(nn.Module):
@@ -172,7 +181,9 @@ class ResIN(nn.Module):
                 h_ec = h
             else:
                 h_ec = re(h)
-            h = self.alpha * h_ec + (1 - self.alpha) * relu(delta_h)
+            h = convex_combination(
+                delta=delta_h, residue=h_ec, alpha_residue=self.alpha
+            )
             hs.append(h)
             edge_attrs.append(edge_attr)
         return h, hs, edge_attrs
