@@ -466,10 +466,11 @@ def load_graphs(
 
     Args:
         in_dir: Directory that contains the graphs
-        start: First graph to load
-        stop: Last graph to load
+        start: First graph to load. This doesn't reference the event ID of the graph,
+            but sorts all files in the directory and takes the ``start``-th file.
+        stop: Last graph to load. See ``start`` for details.
         sector: If specified, only files with the given sector are loaded (and
-            ``start``, ``stop`` are accordingly applied to the selection)
+            ``start``, ``stop`` are applied after this selection)
 
     Returns:
 
@@ -479,7 +480,7 @@ def load_graphs(
         glob = "*.pt"
     else:
         glob = f"*_s{sector}.pt"
-    available_files = list(in_dir.glob(glob))
+    available_files = sorted(in_dir.glob(glob))
 
     if stop is not None and stop > len(available_files):
         # to avoid tracking wrong hyperparameters
