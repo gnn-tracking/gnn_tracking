@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from typing import Any
+
 import sklearn.model_selection
 from gnn_tracking_hpo.util.log import logger
 from torch_geometric.data import Data
@@ -36,14 +38,18 @@ def get_loaders(
     Returns:
         Dictionary of data loaders
     """
-    params = {
-        "batch_size": batch_size,
-        "num_workers": cpus,
-    }
-    logger.debug("Parameters for data loaders: %s", params)
-    loaders = {
-        "train": DataLoader(list(graph_dct["train"]), **params, shuffle=True),
-        "test": DataLoader(list(graph_dct["test"]), **params),
-        "val": DataLoader(list(graph_dct["val"]), **params),
-    }
+
+    def get_params(key: str) -> dict[str, Any]:
+        return {
+            "batch_size": batch_size,
+            "num_workers": cpus,
+            "shuffle": key == "train",
+            "pin_memory": True,
+        }
+
+    loaders = {}
+    for key, graphs in graph_dct.items():
+        params = get_params(key)
+        logger.debug("Parameters for data loader '%s': %s", key, params)
+        loaders[key] = DataLoader(list(graphs), **params)
     return loaders
