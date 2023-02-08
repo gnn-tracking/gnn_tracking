@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 import os
+import traceback
 from os.path import join as join
 from pathlib import Path
 
@@ -498,9 +499,10 @@ def load_graphs(
     for f in considered_files:
         try:
             data = torch.load(f)
-        except Exception as e:
+        except Exception:
+            tb = traceback.format_exc()
             logger.error(
-                f"Failed to load {f}, we're simply ignoring " f"this for now: {e}"
+                f"Failed to load {f}, we're simply ignoring this for now:\n{tb}"
             )
         else:
             ret.append(data)
