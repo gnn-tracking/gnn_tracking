@@ -520,10 +520,10 @@ class TCNTrainer:
             batch_loss, these_batch_losses = self.get_batch_losses(model_output)
 
             batch_metrics["total"].append(batch_loss.item())
-            for key, loss in these_batch_losses.items():
-                batch_metrics[key].append(loss.item())
+            for key, value in these_batch_losses.items():
+                batch_metrics[key].append(value.item())
                 batch_metrics[f"{key}_weighted"].append(
-                    loss.item() * self._loss_weight_setter[key]
+                    value.item() * self._loss_weight_setter[key]
                 )
 
             for key, value in self.evaluate_ec_metrics(
