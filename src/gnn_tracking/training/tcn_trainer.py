@@ -383,24 +383,23 @@ class TCNTrainer:
             report_str = ""
         if style == "table":
             report_str += "\n"
-        table_items: list[tuple[str, float]] = sorted(batch_losses.items())
-        if style == "table":
-            annotated_table_items = [
-                (
-                    "-->" if self.highlight_metric(t[0]) else "",
-                    t[0],
-                    t[1],
-                )
-                for t in table_items
+            non_error_keys: list[str] = sorted(
+                [k for k in batch_losses if not k.endswith("_err")]
+            )
+            values = [batch_losses[k] for k in non_error_keys]
+            errors = [batch_losses.get(f"{k}_err", "") for k in non_error_keys]
+            markers = [
+                "-->" if self.highlight_metric(key) else "" for key in non_error_keys
             ]
+            annotated_table_items = zip(markers, non_error_keys, values, errors)
             report_str += tabulate.tabulate(
                 annotated_table_items,
                 tablefmt="outline",
                 floatfmt=".5f",
-                headers=["", "Metric", "Value"],
+                headers=["", "Metric", "Value", "Error"],
             )
         else:
-            report_str += ", ".join(f"{k}={v:>10.5f}" for k, v in table_items)
+            report_str += ", ".join(f"{k}={v:>10.5f}" for k, v in batch_losses.items())
         self.logger.info(report_str)
 
     def highlight_metric(self, metric: str) -> bool:
@@ -541,6 +540,9 @@ class TCNTrainer:
                     )
 
         metrics: dict[str, float] = {k: np.nanmean(v) for k, v in batch_metrics.items()}
+        metrics.update(
+            {f"{k}_err": np.nanstd(v, ddof=1) for k, v in batch_metrics.items()}
+        )
         metrics.update(self._evaluate_cluster_metrics(cluster_eval_input))
         self.test_loss.append(pd.DataFrame(metrics, index=[self._epoch]))
         for hook in self._test_hooks:
