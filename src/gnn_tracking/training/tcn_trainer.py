@@ -542,31 +542,37 @@ class TCNTrainer:
                     )
 
         losses: dict[str, float] = {k: np.nanmean(v) for k, v in batch_losses.items()}
-        for k, f in self.clustering_functions.items():
-            cluster_result = f(
+        losses.update(self._evaluate_cluster_metrics(cluster_eval_input))
+        self.test_loss.append(pd.DataFrame(losses, index=[self._epoch]))
+        for hook in self._test_hooks:
+            hook(self, losses)
+        return losses
+
+    def _evaluate_cluster_metrics(
+        self, cluster_eval_input: dict[str, list[np.ndarray]]
+    ) -> dict[str, float]:
+        metrics = {}
+        for fct_name, fct in self.clustering_functions.items():
+            cluster_result = fct(
                 cluster_eval_input["x"],
                 cluster_eval_input["particle_id"],
                 cluster_eval_input["sector"],
                 cluster_eval_input["pt"],
                 cluster_eval_input["reconstructable"],
                 epoch=self._epoch,
-                start_params=self._best_cluster_params.get(k, None),
+                start_params=self._best_cluster_params.get(fct_name, None),
                 node_mask=cluster_eval_input["ec_hit_mask"],
             )
             if cluster_result is not None:
-                losses.update(cluster_result.metrics)
-                self._best_cluster_params[k] = cluster_result.best_params
-                losses.update(
+                metrics.update(cluster_result.metrics)
+                self._best_cluster_params[fct_name] = cluster_result.best_params
+                metrics.update(
                     {
-                        f"best_{k}_{param}": val
+                        f"best_{fct_name}_{param}": val
                         for param, val in cluster_result.best_params.items()
                     }
                 )
-
-        self.test_loss.append(pd.DataFrame(losses, index=[self._epoch]))
-        for hook in self._test_hooks:
-            hook(self, losses)
-        return losses
+        return metrics
 
     def evaluate_ec_metrics_with_pt_thld(
         self, model_output: dict[str, torch.Tensor], pt_min: float, ec_threshold: float
