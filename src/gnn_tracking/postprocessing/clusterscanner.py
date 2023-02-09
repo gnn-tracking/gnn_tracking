@@ -112,11 +112,11 @@ class ClusterHyperParamScanner(AbstractClusterHyperParamScanner):
         """Class to scan hyperparameters of a clustering algorithm.
 
         Args:
-            algorithm: Takes graph and keyword arguments
+            algorithm: Takes data and keyword arguments
             suggest: Function that suggest parameters to optuna
             data: Data to be clustered
             truth: Truth labels for clustering
-            pts: Pt values for each graph
+            pts: Pt values for each hit
             reconstructable: Whether each hit belongs to a reconstructable true track
             guide: Name of expensive metric that is taken as a figure of merit
                 for the overall performance. If the corresponding metric function
@@ -334,7 +334,7 @@ class ClusterHyperParamScanner(AbstractClusterHyperParamScanner):
     def __evaluate(self, best_params: dict[str, float]) -> dict[str, float]:
         """See _evaluate."""
         metric_values = defaultdict(list)
-        for graph, truth, sectors, pts, reconstructable in zip(
+        for data, truth, sectors, pts, reconstructable in zip(
             self._data,
             self._truth,
             self._sectors,
@@ -342,7 +342,7 @@ class ClusterHyperParamScanner(AbstractClusterHyperParamScanner):
             self._reconstructable,
         ):
             available_sectors: list[int] = np.unique(
-                sectors[: len(graph)]
+                sectors[: len(data)]
             ).tolist()  # type: ignore
             try:
                 available_sectors.remove(-1)
@@ -350,12 +350,12 @@ class ClusterHyperParamScanner(AbstractClusterHyperParamScanner):
                 pass
             for sector in available_sectors:
                 sector_mask = sectors == sector
-                sector_graph = graph[sector_mask[: len(graph)]]
+                sector_data = data[sector_mask[: len(data)]]
                 sector_truth = truth[sector_mask]
                 sector_pts = pts[sector_mask]
                 sector_reconstructable = reconstructable[sector_mask]
                 labels = self._pad_output_with_noise(
-                    self._algorithm(sector_graph, **best_params),
+                    self._algorithm(sector_data, **best_params),
                     len(sector_truth),
                 )
                 for name, metric in self._metrics.items():
