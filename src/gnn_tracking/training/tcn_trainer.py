@@ -483,7 +483,7 @@ class TCNTrainer:
 
     @torch.no_grad()
     def single_test_step(
-        self, thld=0.5, val=True, apply_truth_cuts=False, max_batches: int | None = None
+        self, val=True, apply_truth_cuts=False, max_batches: int | None = None
     ) -> dict[str, float]:
         """Test the model on the validation or test set
 
@@ -520,45 +520,17 @@ class TCNTrainer:
             )
             batch_loss, these_batch_losses = self.get_batch_losses(model_output)
 
-            if model_output["w"] is not None:
-                for pt_min in self.ec_eval_pt_thlds:
-                    edge_pt_mask = self._edge_pt_mask(
-                        model_output["edge_index"], model_output["pt"], pt_min
-                    )
-                    predicted = model_output["w"][edge_pt_mask]
-                    true = model_output["y"][edge_pt_mask].long()
-
-                    bcs = BinaryClassificationStats(
-                        output=predicted,
-                        y=true,
-                        thld=thld,
-                    )
-                    for k, v in bcs.get_all().items():
-                        batch_losses[denote_pt(k, pt_min)].append(v)
-                    for k, v in get_maximized_bcs(output=predicted, y=true).items():
-                        batch_losses[denote_pt(k, pt_min)].append(v)
-                    batch_losses[denote_pt("roc_auc", pt_min)].append(
-                        roc_auc_score(y_true=true.cpu(), y_score=predicted.cpu())
-                    )
-                    for max_fpr in [
-                        0.001,
-                        0.01,
-                        0.1,
-                    ]:
-                        batch_losses[denote_pt(f"roc_auc_{max_fpr}FPR", pt_min)].append(
-                            roc_auc_score(
-                                y_true=true.cpu(),
-                                y_score=predicted.cpu(),
-                                max_fpr=max_fpr,
-                            )
-                        )
-
             batch_losses["total"].append(batch_loss.item())
             for key, loss in these_batch_losses.items():
                 batch_losses[key].append(loss.item())
                 batch_losses[f"{key}_weighted"].append(
                     loss.item() * self._loss_weight_setter[key]
                 )
+
+            for key, value in self.evaluate_ec_metrics(
+                model_output,
+            ).items():
+                batch_losses[key].append(value)
 
             if (
                 self.clustering_functions
@@ -596,6 +568,60 @@ class TCNTrainer:
             hook(self, losses)
         return losses
 
+    def evaluate_ec_metrics_with_pt_thld(
+        self, model_output: dict[str, torch.Tensor], pt_min: float, ec_threshold: float
+    ) -> dict[str, float]:
+        """Evaluate edge classification metrics for a given pt threshold and
+        EC threshold.
+        """
+        ret = {}
+        edge_pt_mask = self._edge_pt_mask(
+            model_output["edge_index"], model_output["pt"], pt_min
+        )
+        predicted = model_output["w"][edge_pt_mask]
+        true = model_output["y"][edge_pt_mask].long()
+
+        bcs = BinaryClassificationStats(
+            output=predicted,
+            y=true,
+            thld=ec_threshold,
+        )
+        for k, v in bcs.get_all().items():
+            ret[denote_pt(k, pt_min)] = v
+        for k, v in get_maximized_bcs(output=predicted, y=true).items():
+            ret[denote_pt(k, pt_min)] = v
+        ret[denote_pt("roc_auc", pt_min)] = roc_auc_score(
+            y_true=true.cpu(), y_score=predicted.cpu()
+        )
+        for max_fpr in [
+            0.001,
+            0.01,
+            0.1,
+        ]:
+            ret[denote_pt(f"roc_auc_{max_fpr}FPR", pt_min)] = roc_auc_score(
+                y_true=true.cpu(),
+                y_score=predicted.cpu(),
+                max_fpr=max_fpr,
+            )
+        return ret
+
+    def evaluate_ec_metrics(
+        self, model_output: dict[str, torch.Tensor], ec_threshold: float | None = None
+    ) -> dict[str, float]:
+        """Evaluate edge classification metrics for all pt thresholds."""
+        if ec_threshold is None:
+            ec_threshold = self.ec_threshold
+        if model_output["w"] is None:
+            return {}
+        ret = {}
+        for pt_min in self.ec_eval_pt_thlds:
+            ret.update(
+                self.evaluate_ec_metrics_with_pt_thld(
+                    model_output, pt_min, ec_threshold=ec_threshold
+                )
+            )
+        return ret
+
     def test_step(self, val=True, max_batches: int | None = None) -> dict[str, float]:
         """Validate the model and test the model on the validation/test set.
         This method is called during training and makes multiple calls to
@@ -605,14 +631,11 @@ class TCNTrainer:
             val: Use validation dataset rather than test dataset
             max_batches: Use a maximum number of batches for testing
         """
-        test_results = self.single_test_step(
-            thld=self.ec_threshold, val=val, max_batches=max_batches
-        )
+        test_results = self.single_test_step(val=val, max_batches=max_batches)
         if not self.training_truth_cuts.is_trivial():
             test_results.update(
                 add_key_suffix(
                     self.single_test_step(
-                        thld=self.ec_threshold,
                         val=val,
                         apply_truth_cuts=True,
                     ),
