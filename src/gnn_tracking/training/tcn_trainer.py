@@ -442,7 +442,7 @@ class TCNTrainer:
             batch_loss.backward()
             self.optimizer.step()
 
-            if not (batch_idx % 10):
+            if (batch_idx % 10) == 0:
                 _losses_w = {}
                 for key, loss in batch_losses.items():
                     _losses_w[f"{key}_weighted"] = (
