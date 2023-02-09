@@ -589,7 +589,6 @@ class TCNTrainer:
         Returns:
             Dictionary of metrics
         """
-        metrics = {}
         edge_pt_mask = self._edge_pt_mask(
             model_output["edge_index"], model_output["pt"], pt_min
         )
@@ -601,24 +600,20 @@ class TCNTrainer:
             y=true,
             thld=ec_threshold,
         )
-        for k, v in bcs.get_all().items():
-            metrics[denote_pt(k, pt_min)] = v
-        for k, v in get_maximized_bcs(output=predicted, y=true).items():
-            metrics[denote_pt(k, pt_min)] = v
-        metrics[denote_pt("roc_auc", pt_min)] = roc_auc_score(
-            y_true=true.cpu(), y_score=predicted.cpu()
-        )
+        metrics = bcs.get_all()
+        metrics.update(get_maximized_bcs(output=predicted, y=true))
+        metrics["roc_auc"] = roc_auc_score(y_true=true.cpu(), y_score=predicted.cpu())
         for max_fpr in [
             0.001,
             0.01,
             0.1,
         ]:
-            metrics[denote_pt(f"roc_auc_{max_fpr}FPR", pt_min)] = roc_auc_score(
+            metrics[f"roc_auc_{max_fpr}FPR"] = roc_auc_score(
                 y_true=true.cpu(),
                 y_score=predicted.cpu(),
                 max_fpr=max_fpr,
             )
-        return metrics
+        return {denote_pt(k, pt_min): v for k, v in metrics.items()}
 
     @torch.no_grad()
     def evaluate_ec_metrics(
