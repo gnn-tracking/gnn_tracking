@@ -132,7 +132,7 @@ class TCNTrainer:
         device=None,
         lr: Any = 5e-4,
         optimizer: Callable = Adam,
-        lr_scheduler: None | Callable = None,
+        lr_scheduler: Callable | None = None,
         loss_weights: dict[str, float] | DynamicLossWeights | None = None,
         cluster_functions: dict[str, ClusterFctType] | None = None,
     ):
@@ -252,8 +252,9 @@ class TCNTrainer:
         else:
             raise ValueError("Invalid value for called_at")
 
+    @staticmethod
     def _apply_mask(
-        self, data: Data, node_mask: Tensor, edge_mask: Tensor | None = None
+        data: Data, node_mask: Tensor, edge_mask: Tensor | None = None
     ) -> Data:
         """Apply mask to data"""
         if edge_mask is not None:
@@ -369,7 +370,6 @@ class TCNTrainer:
         """Log the losses
 
         Args:
-            batch_loss: Total loss
             batch_losses:
             style: "table" or "inline"
             header: Header to prepend to the log message
@@ -488,7 +488,6 @@ class TCNTrainer:
         """Test the model on the validation or test set
 
         Args:
-            thld: Threshold for edge classification
             val: Use validation dataset rather than test dataset
             apply_truth_cuts: Apply truth cuts (e.g., truth level pt cut) during
                 the evaluation
