@@ -424,7 +424,7 @@ class TCNTrainer:
                 to get to the validation step more quickly)
 
         Returns:
-
+            Dictionary of losses
         """
         self.model.train()
         _losses = collections.defaultdict(list)
@@ -508,7 +508,7 @@ class TCNTrainer:
             "ec_hit_mask": [],
         }
 
-        batch_losses = collections.defaultdict(list)
+        batch_metrics = collections.defaultdict(list)
         loader = self.val_loader if val else self.test_loader
         for _batch_idx, data in enumerate(loader):
             if max_batches and _batch_idx > max_batches:
@@ -519,17 +519,17 @@ class TCNTrainer:
             )
             batch_loss, these_batch_losses = self.get_batch_losses(model_output)
 
-            batch_losses["total"].append(batch_loss.item())
+            batch_metrics["total"].append(batch_loss.item())
             for key, loss in these_batch_losses.items():
-                batch_losses[key].append(loss.item())
-                batch_losses[f"{key}_weighted"].append(
+                batch_metrics[key].append(loss.item())
+                batch_metrics[f"{key}_weighted"].append(
                     loss.item() * self._loss_weight_setter[key]
                 )
 
             for key, value in self.evaluate_ec_metrics(
                 model_output,
             ).items():
-                batch_losses[key].append(value)
+                batch_metrics[key].append(value)
 
             if (
                 self.clustering_functions
@@ -540,12 +540,12 @@ class TCNTrainer:
                         model_output[key].detach().cpu().numpy()
                     )
 
-        losses: dict[str, float] = {k: np.nanmean(v) for k, v in batch_losses.items()}
-        losses.update(self._evaluate_cluster_metrics(cluster_eval_input))
-        self.test_loss.append(pd.DataFrame(losses, index=[self._epoch]))
+        metrics: dict[str, float] = {k: np.nanmean(v) for k, v in batch_metrics.items()}
+        metrics.update(self._evaluate_cluster_metrics(cluster_eval_input))
+        self.test_loss.append(pd.DataFrame(metrics, index=[self._epoch]))
         for hook in self._test_hooks:
-            hook(self, losses)
-        return losses
+            hook(self, metrics)
+        return metrics
 
     def _evaluate_cluster_metrics(
         self, cluster_eval_input: dict[str, list[np.ndarray]]
@@ -573,13 +573,23 @@ class TCNTrainer:
                 )
         return metrics
 
+    @torch.no_grad()
     def evaluate_ec_metrics_with_pt_thld(
         self, model_output: dict[str, torch.Tensor], pt_min: float, ec_threshold: float
     ) -> dict[str, float]:
         """Evaluate edge classification metrics for a given pt threshold and
         EC threshold.
+
+        Args:
+            model_output: Output of the model
+            pt_min: pt threshold: We discard all edges where both nodes have
+                `pt <= pt_min` before evaluating any metric.
+            ec_threshold: EC threshold
+
+        Returns:
+            Dictionary of metrics
         """
-        ret = {}
+        metrics = {}
         edge_pt_mask = self._edge_pt_mask(
             model_output["edge_index"], model_output["pt"], pt_min
         )
@@ -592,10 +602,10 @@ class TCNTrainer:
             thld=ec_threshold,
         )
         for k, v in bcs.get_all().items():
-            ret[denote_pt(k, pt_min)] = v
+            metrics[denote_pt(k, pt_min)] = v
         for k, v in get_maximized_bcs(output=predicted, y=true).items():
-            ret[denote_pt(k, pt_min)] = v
-        ret[denote_pt("roc_auc", pt_min)] = roc_auc_score(
+            metrics[denote_pt(k, pt_min)] = v
+        metrics[denote_pt("roc_auc", pt_min)] = roc_auc_score(
             y_true=true.cpu(), y_score=predicted.cpu()
         )
         for max_fpr in [
@@ -603,13 +613,14 @@ class TCNTrainer:
             0.01,
             0.1,
         ]:
-            ret[denote_pt(f"roc_auc_{max_fpr}FPR", pt_min)] = roc_auc_score(
+            metrics[denote_pt(f"roc_auc_{max_fpr}FPR", pt_min)] = roc_auc_score(
                 y_true=true.cpu(),
                 y_score=predicted.cpu(),
                 max_fpr=max_fpr,
             )
-        return ret
+        return metrics
 
+    @torch.no_grad()
     def evaluate_ec_metrics(
         self, model_output: dict[str, torch.Tensor], ec_threshold: float | None = None
     ) -> dict[str, float]:
@@ -711,7 +722,7 @@ class TCNTrainer:
     def save_checkpoint(self, path: str | PurePath = "") -> None:
         """Save state of model, optimizer and more for later resuming of training."""
         path = self.get_checkpoint_path(path)
-        self.logger.info(f"Saving checkpoint to {path}")
+        self.logger.info("Saving checkpoint to %s", path)
         torch.save(
             {
                 "epoch": self._epoch,
