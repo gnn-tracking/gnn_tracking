@@ -333,7 +333,7 @@ class ClusterHyperParamScanner(AbstractClusterHyperParamScanner):
 
     def __evaluate(self, best_params: dict[str, float]) -> dict[str, float]:
         """See _evaluate."""
-        metric_values = defaultdict(list)
+        metrics = defaultdict(list)
         for data, truth, sectors, pts, reconstructable in zip(
             self._data,
             self._truth,
@@ -367,11 +367,13 @@ class ClusterHyperParamScanner(AbstractClusterHyperParamScanner):
                         pt_thlds=self.pt_thlds,
                     )
                     if not isinstance(r, Mapping):
-                        metric_values[name].append(r)
+                        metrics[name].append(r)
                     else:
                         for k, v in r.items():
-                            metric_values[f"{name}.{k}"].append(v)
-        return {k: np.nanmean(v).item() for k, v in metric_values.items() if v}
+                            metrics[f"{name}.{k}"].append(v)
+        return {k: np.nanmean(v).item() for k, v in metrics.items() if v} | {
+            f"{k}_err": np.nanstd(v, ddof=1).item() for k, v in metrics.items() if v
+        }
 
     def _scan(
         self, start_params: dict[str, Any] | None = None, **kwargs
