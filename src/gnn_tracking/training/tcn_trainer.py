@@ -541,11 +541,11 @@ class TCNTrainer:
                         model_output[key].detach().cpu().numpy()
                     )
 
-        metrics: dict[str, float] = {k: np.nanmean(v) for k, v in batch_metrics.items()}
-        metrics.update(
-            {f"{k}_err": np.nanstd(v, ddof=1) for k, v in batch_metrics.items()}
+        metrics: dict[str, float] = (
+            {k: np.nanmean(v) for k, v in batch_metrics.items()}
+            | {f"{k}_err": np.nanstd(v, ddof=1) for k, v in batch_metrics.items()}
+            | self._evaluate_cluster_metrics(cluster_eval_input)
         )
-        metrics.update(self._evaluate_cluster_metrics(cluster_eval_input))
         self.test_loss.append(pd.DataFrame(metrics, index=[self._epoch]))
         for hook in self._test_hooks:
             hook(self, metrics)
@@ -604,8 +604,7 @@ class TCNTrainer:
             y=true,
             thld=ec_threshold,
         )
-        metrics = bcs.get_all()
-        metrics.update(get_maximized_bcs(output=predicted, y=true))
+        metrics = bcs.get_all() | get_maximized_bcs(output=predicted, y=true)
         metrics["roc_auc"] = roc_auc_score(y_true=true.cpu(), y_score=predicted.cpu())
         for max_fpr in [
             0.001,

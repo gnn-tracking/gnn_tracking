@@ -139,7 +139,7 @@ def tracking_metrics(
     )
 
     # Properties associated to PID. This is pretty trivial, but since everything is
-    # passed by, rather than by PID, we need to get rid of "duplicates"
+    # passed by hit, rather than by PID, we need to get rid of "duplicates"
     pid_to_props = df[["id", "pt", "r"]].groupby("id")[["pt", "r"]].first()
     pid_to_pt = pid_to_props["pt"].to_dict()
     pid_to_r = pid_to_props["r"].to_dict()
