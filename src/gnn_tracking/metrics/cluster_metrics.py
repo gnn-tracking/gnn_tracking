@@ -263,7 +263,9 @@ common_metrics: dict[str, ClusterMetricType] = {
     ),
     "adjusted_rand": _sklearn_signature_wrap(metrics.adjusted_rand_score),
     "fowlkes_mallows": _sklearn_signature_wrap(metrics.fowlkes_mallows_score),
-    "adjusted_mutual_info": _sklearn_signature_wrap(metrics.adjusted_mutual_info_score),
+    # adjusted mutual info is very slow
+    # "adjusted_mutual_info": _sklearn_signature_wrap(
+    # metrics.adjusted_mutual_info_score),
     # "trkc": lambda **kwargs: hits_per_cluster_count_to_flat_dict(
     #     tolerate_additional_kwargs(count_hits_per_cluster)(**kwargs)
     # ),
