@@ -11,7 +11,7 @@ import optuna
 
 from gnn_tracking.metrics.cluster_metrics import ClusterMetricType
 from gnn_tracking.utils.earlystopping import no_early_stopping
-from gnn_tracking.utils.log import get_logger, logger
+from gnn_tracking.utils.log import get_logger
 from gnn_tracking.utils.timing import timing
 
 
@@ -40,6 +40,13 @@ class OptunaClusterScanResult(ClusterScanResult):
         )
         self.study = study
 
+    def get_trial_values(self) -> np.ndarray:
+        """Get array with the values of all completed trials."""
+        trials_df = self.study.trials_dataframe(attrs=("value", "state")).query(
+            "state == 'COMPLETE'"
+        )
+        return trials_df["value"].to_numpy()
+
 
 class AbstractClusterHyperParamScanner(ABC):
     """Abstract base class for classes that implement hyperparameter scanning of
@@ -60,8 +67,8 @@ class AbstractClusterHyperParamScanner(ABC):
         self, start_params: dict[str, Any] | None = None, **kwargs
     ) -> ClusterScanResult:
         if start_params is not None:
-            logger.debug("Starting from params: %s", start_params)
-        logger.info("Starting hyperparameter scan for clustering")
+            self.logger.debug("Starting from params: %s", start_params)
+        self.logger.info("Starting hyperparameter scan for clustering")
         with timing("Clustering hyperparameter scan & metric evaluation", self.logger):
             return self._scan(start_params=start_params, **kwargs)
 
@@ -349,9 +356,9 @@ class ClusterHyperParamScanner(AbstractClusterHyperParamScanner):
             self._pts,
             self._reconstructable,
         ):
-            available_sectors: list[int] = np.unique(
+            available_sectors: list[int] = np.unique(  # type: ignore
                 sectors[: len(data)]
-            ).tolist()  # type: ignore
+            ).tolist()
             try:
                 available_sectors.remove(-1)
             except ValueError:
@@ -432,4 +439,13 @@ class ClusterHyperParamScanner(AbstractClusterHyperParamScanner):
             self._n_trials_completed,
             self._n_trials_pruned,
         )
-        return OptunaClusterScanResult(study=self._study, metrics=self._evaluate())
+        result = OptunaClusterScanResult(study=self._study, metrics=self._evaluate())
+        tdf = result.get_trial_values()
+        self.logger.debug(
+            "Variance among %d trials is %f. Min/max: %f/%f",
+            len(tdf),
+            tdf.std(ddof=1),
+            tdf.min(),
+            tdf.max(),
+        )
+        return result
