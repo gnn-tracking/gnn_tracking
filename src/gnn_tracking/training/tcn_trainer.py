@@ -665,10 +665,10 @@ class TCNTrainer:
             max_batches: See train_step
         """
         self._epoch += 1
-        with timing(f"Training for epoch {self._epoch}"):
+        with timing(f"Training for epoch {self._epoch}", self.logger):
             train_losses = self.train_step(max_batches=max_batches)
         if not self.skip_test_during_training:
-            with timing(f"Test step for epoch {self._epoch}"):
+            with timing(f"Test step for epoch {self._epoch}", self.logger):
                 test_results = self.test_step(max_batches=max_batches)
         else:
             test_results = {}
