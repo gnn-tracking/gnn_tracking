@@ -11,7 +11,7 @@ import optuna
 
 from gnn_tracking.metrics.cluster_metrics import ClusterMetricType
 from gnn_tracking.utils.earlystopping import no_early_stopping
-from gnn_tracking.utils.log import logger
+from gnn_tracking.utils.log import get_logger, logger
 from gnn_tracking.utils.timing import timing
 
 
@@ -46,6 +46,9 @@ class AbstractClusterHyperParamScanner(ABC):
     clustering algorithms.
     """
 
+    def __init__(self):
+        self.logger = get_logger("ClusterHP")
+
     @abstractmethod
     def _scan(
         self,
@@ -59,7 +62,7 @@ class AbstractClusterHyperParamScanner(ABC):
         if start_params is not None:
             logger.debug("Starting from params: %s", start_params)
         logger.info("Starting hyperparameter scan for clustering")
-        with timing("Clustering hyperparameter scan & metric evaluation"):
+        with timing("Clustering hyperparameter scan & metric evaluation", self.logger):
             return self._scan(start_params=start_params, **kwargs)
 
 
@@ -164,6 +167,7 @@ class ClusterHyperParamScanner(AbstractClusterHyperParamScanner):
             study = chps.scan(n_trials=100)
             print(study.best_params)
         """
+        super().__init__()
         self._algorithm = algorithm
         self._suggest = suggest
         self._data: list[np.ndarray] = data
@@ -315,7 +319,7 @@ class ClusterHyperParamScanner(AbstractClusterHyperParamScanner):
                     raise optuna.TrialPruned()
         global_fom = np.nanmean(expensive_foms).item()
         if self._es(global_fom):
-            logger.info("Stopped early")
+            self.logger.info("Stopped early")
             trial.study.stop()
         self._n_trials_completed += 1
         return global_fom
@@ -326,8 +330,8 @@ class ClusterHyperParamScanner(AbstractClusterHyperParamScanner):
         """Evaluate all metrics (on all sectors and given graphs) for the best
         parameters that we just found with optuna.
         """
-        logger.debug("Evaluating all metrics for best clustering")
-        with timing("Evaluating all metrics"):
+        self.logger.debug("Evaluating all metrics for best clustering")
+        with timing("Evaluating all metrics", self.logger):
             if best_params is None:
                 assert self._study is not None  # mypy
                 best_params = self._study.best_params
@@ -382,7 +386,12 @@ class ClusterHyperParamScanner(AbstractClusterHyperParamScanner):
         metric_timing_str = ", ".join(
             f"{name}: {t}" for name, t in metric_evaluation_time.items()
         )
-        logger.debug("Clustering time: %f, %s", clustering_time, metric_timing_str)
+        self.logger.debug(
+            "Clustering time: %f, total metric eval: %f, individual: %s",
+            clustering_time,
+            sum(metric_evaluation_time.values()),
+            metric_timing_str,
+        )
         return {k: np.nanmean(v).item() for k, v in metrics.items() if v} | {
             f"{k}_err": np.nanstd(v, ddof=1).item() for k, v in metrics.items() if v
         }
@@ -394,7 +403,7 @@ class ClusterHyperParamScanner(AbstractClusterHyperParamScanner):
         self._es.reset()
         if start_params is not None and kwargs.get("n_trials", None) == 1:
             # Do not even start optuna, because that takes time
-            logger.debug(
+            self.logger.debug(
                 "Skipping optuna, because start_params are given and only "
                 "one trial to run"
             )
@@ -418,7 +427,7 @@ class ClusterHyperParamScanner(AbstractClusterHyperParamScanner):
             self._objective,
             **kwargs,
         )
-        logger.info(
+        self.logger.info(
             "Completed %d trials, pruned %d trials",
             self._n_trials_completed,
             self._n_trials_pruned,

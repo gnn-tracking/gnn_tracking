@@ -49,6 +49,7 @@ class DBSCANHyperParamScanner(AbstractClusterHyperParamScanner):
             suggest=suggest,
             **kwargs,
         )
+        super().__init__()
 
     def _scan(self, *args, **kwargs) -> ClusterScanResult:
         return self.chps._scan(*args, **kwargs)
