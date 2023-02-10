@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import collections
+import time
 from abc import ABC, abstractmethod
 from collections import defaultdict
 from typing import Any, Callable, Iterable, Mapping, Protocol
@@ -334,6 +336,8 @@ class ClusterHyperParamScanner(AbstractClusterHyperParamScanner):
     def __evaluate(self, best_params: dict[str, float]) -> dict[str, float]:
         """See _evaluate."""
         metrics = defaultdict(list)
+        clustering_time = 0.0
+        metric_evaluation_time = collections.defaultdict(float)
         for data, truth, sectors, pts, reconstructable in zip(
             self._data,
             self._truth,
@@ -354,11 +358,14 @@ class ClusterHyperParamScanner(AbstractClusterHyperParamScanner):
                 sector_truth = truth[sector_mask]
                 sector_pts = pts[sector_mask]
                 sector_reconstructable = reconstructable[sector_mask]
+                _t = time.process_time()
                 labels = self._pad_output_with_noise(
                     self._algorithm(sector_data, **best_params),
                     len(sector_truth),
                 )
+                clustering_time += time.process_time() - _t
                 for name, metric in self._metrics.items():
+                    _t = time.process_time()
                     r = metric(
                         truth=sector_truth,
                         predicted=labels,
@@ -371,6 +378,11 @@ class ClusterHyperParamScanner(AbstractClusterHyperParamScanner):
                     else:
                         for k, v in r.items():
                             metrics[f"{name}.{k}"].append(v)
+                    metric_evaluation_time[name] += time.process_time() - _t
+        metric_timing_str = ", ".join(
+            f"{name}: {t}" for name, t in metric_evaluation_time.items()
+        )
+        logger.debug("Clustering time: %f, %s", clustering_time, metric_timing_str)
         return {k: np.nanmean(v).item() for k, v in metrics.items() if v} | {
             f"{k}_err": np.nanstd(v, ddof=1).item() for k, v in metrics.items() if v
         }
