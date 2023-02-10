@@ -408,7 +408,7 @@ class ClusterHyperParamScanner(AbstractClusterHyperParamScanner):
     ) -> ClusterScanResult:
         """Run the scan."""
         self._es.reset()
-        if start_params is not None and kwargs.get("n_trials", None) == 1:
+        if start_params is not None and kwargs.get("n_trials") == 1:
             # Do not even start optuna, because that takes time
             self.logger.debug(
                 "Skipping optuna, because start_params are given and only "

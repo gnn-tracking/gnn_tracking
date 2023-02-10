@@ -301,8 +301,8 @@ class TCNTrainer:
             except KeyError:
                 return None
 
-        ec_hit_mask = out.get("ec_hit_mask", None)
-        ec_edge_mask = out.get("ec_edge_mask", None)
+        ec_hit_mask = out.get("ec_hit_mask")
+        ec_edge_mask = out.get("ec_edge_mask")
         if ec_hit_mask is None:
             ec_hit_mask = torch.full_like(data.pt, True, device=self.device)
         if ec_edge_mask is None:
@@ -563,7 +563,7 @@ class TCNTrainer:
                 cluster_eval_input["pt"],
                 cluster_eval_input["reconstructable"],
                 epoch=self._epoch,
-                start_params=self._best_cluster_params.get(fct_name, None),
+                start_params=self._best_cluster_params.get(fct_name),
                 node_mask=cluster_eval_input["ec_hit_mask"],
             )
             if cluster_result is not None:
