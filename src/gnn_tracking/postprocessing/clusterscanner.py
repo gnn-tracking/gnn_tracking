@@ -400,7 +400,7 @@ class ClusterHyperParamScanner(AbstractClusterHyperParamScanner):
             metric_timing_str,
         )
         return {k: np.nanmean(v).item() for k, v in metrics.items() if v} | {
-            f"{k}_err": np.nanstd(v, ddof=1).item() for k, v in metrics.items() if v
+            f"{k}_std": np.nanstd(v, ddof=1).item() for k, v in metrics.items() if v
         }
 
     def _scan(

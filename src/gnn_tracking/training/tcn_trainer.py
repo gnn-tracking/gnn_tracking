@@ -384,10 +384,10 @@ class TCNTrainer:
         if style == "table":
             report_str += "\n"
             non_error_keys: list[str] = sorted(
-                [k for k in batch_losses if not k.endswith("_err")]
+                [k for k in batch_losses if not k.endswith("_std")]
             )
             values = [batch_losses[k] for k in non_error_keys]
-            errors = [batch_losses.get(f"{k}_err", "") for k in non_error_keys]
+            errors = [batch_losses.get(f"{k}_std", "") for k in non_error_keys]
             markers = [
                 "-->" if self.highlight_metric(key) else "" for key in non_error_keys
             ]
@@ -396,7 +396,7 @@ class TCNTrainer:
                 annotated_table_items,
                 tablefmt="outline",
                 floatfmt=".5f",
-                headers=["", "Metric", "Value", "Error"],
+                headers=["", "Metric", "Value", "Std"],
             )
         else:
             report_str += ", ".join(f"{k}={v:>10.5f}" for k, v in batch_losses.items())
@@ -543,7 +543,10 @@ class TCNTrainer:
 
         metrics: dict[str, float] = (
             {k: np.nanmean(v) for k, v in batch_metrics.items()}
-            | {f"{k}_err": np.nanstd(v, ddof=1) for k, v in batch_metrics.items()}
+            | {
+                f"{k}_std": np.nanstd(v, ddof=1).item()
+                for k, v in batch_metrics.items()
+            }
             | self._evaluate_cluster_metrics(cluster_eval_input)
         )
         self.test_loss.append(pd.DataFrame(metrics, index=[self._epoch]))

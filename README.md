@@ -14,7 +14,7 @@
 </div>
 
 
-This repository holds the main python package for the GNN Tracking project. 
+This repository holds the main python package for the GNN Tracking project.
 See the [readme of the organization][organization-readme] for an overview of the task.
 
 ## Setup and testing
