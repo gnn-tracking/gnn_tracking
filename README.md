@@ -13,6 +13,10 @@
 
 </div>
 
+
+This repository holds the main python package for the GNN Tracking project. 
+See the [readme of the organization][organization-readme] for an overview of the task.
+
 ## Setup and testing
 
 1. Set up a conda environment with one of the `environment/*.yml` files
@@ -30,3 +34,5 @@ pre-commit install
 
 If you open a PR and pre-commit fails for formatting,, comment`pre-commit.ci run`
 to trigger a fixup commit from `pre-commit`.
+
+[organization-readme]: https://github.com/gnn-tracking
