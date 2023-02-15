@@ -521,6 +521,11 @@ def load_graphs(
         len(considered_files),
         len(available_files),
     )
+    logger.debug(
+        "First graph is %s, last graph is %s",
+        considered_files[0].name,
+        considered_files[-1].name,
+    )
 
     if n_processes == 1 or len(considered_files) == 1:
         ret = [_load_graph(f) for f in considered_files]

@@ -15,9 +15,14 @@ def train_test_val_split(
     rest, test_graphs = sklearn.model_selection.train_test_split(
         data, test_size=test_frac
     )
-    train_graphs, val_graphs = sklearn.model_selection.train_test_split(
-        rest, test_size=val_frac / (1 - test_frac)
-    )
+    if len(rest) == 0:
+        # Avoid zero div error
+        train_graphs = []
+        val_graphs = []
+    else:
+        train_graphs, val_graphs = sklearn.model_selection.train_test_split(
+            rest, test_size=val_frac / (1 - test_frac)
+        )
     return {
         "train": train_graphs,
         "val": val_graphs,
