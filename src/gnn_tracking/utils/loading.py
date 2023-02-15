@@ -12,6 +12,8 @@ def train_test_val_split(
     data: list[Data], *, test_frac: float = 0.1, val_frac: float = 0.1
 ) -> dict[str, list[Data]]:
     """Split up data into train, test, and validation sets."""
+    if test_frac + val_frac > 1:
+        raise ValueError("test_frac and val_frac must sum to less than 1")
     rest, test_graphs = sklearn.model_selection.train_test_split(
         data, test_size=test_frac
     )
@@ -33,11 +35,11 @@ def train_test_val_split(
 def get_loaders(
     graph_dct: dict[str, list[Data]], *, batch_size=1, cpus=1
 ) -> dict[str, DataLoader]:
-    """Get data loaders
+    """Get data loaders from a dictionary of lists of input graph.
 
     Args:
-        graph_dct:
-        batch_size:
+        graph_dct: Mapping from dataset name (e.g., train/test/val) to list of graphs
+        batch_size: Batch size for data loaders
         cpus: Number of CPUs for data loaders
 
     Returns:
