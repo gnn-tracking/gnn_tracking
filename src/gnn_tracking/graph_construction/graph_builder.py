@@ -35,6 +35,7 @@ class GraphBuilder:
         measurement_mode=False,
         write_output=True,
         log_level=0,
+        collect_data=True,
     ):
         """Build graphs out of the input data.
 
@@ -50,6 +51,7 @@ class GraphBuilder:
             measurement_mode:
             write_output:
             log_level:
+            collect_data: Deprecated: Directly load the data into memory
         """
         self.indir = indir
         os.makedirs(outdir, exist_ok=True)
@@ -73,6 +75,12 @@ class GraphBuilder:
         self.measurements = []
         level = logging.DEBUG if log_level > 0 else logging.INFO
         self.logger = get_logger("GraphBuilder", level)
+        self._collect_data = collect_data
+        if self._collect_data:
+            self.logger.warning(
+                "Collecting data is deprecated. Please use graph_builder.load_data "
+                "instead."
+            )
 
     @property
     def data_list(self):
@@ -419,10 +427,12 @@ class GraphBuilder:
                 raise ValueError(f"{name} is not a valid file name") from e
             if only_sector >= 0 and sector != only_sector:
                 continue
-            if f in self.outfiles and not self.redo:
-                graph = torch.load(join(self.outdir, name))
-                self._data_list.append(graph)
-                continue
+            if self._collect_data:
+                # Deprecated, remove soon
+                if f in self.outfiles and not self.redo:
+                    graph = torch.load(join(self.outdir, name))
+                    self._data_list.append(graph)
+                    continue
             self.logger.debug(f"Processing {f}")
             f = join(self.indir, f)
             graph = torch.load(f)
