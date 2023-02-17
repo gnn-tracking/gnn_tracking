@@ -6,7 +6,7 @@ import os
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path, PurePath
-from typing import Any, Callable, Mapping, Protocol
+from typing import Any, Callable, DefaultDict, Mapping, Protocol
 
 import numpy as np
 import pandas as pd
@@ -55,6 +55,16 @@ class LossFctType(Protocol):
 
 class ClusterFctType(Protocol):
     """Type of a clustering scanner function"""
+
+    #: Maps the keys from `TCNTrainer.evaluate_model` to the inputs to `__call__`
+    required_model_outputs = {
+        "x": "graphs",
+        "particle_id": "truth",
+        "sector": "sectors",
+        "pt": "pts",
+        "reconstructable": "reconstructable",
+        "ec_hit_mask": "node_mask",
+    }
 
     def __call__(
         self,
@@ -496,14 +506,9 @@ class TCNTrainer:
         self.model.eval()
 
         # Objects in the following three lists are used for clustering
-        cluster_eval_input: dict[str, list[np.ndarray]] = {
-            "x": [],
-            "particle_id": [],
-            "sector": [],
-            "pt": [],
-            "reconstructable": [],
-            "ec_hit_mask": [],
-        }
+        cluster_eval_input: DefaultDict[
+            str, list[np.ndarray]
+        ] = collections.defaultdict(list)
 
         batch_metrics = collections.defaultdict(list)
         loader = self.val_loader if val else self.test_loader
@@ -532,7 +537,7 @@ class TCNTrainer:
                 self.clustering_functions
                 and _batch_idx <= self.max_batches_for_clustering
             ):
-                for key in cluster_eval_input:
+                for key in ClusterFctType.required_model_outputs:
                     cluster_eval_input[key].append(
                         model_output[key].detach().cpu().numpy()
                     )
@@ -555,15 +560,16 @@ class TCNTrainer:
     ) -> dict[str, float]:
         metrics = {}
         for fct_name, fct in self.clustering_functions.items():
+            # Keyword names are different in our input dictionary and the function
+            # keyword names
+            data_kwargs = {
+                ClusterFctType.required_model_outputs[key]: value
+                for key, value in cluster_eval_input.items()
+            }
             cluster_result = fct(
-                cluster_eval_input["x"],
-                cluster_eval_input["particle_id"],
-                cluster_eval_input["sector"],
-                cluster_eval_input["pt"],
-                cluster_eval_input["reconstructable"],
+                **data_kwargs,
                 epoch=self._epoch,
                 start_params=self._best_cluster_params.get(fct_name),
-                node_mask=cluster_eval_input["ec_hit_mask"],
             )
             if cluster_result is not None:
                 metrics.update(cluster_result.metrics)
