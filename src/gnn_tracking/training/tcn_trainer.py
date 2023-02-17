@@ -571,15 +571,16 @@ class TCNTrainer:
                 epoch=self._epoch,
                 start_params=self._best_cluster_params.get(fct_name),
             )
-            if cluster_result is not None:
-                metrics.update(cluster_result.metrics)
-                self._best_cluster_params[fct_name] = cluster_result.best_params
-                metrics.update(
-                    {
-                        f"best_{fct_name}_{param}": val
-                        for param, val in cluster_result.best_params.items()
-                    }
-                )
+            if cluster_result is None:
+                continue
+            metrics.update(cluster_result.metrics)
+            self._best_cluster_params[fct_name] = cluster_result.best_params
+            metrics.update(
+                {
+                    f"best_{fct_name}_{param}": val
+                    for param, val in cluster_result.best_params.items()
+                }
+            )
         return metrics
 
     @torch.no_grad()
