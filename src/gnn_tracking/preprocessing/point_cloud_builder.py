@@ -239,15 +239,20 @@ class PointCloudBuilder:
                 n_total = particle_id_counts[pid]
                 if sum(in_sector) / n_total < 0.5:
                     continue
+
                 in_ext_sector = (
                     (group.vr < (self.sector_ds * slope * group.ur + self.sector_di))
                     & (group.vr > (-self.sector_ds * slope * group.ur - self.sector_di))
                     & (group.pt > self.thld)
                 )
                 majority_contained.append(sum(in_ext_sector) == n_total)
-                efficiency = sum(majority_contained) / len(majority_contained)
-                measurements["majority_contained"] = efficiency
-                self.measurements.append(measurements)
+
+            def zero_div(x, y):
+                return x / y if y != 0 else 0
+
+            efficiency = zero_div(sum(majority_contained), len(majority_contained))
+            measurements["majority_contained"] = efficiency
+            self.measurements.append(measurements)
 
         return extended_sector
 

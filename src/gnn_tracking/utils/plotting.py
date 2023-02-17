@@ -87,12 +87,20 @@ class PointCloudPlotter:
         self.n_sectors = n_sectors
         self.colors = cm.prism(np.linspace(0, 1, n_sectors))
 
-    def plot_ep_rv_uv(self, i: int, sector: str, axs: Sequence[plt.Axes], display=True):
+    def plot_ep_rv_uv(
+        self,
+        i: int,
+        sector: str,
+        axs: Sequence[plt.Axes],
+        display=True,
+        pixel_only=False,
+    ):
         x = torch.load(sector).x
         phi, eta = x[:, 1], x[:, 3]
         r, z = x[:, 0], x[:, 2]
         u, v = x[:, 4], x[:, 5]
-        kwargs = {"marker": ".", "lw": 0, "ms": 0.1, "color": self.colors[i]}
+        ms = 0.1 if pixel_only else 1.0
+        kwargs = {"marker": ".", "lw": 0, "ms": ms, "color": self.colors[i]}
         axs[0].plot(eta, phi, **kwargs)
         axs[0].set_xlabel(r"$\eta$")
         axs[0].set_ylabel(r"$\phi$")
@@ -107,12 +115,14 @@ class PointCloudPlotter:
             plt.tight_layout()
             plt.show()
 
-    def plot_ep_rv_uv_all_sectors(self, evtid: int, savefig=False, filename=""):
+    def plot_ep_rv_uv_all_sectors(
+        self, evtid: int, savefig=False, filename="", pixel_only=False
+    ):
         fig, axs = plt.subplots(nrows=1, ncols=3, dpi=200, figsize=(24, 8))
         sector_files = [join(self.indir, f) for f in self.infiles if str(evtid) in f]
         prefix = f"event{evtid}"
         for i, s in enumerate(sector_files):
-            self.plot_ep_rv_uv(i, s, axs=axs, display=False)
+            self.plot_ep_rv_uv(i, s, axs=axs, display=False, pixel_only=pixel_only)
         axs[1].set_title(prefix)
         if savefig:
             plt.savefig(filename, dpi=1200, format="pdf")
@@ -131,6 +141,7 @@ class PointCloudPlotter:
         vlim_high=0.004,
         savefig=False,
         filename="",
+        pixel_only=False,
     ):
         fig, axs = plt.subplots(nrows=1, ncols=3, dpi=200, figsize=(24, 8))
         f = join(self.indir, f"data{evtid}_s{sector}.pt")
@@ -142,13 +153,14 @@ class PointCloudPlotter:
         slope = np.arctan(theta)
         ur = u * np.cos(2 * sector * theta) - v * np.sin(2 * sector * theta)
         vr = u * np.sin(2 * sector * theta) + v * np.cos(2 * sector * theta)
-        axs[0].plot(eta, phi, "b.", lw=0, ms=0.5)
+        ms = 0.5 if pixel_only else 3
+        axs[0].plot(eta, phi, "b.", lw=0, ms=ms)
         axs[0].set_xlabel(r"$\eta$")
         axs[0].set_ylabel(r"$\phi$")
-        axs[1].plot(z, r, "b.", lw=0, ms=0.5)
+        axs[1].plot(z, r, "b.", lw=0, ms=ms)
         axs[1].set_xlabel(r"$z$ [mm]")
         axs[1].set_ylabel(r"$r$ [mm]")
-        axs[2].plot(ur, vr, "b.", lw=0, ms=0.5)
+        axs[2].plot(ur, vr, "b.", lw=0, ms=ms)
         axs[2].set_xlabel(r"$u_\mathrm{rotated}$ [1/mm]")
         axs[2].set_ylabel(r"$v_\mathrm{rotated}$ [1/mm]")
         axs[1].set_title(f"event{evtid}_s{sector}")
