@@ -304,7 +304,7 @@ class TCNTrainer:
         ec_hit_mask = out.get("ec_hit_mask")
         ec_edge_mask = out.get("ec_edge_mask")
         if ec_hit_mask is None:
-            ec_hit_mask = torch.full_like(data.pt, True, device=self.device)
+            ec_hit_mask = torch.full_like(data.pt, True, device=self.device).long()
         if ec_edge_mask is None:
             ec_edge_mask = torch.full_like(data.y, True, device=self.device)
 
