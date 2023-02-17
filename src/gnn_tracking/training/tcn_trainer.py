@@ -221,7 +221,7 @@ class TCNTrainer:
         self.skip_test_during_training = False
 
         # todo: This should rather be read from the model, because it makes only
-        #   sense if it actually amtches
+        #   sense if it actually matches
         #: Threshold for edge classification in test step (does not
         #: affect training)
         self.ec_threshold = 0.5
@@ -281,9 +281,9 @@ class TCNTrainer:
         if apply_truth_cuts:
             node_mask, edge_mask = self.training_truth_cuts.get_masks(data)
             data = self._apply_mask(data, node_mask, edge_mask)
-            out = self.model(data)
-        else:
-            out = self.model(data)
+
+        out = self.model(data)
+
         if mask_pids_reco:
             pid_field = data.particle_id * data.reconstructable.long()
         else:
@@ -301,12 +301,8 @@ class TCNTrainer:
             except KeyError:
                 return None
 
-        ec_hit_mask = out.get("ec_hit_mask")
-        ec_edge_mask = out.get("ec_edge_mask")
-        if ec_hit_mask is None:
-            ec_hit_mask = torch.full_like(data.pt, True, device=self.device)
-        if ec_edge_mask is None:
-            ec_edge_mask = torch.full_like(data.y, True, device=self.device)
+        ec_hit_mask = out.get("ec_hit_mask", torch.full_like(data.pt, True))
+        ec_edge_mask = out.get("ec_edge_mask", torch.full_like(data.y, True))
 
         dct = {
             # -------- flags
