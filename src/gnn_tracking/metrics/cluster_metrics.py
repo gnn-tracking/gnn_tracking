@@ -124,13 +124,14 @@ def tracking_metrics(
     # This strategy is a significantly (!) faster version than doing
     # c_id.groupby("c").agg(lambda x: x.mode()[0]) etc.
     pid_counts = df[["c", "id"]].value_counts().reset_index()
-    maj_df = pid_counts.groupby("c").first()
+    pid_counts_grouped = pid_counts.groupby("c")
+    maj_df = pid_counts_grouped.first()
     # For each cluster: Which true PID has the most hits?
     c_maj_pids = maj_df["id"]
     # For each cluster: How many hits does the PID with the most hits have?
     c_maj_hits = maj_df[0]
     # Number of hits per cluster
-    c_sizes = pid_counts.groupby("c")[0].sum()
+    c_sizes = pid_counts_grouped[0].sum()
     # Assume that negative cluster labels mean that the cluster was labeled as
     # invalid
     unique_predicted, predicted_counts = np.unique(predicted, return_counts=True)
@@ -139,7 +140,7 @@ def tracking_metrics(
     )
 
     # Properties associated to PID. This is pretty trivial, but since everything is
-    # passed by, rather than by PID, we need to get rid of "duplicates"
+    # passed by hit, rather than by PID, we need to get rid of "duplicates"
     pid_to_props = df[["id", "pt", "r"]].groupby("id")[["pt", "r"]].first()
     pid_to_pt = pid_to_props["pt"].to_dict()
     pid_to_r = pid_to_props["r"].to_dict()
@@ -262,7 +263,9 @@ common_metrics: dict[str, ClusterMetricType] = {
     ),
     "adjusted_rand": _sklearn_signature_wrap(metrics.adjusted_rand_score),
     "fowlkes_mallows": _sklearn_signature_wrap(metrics.fowlkes_mallows_score),
-    "adjusted_mutual_info": _sklearn_signature_wrap(metrics.adjusted_mutual_info_score),
+    # adjusted mutual info is very slow
+    # "adjusted_mutual_info": _sklearn_signature_wrap(
+    # metrics.adjusted_mutual_info_score),
     # "trkc": lambda **kwargs: hits_per_cluster_count_to_flat_dict(
     #     tolerate_additional_kwargs(count_hits_per_cluster)(**kwargs)
     # ),

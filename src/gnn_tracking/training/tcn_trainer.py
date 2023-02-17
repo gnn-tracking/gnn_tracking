@@ -132,7 +132,7 @@ class TCNTrainer:
         device=None,
         lr: Any = 5e-4,
         optimizer: Callable = Adam,
-        lr_scheduler: None | Callable = None,
+        lr_scheduler: Callable | None = None,
         loss_weights: dict[str, float] | DynamicLossWeights | None = None,
         cluster_functions: dict[str, ClusterFctType] | None = None,
     ):
@@ -252,8 +252,9 @@ class TCNTrainer:
         else:
             raise ValueError("Invalid value for called_at")
 
+    @staticmethod
     def _apply_mask(
-        self, data: Data, node_mask: Tensor, edge_mask: Tensor | None = None
+        data: Data, node_mask: Tensor, edge_mask: Tensor | None = None
     ) -> Data:
         """Apply mask to data"""
         if edge_mask is not None:
@@ -300,8 +301,8 @@ class TCNTrainer:
             except KeyError:
                 return None
 
-        ec_hit_mask = out.get("ec_hit_mask", None)
-        ec_edge_mask = out.get("ec_edge_mask", None)
+        ec_hit_mask = out.get("ec_hit_mask")
+        ec_edge_mask = out.get("ec_edge_mask")
         if ec_hit_mask is None:
             ec_hit_mask = torch.full_like(data.pt, True, device=self.device)
         if ec_edge_mask is None:
@@ -369,7 +370,6 @@ class TCNTrainer:
         """Log the losses
 
         Args:
-            batch_loss: Total loss
             batch_losses:
             style: "table" or "inline"
             header: Header to prepend to the log message
@@ -383,29 +383,30 @@ class TCNTrainer:
             report_str = ""
         if style == "table":
             report_str += "\n"
-        table_items: list[tuple[str, float]] = sorted(batch_losses.items())
-        if style == "table":
-            annotated_table_items = [
-                (
-                    "-->" if self.highlight_metric(t[0]) else "",
-                    t[0],
-                    t[1],
-                )
-                for t in table_items
+            non_error_keys: list[str] = sorted(
+                [k for k in batch_losses if not k.endswith("_std")]
+            )
+            values = [batch_losses[k] for k in non_error_keys]
+            errors = [batch_losses.get(f"{k}_std", "") for k in non_error_keys]
+            markers = [
+                "-->" if self.highlight_metric(key) else "" for key in non_error_keys
             ]
+            annotated_table_items = zip(markers, non_error_keys, values, errors)
             report_str += tabulate.tabulate(
                 annotated_table_items,
                 tablefmt="outline",
                 floatfmt=".5f",
-                headers=["", "Metric", "Value"],
+                headers=["", "Metric", "Value", "Std"],
             )
         else:
-            report_str += ", ".join(f"{k}={v:>10.5f}" for k, v in table_items)
+            report_str += ", ".join(f"{k}={v:>10.5f}" for k, v in batch_losses.items())
         self.logger.info(report_str)
 
     def highlight_metric(self, metric: str) -> bool:
         """Should a metric be highlighted in the log output?"""
         metric = metric.casefold()
+        if metric.startswith("tc_"):
+            return False
         if "0.9" not in metric and "1.5" not in metric:
             return False
         if "double_majority" in metric:
@@ -424,7 +425,7 @@ class TCNTrainer:
                 to get to the validation step more quickly)
 
         Returns:
-
+            Dictionary of losses
         """
         self.model.train()
         _losses = collections.defaultdict(list)
@@ -438,11 +439,11 @@ class TCNTrainer:
 
             batch_loss, batch_losses = self.get_batch_losses(model_output)
 
-            self.optimizer.zero_grad()
+            self.optimizer.zero_grad(set_to_none=True)
             batch_loss.backward()
             self.optimizer.step()
 
-            if not (batch_idx % 10):
+            if (batch_idx % 10) == 0:
                 _losses_w = {}
                 for key, loss in batch_losses.items():
                     _losses_w[f"{key}_weighted"] = (
@@ -481,13 +482,13 @@ class TCNTrainer:
         pt_b = pt[edge_index[1]]
         return (pt_a > pt_min) | (pt_b > pt_min)
 
+    @torch.no_grad()
     def single_test_step(
-        self, thld=0.5, val=True, apply_truth_cuts=False, max_batches: int | None = None
+        self, val=True, apply_truth_cuts=False, max_batches: int | None = None
     ) -> dict[str, float]:
         """Test the model on the validation or test set
 
         Args:
-            thld: Threshold for edge classification
             val: Use validation dataset rather than test dataset
             apply_truth_cuts: Apply truth cuts (e.g., truth level pt cut) during
                 the evaluation
@@ -508,95 +509,135 @@ class TCNTrainer:
             "ec_hit_mask": [],
         }
 
-        batch_losses = collections.defaultdict(list)
-        with torch.no_grad():
-            loader = self.val_loader if val else self.test_loader
-            for _batch_idx, data in enumerate(loader):
-                if max_batches and _batch_idx > max_batches:
-                    break
-                data = data.to(self.device)
-                model_output = self.evaluate_model(
-                    data, mask_pids_reco=False, apply_truth_cuts=apply_truth_cuts
+        batch_metrics = collections.defaultdict(list)
+        loader = self.val_loader if val else self.test_loader
+        for _batch_idx, data in enumerate(loader):
+            if max_batches and _batch_idx > max_batches:
+                break
+            data = data.to(self.device)
+            model_output = self.evaluate_model(
+                data, mask_pids_reco=False, apply_truth_cuts=apply_truth_cuts
+            )
+            batch_loss, these_batch_losses = self.get_batch_losses(model_output)
+
+            batch_metrics["total"].append(batch_loss.item())
+            for key, value in these_batch_losses.items():
+                batch_metrics[key].append(value.item())
+                batch_metrics[f"{key}_weighted"].append(
+                    value.item() * self._loss_weight_setter[key]
                 )
-                batch_loss, these_batch_losses = self.get_batch_losses(model_output)
 
-                if model_output["w"] is not None:
-                    for pt_min in self.ec_eval_pt_thlds:
-                        edge_pt_mask = self._edge_pt_mask(
-                            model_output["edge_index"], model_output["pt"], pt_min
-                        )
-                        predicted = model_output["w"][edge_pt_mask]
-                        true = model_output["y"][edge_pt_mask].long()
+            for key, value in self.evaluate_ec_metrics(
+                model_output,
+            ).items():
+                batch_metrics[key].append(value)
 
-                        bcs = BinaryClassificationStats(
-                            output=predicted,
-                            y=true,
-                            thld=thld,
-                        )
-                        for k, v in bcs.get_all().items():
-                            batch_losses[denote_pt(k, pt_min)].append(v)
-                        for k, v in get_maximized_bcs(output=predicted, y=true).items():
-                            batch_losses[denote_pt(k, pt_min)].append(v)
-                        batch_losses[denote_pt("roc_auc", pt_min)].append(
-                            roc_auc_score(y_true=true.cpu(), y_score=predicted.cpu())
-                        )
-                        for max_fpr in [
-                            0.001,
-                            0.01,
-                            0.1,
-                        ]:
-                            batch_losses[
-                                denote_pt(f"roc_auc_{max_fpr}FPR", pt_min)
-                            ].append(
-                                roc_auc_score(
-                                    y_true=true.cpu(),
-                                    y_score=predicted.cpu(),
-                                    max_fpr=max_fpr,
-                                )
-                            )
-
-                batch_losses["total"].append(batch_loss.item())
-                for key, loss in these_batch_losses.items():
-                    batch_losses[key].append(loss.item())
-                    batch_losses[f"{key}_weighted"].append(
-                        loss.item() * self._loss_weight_setter[key]
+            if (
+                self.clustering_functions
+                and _batch_idx <= self.max_batches_for_clustering
+            ):
+                for key in cluster_eval_input:
+                    cluster_eval_input[key].append(
+                        model_output[key].detach().cpu().numpy()
                     )
 
-                if (
-                    self.clustering_functions
-                    and _batch_idx <= self.max_batches_for_clustering
-                ):
-                    for key in cluster_eval_input:
-                        cluster_eval_input[key].append(
-                            model_output[key].detach().cpu().numpy()
-                        )
+        metrics: dict[str, float] = (
+            {k: np.nanmean(v) for k, v in batch_metrics.items()}
+            | {
+                f"{k}_std": np.nanstd(v, ddof=1).item()
+                for k, v in batch_metrics.items()
+            }
+            | self._evaluate_cluster_metrics(cluster_eval_input)
+        )
+        self.test_loss.append(pd.DataFrame(metrics, index=[self._epoch]))
+        for hook in self._test_hooks:
+            hook(self, metrics)
+        return metrics
 
-        losses: dict[str, float] = {k: np.nanmean(v) for k, v in batch_losses.items()}
-        for k, f in self.clustering_functions.items():
-            cluster_result = f(
+    def _evaluate_cluster_metrics(
+        self, cluster_eval_input: dict[str, list[np.ndarray]]
+    ) -> dict[str, float]:
+        metrics = {}
+        for fct_name, fct in self.clustering_functions.items():
+            cluster_result = fct(
                 cluster_eval_input["x"],
                 cluster_eval_input["particle_id"],
                 cluster_eval_input["sector"],
                 cluster_eval_input["pt"],
                 cluster_eval_input["reconstructable"],
                 epoch=self._epoch,
-                start_params=self._best_cluster_params.get(k, None),
+                start_params=self._best_cluster_params.get(fct_name),
                 node_mask=cluster_eval_input["ec_hit_mask"],
             )
             if cluster_result is not None:
-                losses.update(cluster_result.metrics)
-                self._best_cluster_params[k] = cluster_result.best_params
-                losses.update(
+                metrics.update(cluster_result.metrics)
+                self._best_cluster_params[fct_name] = cluster_result.best_params
+                metrics.update(
                     {
-                        f"best_{k}_{param}": val
+                        f"best_{fct_name}_{param}": val
                         for param, val in cluster_result.best_params.items()
                     }
                 )
+        return metrics
 
-        self.test_loss.append(pd.DataFrame(losses, index=[self._epoch]))
-        for hook in self._test_hooks:
-            hook(self, losses)
-        return losses
+    @torch.no_grad()
+    def evaluate_ec_metrics_with_pt_thld(
+        self, model_output: dict[str, torch.Tensor], pt_min: float, ec_threshold: float
+    ) -> dict[str, float]:
+        """Evaluate edge classification metrics for a given pt threshold and
+        EC threshold.
+
+        Args:
+            model_output: Output of the model
+            pt_min: pt threshold: We discard all edges where both nodes have
+                `pt <= pt_min` before evaluating any metric.
+            ec_threshold: EC threshold
+
+        Returns:
+            Dictionary of metrics
+        """
+        edge_pt_mask = self._edge_pt_mask(
+            model_output["edge_index"], model_output["pt"], pt_min
+        )
+        predicted = model_output["w"][edge_pt_mask]
+        true = model_output["y"][edge_pt_mask].long()
+
+        bcs = BinaryClassificationStats(
+            output=predicted,
+            y=true,
+            thld=ec_threshold,
+        )
+        metrics = bcs.get_all() | get_maximized_bcs(output=predicted, y=true)
+        metrics["roc_auc"] = roc_auc_score(y_true=true.cpu(), y_score=predicted.cpu())
+        for max_fpr in [
+            0.001,
+            0.01,
+            0.1,
+        ]:
+            metrics[f"roc_auc_{max_fpr}FPR"] = roc_auc_score(
+                y_true=true.cpu(),
+                y_score=predicted.cpu(),
+                max_fpr=max_fpr,
+            )
+        return {denote_pt(k, pt_min): v for k, v in metrics.items()}
+
+    @torch.no_grad()
+    def evaluate_ec_metrics(
+        self, model_output: dict[str, torch.Tensor], ec_threshold: float | None = None
+    ) -> dict[str, float]:
+        """Evaluate edge classification metrics for all pt thresholds."""
+        if ec_threshold is None:
+            ec_threshold = self.ec_threshold
+        if model_output["w"] is None:
+            return {}
+        ret = {}
+        for pt_min in self.ec_eval_pt_thlds:
+            ret.update(
+                self.evaluate_ec_metrics_with_pt_thld(
+                    model_output, pt_min, ec_threshold=ec_threshold
+                )
+            )
+        return ret
 
     def test_step(self, val=True, max_batches: int | None = None) -> dict[str, float]:
         """Validate the model and test the model on the validation/test set.
@@ -607,14 +648,11 @@ class TCNTrainer:
             val: Use validation dataset rather than test dataset
             max_batches: Use a maximum number of batches for testing
         """
-        test_results = self.single_test_step(
-            thld=self.ec_threshold, val=val, max_batches=max_batches
-        )
+        test_results = self.single_test_step(val=val, max_batches=max_batches)
         if not self.training_truth_cuts.is_trivial():
             test_results.update(
                 add_key_suffix(
                     self.single_test_step(
-                        thld=self.ec_threshold,
                         val=val,
                         apply_truth_cuts=True,
                     ),
@@ -630,10 +668,10 @@ class TCNTrainer:
             max_batches: See train_step
         """
         self._epoch += 1
-        with timing(f"Training for epoch {self._epoch}"):
+        with timing(f"Training for epoch {self._epoch}", self.logger):
             train_losses = self.train_step(max_batches=max_batches)
         if not self.skip_test_during_training:
-            with timing(f"Test step for epoch {self._epoch}"):
+            with timing(f"Test step for epoch {self._epoch}", self.logger):
                 test_results = self.test_step(max_batches=max_batches)
         else:
             test_results = {}
@@ -685,7 +723,7 @@ class TCNTrainer:
     def save_checkpoint(self, path: str | PurePath = "") -> None:
         """Save state of model, optimizer and more for later resuming of training."""
         path = self.get_checkpoint_path(path)
-        self.logger.info(f"Saving checkpoint to {path}")
+        self.logger.info("Saving checkpoint to %s", path)
         torch.save(
             {
                 "epoch": self._epoch,

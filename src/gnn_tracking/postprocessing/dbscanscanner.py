@@ -14,8 +14,6 @@ from gnn_tracking.postprocessing.clusterscanner import (
 
 __all__ = ["DBSCANHyperParamScanner", "dbscan_scan"]
 
-from gnn_tracking.utils.log import logger
-
 
 def dbscan(graphs: np.ndarray, eps=0.99, min_samples=1) -> np.ndarray:
     return DBSCAN(eps=eps, min_samples=min_samples).fit_predict(graphs)
@@ -49,6 +47,7 @@ class DBSCANHyperParamScanner(AbstractClusterHyperParamScanner):
             suggest=suggest,
             **kwargs,
         )
+        super().__init__()
 
     def _scan(self, *args, **kwargs) -> ClusterScanResult:
         return self.chps._scan(*args, **kwargs)
@@ -110,8 +109,6 @@ def dbscan_scan(
             "eps": 0.95,
             "min_samples": 1,
         }
-    if n_jobs == 1:
-        logger.warning("Only using 1 thread for DBSCAN scan")
     dbss = DBSCANHyperParamScanner(
         data=graphs,
         truth=truth,
@@ -122,6 +119,8 @@ def dbscan_scan(
         metrics=common_metrics,
         node_mask=node_mask,
     )
+    if n_jobs == 1:
+        dbss.logger.warning("Only using 1 thread for DBSCAN scan")
     if isinstance(n_trials, int):
         pass
     elif isinstance(n_trials, Callable):

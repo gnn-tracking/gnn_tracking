@@ -14,51 +14,17 @@ from gnn_tracking.utils.log import logger
 T: TypeAlias = torch.Tensor
 
 
-# Follows the implementation in kornia at
-# https://github.com/kornia/kornia/blob/master/kornia/losses/focal.py
-# (binary_focal_loss_with_logits function)
-def binary_focal_loss(
+@torch.jit.script
+def _binary_focal_loss(
     *,
     inpt: T,
     target: T,
-    alpha: float = 0.25,
-    gamma: float = 2.0,
-    reduction: str = "mean",
-    pos_weight: T | None = None,
-    mask_outliers=True,
+    mask: T,
+    alpha: float,
+    gamma: float,
+    pos_weight: T,
 ) -> T:
-    """Binary Focal Loss, following https://arxiv.org/abs/1708.02002.
-
-    Args:
-        inpt:
-        target:
-        alpha: Weight for positive/negative results
-        gamma: Focusing parameter
-        reduction: 'none', 'mean', 'sum'
-        pos_weight: Can be used to balance precision/recall
-        mask_outliers: Mask 0s and 1s in input.
-    """
-    assert gamma >= 0.0
-    assert 0 <= alpha <= 1
-
-    if pos_weight is None:
-        pos_weight = torch.ones(inpt.shape[-1], device=inpt.device, dtype=inpt.dtype)
-
-    if mask_outliers:
-        mask = torch.isclose(inpt, torch.Tensor([0.0]).to(inpt.device)) | torch.isclose(
-            inpt, torch.Tensor([1.0]).to(inpt.device)
-        )
-        n_outliers = mask.sum()
-        mask = ~mask.bool()
-        if n_outliers:
-            logger.warning(
-                "Masking %d/%d as outliers in focal loss", n_outliers, len(mask)
-            )
-            logger.debug(inpt[:10])
-            logger.debug(target[:10])
-    else:
-        mask = torch.full_like(inpt, True).bool()
-
+    """Extracted function for JIT compilation."""
     inpt = inpt[mask]
     target = target[mask]
     pos_weight = pos_weight[mask]
@@ -70,37 +36,57 @@ def binary_focal_loss(
     neg_term = -(1 - alpha) * probs_pos.pow(gamma) * (1.0 - target) * probs_neg.log()
     loss_tmp = pos_term + neg_term
 
-    if reduction == "none":
-        loss = loss_tmp
-    elif reduction == "mean":
-        loss = torch.mean(loss_tmp)
-    elif reduction == "sum":
-        loss = torch.sum(loss_tmp)
-    else:
-        raise NotImplementedError(f"Invalid reduction mode: {reduction}")
-
-    if torch.isnan(loss).any():
-        logger.error(
-            "NaN loss in focal loss. Here's some more information: "
-            "sum input: %s, max input: %s, min input: %s",
-            "sum pos_term: %s, sum neg_term: %s, sum loss_tmp: %s, "
-            "max probs_pos: %s, max probs_neg: %s, max target: %s, "
-            "min probs_pos: %s, min probs_neg: %s, min target: %s, ",
-            inpt.sum(),
-            inpt.max(),
-            inpt.min(),
-            pos_term.sum(),
-            neg_term.sum(),
-            loss_tmp.sum(),
-            probs_pos.max(),
-            probs_neg.max(),
-            target.max(),
-            probs_pos.min(),
-            probs_neg.min(),
-            target.min(),
-        )
+    loss = torch.mean(loss_tmp)
 
     return loss
+
+
+# Follows the implementation in kornia at
+# https://github.com/kornia/kornia/blob/master/kornia/losses/focal.py
+# (binary_focal_loss_with_logits function)
+def binary_focal_loss(
+    *,
+    inpt: T,
+    target: T,
+    alpha: float = 0.25,
+    gamma: float = 2.0,
+    pos_weight: T | None = None,
+) -> T:
+    """Binary Focal Loss, following https://arxiv.org/abs/1708.02002.
+
+    Args:
+        inpt:
+        target:
+        alpha: Weight for positive/negative results
+        gamma: Focusing parameter
+        pos_weight: Can be used to balance precision/recall
+    """
+    assert gamma >= 0.0
+    assert 0 <= alpha <= 1
+    assert not torch.isnan(inpt).any()
+    assert not torch.isnan(target).any()
+
+    if pos_weight is None:
+        pos_weight = torch.ones(inpt.shape[-1], device=inpt.device, dtype=inpt.dtype)
+
+    # Masking outliers
+    mask = ~(
+        torch.isclose(inpt, torch.Tensor([0.0]).to(inpt.device))
+        | torch.isclose(inpt, torch.Tensor([1.0]).to(inpt.device))
+    ).bool()
+    if not mask.all():
+        logger.warning(
+            "Masking %d/%d as outliers in focal loss", (~mask).sum(), len(mask)
+        )
+
+    return _binary_focal_loss(
+        inpt=inpt,
+        target=target,
+        mask=mask,
+        alpha=alpha,
+        gamma=gamma,
+        pos_weight=pos_weight,
+    )
 
 
 def falsify_low_pt_edges(*, y: T, edge_index: T, pt: T, pt_thld: float = 0.0) -> T:
@@ -156,7 +142,6 @@ class EdgeWeightFocalLoss(FalsifyLowPtEdgeWeightLoss):
         alpha=0.25,
         gamma=2.0,
         pos_weight=None,
-        reduction="mean",
         **kwargs,
     ):
         """Loss function based on focal loss for edge classification.
@@ -166,7 +151,6 @@ class EdgeWeightFocalLoss(FalsifyLowPtEdgeWeightLoss):
         self.alpha = alpha
         self.gamma = gamma
         self.pos_weight = pos_weight
-        self.reduction = reduction
 
     def _forward(self, *, w: T, y: T, **kwargs) -> T:
         focal_loss = binary_focal_loss(
@@ -175,8 +159,6 @@ class EdgeWeightFocalLoss(FalsifyLowPtEdgeWeightLoss):
             alpha=self.alpha,
             gamma=self.gamma,
             pos_weight=self.pos_weight,
-            reduction=self.reduction,
-            mask_outliers=True,
         )
         return focal_loss
 
@@ -204,10 +186,48 @@ class HaughtyFocalLoss(torch.nn.Module):
             alpha=self._alpha,
             gamma=self._gamma,
             pos_weight=pos_weight,
-            reduction="mean",
-            mask_outliers=True,
         )
         return focal_loss
+
+
+@torch.jit.script
+def _condensation_loss(
+    *,
+    beta: T,
+    x: T,
+    particle_id: T,
+    mask: T,
+    q_min: float,
+    radius_threshold: float,
+) -> dict[str, T]:
+    """Extracted function for JIT-compilation. See `PotentialLoss` for details."""
+    pids = torch.unique(particle_id[particle_id > 0])
+    # n_nodes x n_pids
+    pid_masks = particle_id[:, None] == pids[None, :]  # type: ignore
+
+    q = torch.arctanh(beta) ** 2 + q_min
+    alphas = torch.argmax(q[:, None] * pid_masks, dim=0)
+    x_alphas = x[alphas].transpose(0, 1)
+    q_alphas = q[alphas][None, None, :]
+
+    diff = x[:, :, None] - x_alphas[None, :, :]
+    norm_sq = torch.sum(diff**2, dim=1)
+
+    # Attractive potential
+    va = q[:, None] * pid_masks * (norm_sq * q_alphas).squeeze(dim=0)
+    # Repulsive potential
+    vr = (
+        q[:, None]
+        * (~pid_masks)
+        * (relu(radius_threshold - torch.sqrt(norm_sq + 1e-8)) * q_alphas).squeeze(
+            dim=0
+        )
+    )
+
+    return {
+        "attractive": torch.sum(torch.mean(va[mask], dim=0)),
+        "repulsive": torch.sum(torch.mean(vr, dim=0)),
+    }
 
 
 class PotentialLoss(torch.nn.Module):
@@ -224,37 +244,6 @@ class PotentialLoss(torch.nn.Module):
         self.q_min = q_min
         self.radius_threshold = radius_threshold
         self.pt_thld = attr_pt_thld
-
-    def _condensation_loss(
-        self, *, beta: T, x: T, particle_id: T, mask: T
-    ) -> dict[str, T]:
-        pids = torch.unique(particle_id[particle_id > 0])
-        # n_nodes x n_pids
-        pid_masks = particle_id[:, None] == pids[None, :]  # type: ignore
-
-        q = torch.arctanh(beta) ** 2 + self.q_min
-        alphas = torch.argmax(q[:, None] * pid_masks, dim=0)
-        x_alphas = x[alphas].transpose(0, 1)
-        q_alphas = q[alphas][None, None, :]
-
-        diff = x[:, :, None] - x_alphas[None, :, :]
-        norm_sq = torch.sum(diff**2, dim=1)
-
-        # Attractive potential
-        va = q[:, None] * pid_masks * (norm_sq * q_alphas).squeeze(dim=0)
-        # Repulsive potential
-        vr = (
-            q[:, None]
-            * (~pid_masks)
-            * (
-                relu(self.radius_threshold - torch.sqrt(norm_sq + 1e-8)) * q_alphas
-            ).squeeze(dim=0)
-        )
-
-        return {
-            "attractive": torch.sum(torch.mean(va[mask], dim=0)),
-            "repulsive": torch.sum(torch.mean(vr, dim=0)),
-        }
 
     # noinspection PyUnusedLocal
     def forward(
@@ -275,9 +264,28 @@ class PotentialLoss(torch.nn.Module):
         reconstructable = reconstructable[ec_hit_mask]
         track_params = track_params[ec_hit_mask]
         mask = (reconstructable > 0) & (track_params > self.pt_thld)
-        return self._condensation_loss(
-            beta=beta, x=x, particle_id=particle_id, mask=mask
+        return _condensation_loss(
+            beta=beta,
+            x=x,
+            particle_id=particle_id,
+            mask=mask,
+            q_min=self.q_min,
+            radius_threshold=self.radius_threshold,
         )
+
+
+@torch.jit.script
+def _background_loss(*, beta: T, particle_id: T, sb: float) -> T:
+    """Extracted function for JIT-compilation. See `BackgroundLoss` for details."""
+    pids = torch.unique(particle_id[particle_id > 0])
+    pid_masks = particle_id[:, None] == pids[None, :]
+    alphas = torch.argmax(pid_masks * beta[:, None], dim=0)
+    beta_alphas = beta[alphas]
+    loss = torch.mean(1 - beta_alphas)
+    noise_mask = particle_id == 0
+    if noise_mask.any():
+        loss = loss + sb * torch.mean(beta[noise_mask])
+    return loss
 
 
 class BackgroundLoss(torch.nn.Module):
@@ -286,20 +294,11 @@ class BackgroundLoss(torch.nn.Module):
         #: Strength of noise suppression
         self.sb = sb
 
-    def _background_loss(self, *, beta: T, particle_id: T) -> T:
-        pids = torch.unique(particle_id[particle_id > 0])
-        pid_masks = particle_id[:, None] == pids[None, :]
-        alphas = torch.argmax(pid_masks * beta[:, None], dim=0)
-        beta_alphas = beta[alphas]
-        loss = torch.mean(1 - beta_alphas)
-        noise_mask = particle_id == 0
-        if noise_mask.any():
-            loss = loss + self.sb * torch.mean(beta[noise_mask])
-        return loss
-
     # noinspection PyUnusedLocal
     def forward(self, *, beta: T, particle_id: T, ec_hit_mask: T, **kwargs) -> T:
-        return self._background_loss(beta=beta, particle_id=particle_id[ec_hit_mask])
+        return _background_loss(
+            beta=beta, particle_id=particle_id[ec_hit_mask], sb=self.sb
+        )
 
 
 class ObjectLoss(torch.nn.Module):

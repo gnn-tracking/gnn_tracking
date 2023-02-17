@@ -1,10 +1,19 @@
 from __future__ import annotations
 
-from torch import Tensor, nn
+import torch
+from torch import Tensor
+from torch import Tensor as T
+from torch import nn
 from torch.nn.functional import relu
 
 from gnn_tracking.models.interaction_network import InteractionNetwork
 from gnn_tracking.models.mlp import MLP
+
+
+@torch.jit.script
+def convex_combination(*, delta: T, residue: T, alpha_residue: float) -> T:
+    """Convex combination of ``relu(delta)`` and the residue."""
+    return alpha_residue * residue + (1 - alpha_residue) * relu(delta)
 
 
 class ResIN(nn.Module):
@@ -90,7 +99,7 @@ class ResIN(nn.Module):
                     include_last_activation=True,
                 )
             else:
-                first_encoder = None
+                first_encoder = nn.Identity()
             mod.residue_encoders = nn.ModuleList([first_encoder])
             return mod
 
@@ -111,7 +120,7 @@ class ResIN(nn.Module):
                 include_last_activation=True,
             )
         else:
-            first_encoder = None
+            first_encoder = nn.Identity()
         hidden_layers = [
             InteractionNetwork(
                 node_indim=node_hidden_dim,
@@ -141,7 +150,7 @@ class ResIN(nn.Module):
                 include_last_activation=True,
             )
         else:
-            last_encoder = None
+            last_encoder = nn.Identity()
         layers = [first_layer, *hidden_layers, last_layer]
         encoders = [first_encoder, *hidden_encoders, last_encoder]
         assert len(layers) == n_layers == len(encoders)
@@ -168,11 +177,9 @@ class ResIN(nn.Module):
         hs = [h]
         for layer, re in zip(self.layers, self.residue_encoders):
             delta_h, edge_attr = layer(h, edge_index, edge_attr)
-            if re is None:
-                h_ec = h
-            else:
-                h_ec = re(h)
-            h = self.alpha * h_ec + (1 - self.alpha) * relu(delta_h)
+            h = convex_combination(
+                delta=delta_h, residue=re(h), alpha_residue=self.alpha
+            )
             hs.append(h)
             edge_attrs.append(edge_attr)
         return h, hs, edge_attrs

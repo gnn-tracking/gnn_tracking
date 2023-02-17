@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import logging
 import os
+import traceback
+from multiprocessing import Pool
 from os.path import join as join
 from pathlib import Path
 
@@ -16,7 +18,8 @@ from gnn_tracking.utils.log import get_logger, logger
 # todo: This class needs refactoring: Loading should be done separately; many of the
 #   methods are actually static and might better be extracted; some of the __init__
 #   arguments are better for the process method; internal methods should be marked
-#   as private; pathlib should be used instead of os.path/string manipulations
+#   as private; pathlib should be used instead of os.path/string manipulations;
+#   typing is incomplete
 class GraphBuilder:
     def __init__(
         self,
@@ -32,6 +35,7 @@ class GraphBuilder:
         measurement_mode=False,
         write_output=True,
         log_level=0,
+        collect_data=True,
     ):
         """Build graphs out of the input data.
 
@@ -47,6 +51,7 @@ class GraphBuilder:
             measurement_mode:
             write_output:
             log_level:
+            collect_data: Deprecated: Directly load the data into memory
         """
         self.indir = indir
         os.makedirs(outdir, exist_ok=True)
@@ -70,6 +75,12 @@ class GraphBuilder:
         self.measurements = []
         level = logging.DEBUG if log_level > 0 else logging.INFO
         self.logger = get_logger("GraphBuilder", level)
+        self._collect_data = collect_data
+        if self._collect_data:
+            self.logger.warning(
+                "Collecting data is deprecated. Please use graph_builder.load_data "
+                "instead."
+            )
 
     @property
     def data_list(self):
@@ -416,10 +427,12 @@ class GraphBuilder:
                 raise ValueError(f"{name} is not a valid file name") from e
             if only_sector >= 0 and sector != only_sector:
                 continue
-            if f in self.outfiles and not self.redo:
-                graph = torch.load(join(self.outdir, name))
-                self._data_list.append(graph)
-                continue
+            if self._collect_data:
+                # Deprecated, remove soon
+                if f in self.outfiles and not self.redo:
+                    graph = torch.load(join(self.outdir, name))
+                    self._data_list.append(graph)
+                    continue
             self.logger.debug(f"Processing {f}")
             f = join(self.indir, f)
             graph = torch.load(f)
@@ -459,27 +472,53 @@ class GraphBuilder:
             self.logger.info(self.get_measurements())
 
 
+# Implementation note: Don't inline in `load_graphs` function, because then it
+# cannot be pickled anymore.
+def _load_graph(f: Path) -> Data | None:
+    """Load a single file. See usage in `load_graphs` for details."""
+    try:
+        data = torch.load(f)
+    except Exception:
+        tb = traceback.format_exc()
+        logger.error(f"Failed to load {f}, we're simply ignoring this for now:\n{tb}")
+        return None
+    else:
+        return data
+
+
 def load_graphs(
-    in_dir: str | os.PathLike, *, start=0, stop=None, sector: int | None = None
+    in_dir: str | os.PathLike,
+    *,
+    start=0,
+    stop=None,
+    sector: int | None = None,
+    n_processes=1,
 ) -> list[Data]:
     """Load graphs.
 
     Args:
         in_dir: Directory that contains the graphs
-        start: First graph to load
-        stop: Last graph to load
+        start: First graph to load. This doesn't reference the event ID of the graph,
+            but sorts all files in the directory and takes the ``start``-th file.
+        stop: Last graph to load. See ``start`` for details.
         sector: If specified, only files with the given sector are loaded (and
-            ``start``, ``stop`` are accordingly applied to the selection)
+            ``start``, ``stop`` are applied after this selection)
+        n_processes: Use multi-process loader with this many processes
 
     Returns:
 
     """
+    if n_processes == 1:
+        logger.warning(
+            "Only using one process to load graphs to CPU memory. This might be slow."
+        )
+
     in_dir = Path(in_dir)
     if sector is None:
         glob = "*.pt"
     else:
         glob = f"*_s{sector}.pt"
-    available_files = list(in_dir.glob(glob))
+    available_files = sorted(in_dir.glob(glob))
 
     if stop is not None and stop > len(available_files):
         # to avoid tracking wrong hyperparameters
@@ -492,16 +531,16 @@ def load_graphs(
         len(considered_files),
         len(available_files),
     )
+    logger.debug(
+        "First graph is %s, last graph is %s",
+        considered_files[0].name,
+        considered_files[-1].name,
+    )
 
-    ret: list[Data] = []
-    for f in considered_files:
-        try:
-            data = torch.load(f)
-        except Exception as e:
-            logger.error(
-                f"Failed to load {f}, we're simply ignoring " f"this for now: {e}"
-            )
-        else:
-            ret.append(data)
+    if n_processes == 1 or len(considered_files) == 1:
+        ret = [_load_graph(f) for f in considered_files]
+    else:
+        with Pool(min(n_processes, len(considered_files))) as pool:
+            ret = pool.map(_load_graph, considered_files)
 
-    return ret
+    return [r for r in ret if r is not None]

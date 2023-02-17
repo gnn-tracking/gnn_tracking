@@ -34,6 +34,7 @@ class PointCloudBuilder:
         remove_noise=False,
         write_output=True,
         log_level=logging.INFO,
+        collect_data=True,
     ):
         """
 
@@ -52,6 +53,7 @@ class PointCloudBuilder:
             remove_noise:
             write_output:
             log_level:
+            collect_data: Collect data in memory
         """
         # create outdir if necessary
         os.makedirs(outdir, exist_ok=True)
@@ -87,6 +89,7 @@ class PointCloudBuilder:
                 self.prefixes.append(join(indir, prefix))
         self.data_list: list[Data] = []
         self.logger = get_logger("PointCloudBuilder", level=log_level)
+        self._collect_data = collect_data
 
     def calc_eta(self, r, z):
         theta = np.arctan2(r, z)
@@ -326,9 +329,11 @@ class PointCloudBuilder:
             for s in range(self.n_sectors):
                 name = f"data{evtid}_s{s}.pt"
                 if self.exists[name] and not self.redo:
-                    data = torch.load(join(self.outdir, name))
-                    self.data_list.append(data)
+                    if self._collect_data:
+                        data = torch.load(join(self.outdir, name))
+                        self.data_list.append(data)
                     self.logger.debug(f"skipping {name}")
+                    continue
                 else:
                     sector = self.sector_hits(
                         hits, s, particle_id_counts=particle_id_counts
