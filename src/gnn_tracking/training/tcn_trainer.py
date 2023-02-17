@@ -505,7 +505,7 @@ class TCNTrainer:
         """
         self.model.eval()
 
-        # Objects in the following three lists are used for clustering
+        # We connect part of the data in CPU memory for clustering & evaluation
         cluster_eval_input: DefaultDict[
             str, list[np.ndarray]
         ] = collections.defaultdict(list)
@@ -562,10 +562,17 @@ class TCNTrainer:
     def _evaluate_cluster_metrics(
         self, cluster_eval_input: dict[str, list[np.ndarray]]
     ) -> dict[str, float]:
+        """Perform cluster studies and evaluate corresponding metrics
+
+        Args:
+            cluster_eval_input: Dictionary of inputs for clustering collected in
+                `single_test_step`
+
+        Returns:
+            Dictionary of cluster metrics
+        """
         metrics = {}
         for fct_name, fct in self.clustering_functions.items():
-            # Keyword names are different in our input dictionary and the function
-            # keyword names
             cluster_result = fct(
                 **cluster_eval_input,
                 epoch=self._epoch,
