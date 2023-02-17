@@ -533,15 +533,18 @@ class TCNTrainer:
             ).items():
                 batch_metrics[key].append(value)
 
+            # Build up a dictionary of inputs for clustering (note that we need to
+            # map the names of the model outputs to the names of the clustering input)
             if (
                 self.clustering_functions
                 and _batch_idx <= self.max_batches_for_clustering
             ):
-                for key in ClusterFctType.required_model_outputs:
-                    cluster_eval_input[key].append(
-                        model_output[key].detach().cpu().numpy()
+                for mo_key, cf_key in ClusterFctType.required_model_outputs.items():
+                    cluster_eval_input[cf_key].append(
+                        model_output[mo_key].detach().cpu().numpy()
                     )
 
+        # Merge all metrics in one big dictionary
         metrics: dict[str, float] = (
             {k: np.nanmean(v) for k, v in batch_metrics.items()}
             | {
@@ -550,6 +553,7 @@ class TCNTrainer:
             }
             | self._evaluate_cluster_metrics(cluster_eval_input)
         )
+
         self.test_loss.append(pd.DataFrame(metrics, index=[self._epoch]))
         for hook in self._test_hooks:
             hook(self, metrics)
@@ -562,12 +566,8 @@ class TCNTrainer:
         for fct_name, fct in self.clustering_functions.items():
             # Keyword names are different in our input dictionary and the function
             # keyword names
-            data_kwargs = {
-                ClusterFctType.required_model_outputs[key]: value
-                for key, value in cluster_eval_input.items()
-            }
             cluster_result = fct(
-                **data_kwargs,
+                **cluster_eval_input,
                 epoch=self._epoch,
                 start_params=self._best_cluster_params.get(fct_name),
             )
