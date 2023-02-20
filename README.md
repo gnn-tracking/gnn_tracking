@@ -14,6 +14,8 @@
 </div>
 
 
+## Description
+
 This repository holds the main python package for the GNN Tracking project.
 See the [readme of the organization][organization-readme] for an overview of the task.
 
@@ -35,4 +37,10 @@ pre-commit install
 If you open a PR and pre-commit fails for formatting,, comment`pre-commit.ci run`
 to trigger a fixup commit from `pre-commit`.
 
+## Contributing
+
+A good place to start are the [issues marked with 'good first issue'][gfi]. However, it is always best to [reach out to us first][ml].
+
 [organization-readme]: https://github.com/gnn-tracking
+[gfi]: https://github.com/gnn-tracking/gnn_tracking/issues?q=is%3Aissue+is%3Aopen+sort%3Aupdated-desc+label%3A%22good+first+issue%22
+[ml]: gnn-tracking@googlegroups.com
