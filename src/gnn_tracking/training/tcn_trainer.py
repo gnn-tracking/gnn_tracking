@@ -6,7 +6,7 @@ import os
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path, PurePath
-from typing import Any, Callable, DefaultDict, Mapping, Protocol
+from typing import Any, Callable, DefaultDict, Mapping
 
 import numpy as np
 import pandas as pd
@@ -23,7 +23,8 @@ from gnn_tracking.metrics.binary_classification import (
     get_maximized_bcs,
     roc_auc_score,
 )
-from gnn_tracking.postprocessing.clusterscanner import ClusterScanResult
+from gnn_tracking.metrics.losses import LossFctType
+from gnn_tracking.postprocessing.clusterscanner import ClusterFctType
 from gnn_tracking.training.dynamiclossweights import (
     ConstantLossWeights,
     DynamicLossWeights,
@@ -41,43 +42,6 @@ from gnn_tracking.utils.timing import timing
 train_hook_type = Callable[["TCNTrainer", dict[str, Tensor]], None]
 test_hook_type = Callable[["TCNTrainer", dict[str, Tensor]], None]
 batch_hook_type = Callable[["TCNTrainer", int, int, dict[str, Tensor], Data], None]
-
-
-class LossFctType(Protocol):
-    """Type of a loss function"""
-
-    def __call__(self, *args: Any, **kwargs: Any) -> Tensor:
-        ...
-
-    def to(self, device: torch.device) -> LossFctType:
-        ...
-
-
-class ClusterFctType(Protocol):
-    """Type of a clustering scanner function"""
-
-    #: Maps the keys from `TCNTrainer.evaluate_model` to the inputs to `__call__`
-    required_model_outputs = {
-        "x": "graphs",
-        "particle_id": "truth",
-        "sector": "sectors",
-        "pt": "pts",
-        "reconstructable": "reconstructable",
-        "ec_hit_mask": "node_mask",
-    }
-
-    def __call__(
-        self,
-        graphs: list[np.ndarray],
-        truth: list[np.ndarray],
-        sectors: list[np.ndarray],
-        pts: list[np.ndarray],
-        reconstructable: list[np.ndarray],
-        epoch=None,
-        start_params: dict[str, Any] | None = None,
-        node_mask: list[np.ndarray] | None = None,
-    ) -> ClusterScanResult:
-        ...
 
 
 @dataclass
