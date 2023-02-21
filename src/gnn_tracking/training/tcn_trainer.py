@@ -745,6 +745,7 @@ class TCNTrainer:
 
     def load_checkpoint(self, path: str | PurePath, device=None) -> None:
         """Resume training from checkpoint"""
+        device = guess_device(device)
         checkpoint = torch.load(self.get_checkpoint_path(path), map_location=device)
         self.model.load_state_dict(checkpoint["model_state_dict"])
         self.optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
