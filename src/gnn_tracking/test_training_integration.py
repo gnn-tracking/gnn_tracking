@@ -5,15 +5,16 @@ from functools import partial
 import pytest
 from torch_geometric.loader import DataLoader
 
-from gnn_tracking.metrics.losses import BackgroundLoss, EdgeWeightBCELoss, PotentialLoss
+from gnn_tracking.metrics.losses import (
+    BackgroundLoss,
+    EdgeWeightBCELoss,
+    LossFctType,
+    PotentialLoss,
+)
 from gnn_tracking.models.track_condensation_networks import GraphTCN
 from gnn_tracking.postprocessing.dbscanscanner import dbscan_scan
 from gnn_tracking.training.dynamiclossweights import NormalizeAt
-from gnn_tracking.training.tcn_trainer import (
-    LossFctType,
-    TCNTrainer,
-    TrainingTruthCutConfig,
-)
+from gnn_tracking.training.tcn_trainer import TCNTrainer, TrainingTruthCutConfig
 from gnn_tracking.utils.seeds import fix_seeds
 
 
