@@ -58,7 +58,7 @@ def get_loaders(
             shuffle = False
         return {
             "batch_size": batch_size,
-            "num_workers": cpus,
+            "num_workers": max(1, min(len(graph_dct[key]), cpus)),
             "shuffle": shuffle,
             "pin_memory": True,
         }
