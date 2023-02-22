@@ -12,6 +12,8 @@ def train_test_val_split(
     data: list[Data], *, test_frac: float = 0.1, val_frac: float = 0.1
 ) -> dict[str, list[Data]]:
     """Split up data into train, test, and validation sets."""
+    if not data:
+        return {"train": [], "val": [], "test": []}
     if test_frac + val_frac > 1:
         raise ValueError("test_frac and val_frac must sum to less than 1")
     rest, test_graphs = sklearn.model_selection.train_test_split(
