@@ -51,10 +51,15 @@ def get_loaders(
     """
 
     def get_params(key: str) -> dict[str, Any]:
+        shuffle = key == "train"
+        if not graph_dct[key]:
+            # Shuffle dataloader checks explicitly for empty list, so let's work
+            # around that
+            shuffle = False
         return {
             "batch_size": batch_size,
             "num_workers": cpus,
-            "shuffle": key == "train",
+            "shuffle": shuffle,
             "pin_memory": True,
         }
 
