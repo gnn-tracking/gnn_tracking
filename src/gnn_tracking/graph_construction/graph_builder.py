@@ -512,6 +512,9 @@ def load_graphs(
     Returns:
 
     """
+    if start == stop:
+        return []
+
     if n_processes == 1:
         logger.warning(
             "Only using one process to load graphs to CPU memory. This might be slow."
