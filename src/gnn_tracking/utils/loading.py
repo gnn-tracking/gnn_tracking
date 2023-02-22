@@ -12,6 +12,8 @@ def train_test_val_split(
     data: list[Data], *, test_frac: float = 0.1, val_frac: float = 0.1
 ) -> dict[str, list[Data]]:
     """Split up data into train, test, and validation sets."""
+    assert 0 <= test_frac <= 1
+    assert 0 <= val_frac <= 1
     if not data:
         return {"train": [], "val": [], "test": []}
     if test_frac + val_frac > 1:
