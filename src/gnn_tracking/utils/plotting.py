@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import os
-from os.path import join
+from pathlib import Path
 from typing import Sequence
 
 import mplhep as hep
@@ -20,9 +20,9 @@ plt.style.use(hep.style.CMS)
 class EventPlotter:
     def __init__(
         self,
-        indir,
+        indir: str | os.PathLike,
     ):
-        self.indir = indir
+        self.indir = Path(indir)
         self.infiles = os.listdir(self.indir)
 
     def calc_eta(self, r, z):
@@ -56,7 +56,7 @@ class EventPlotter:
         else:
             evtid = str(evtid)
         prefix = f"event0000{evtid}"
-        path = join(self.indir, prefix)
+        path = self.indir / prefix
         hits, particles, truth = load_event(path, parts=["hits", "particles", "truth"])
         hits = self.append_coordinates(hits, truth, particles)
         return hits, prefix
@@ -81,8 +81,8 @@ class EventPlotter:
 
 
 class PointCloudPlotter:
-    def __init__(self, indir, n_sectors=64):
-        self.indir = indir
+    def __init__(self, indir: str | os.PathLike, n_sectors=64):
+        self.indir = Path(indir)
         self.infiles = os.listdir(indir)
         self.n_sectors = n_sectors
         self.colors = cm.prism(np.linspace(0, 1, n_sectors))
@@ -109,7 +109,7 @@ class PointCloudPlotter:
 
     def plot_ep_rv_uv_all_sectors(self, evtid: int, savefig=False, filename=""):
         fig, axs = plt.subplots(nrows=1, ncols=3, dpi=200, figsize=(24, 8))
-        sector_files = [join(self.indir, f) for f in self.infiles if str(evtid) in f]
+        sector_files = [self.indir / f for f in self.infiles if str(evtid) in f]
         prefix = f"event{evtid}"
         for i, s in enumerate(sector_files):
             self.plot_ep_rv_uv(i, s, axs=axs, display=False)
@@ -133,7 +133,7 @@ class PointCloudPlotter:
         filename="",
     ):
         fig, axs = plt.subplots(nrows=1, ncols=3, dpi=200, figsize=(24, 8))
-        f = join(self.indir, f"data{evtid}_s{sector}.pt")
+        f = self.indir / f"data{evtid}_s{sector}.pt"
         x = torch.load(f).x
         phi, eta = x[:, 1], x[:, 3]
         r, z = x[:, 0], x[:, 2]
@@ -170,7 +170,7 @@ class PointCloudPlotter:
 class GraphPlotter:
     def __init__(
         self,
-        indir="",
+        indir: str | os.PathLike = "",
         n_sectors=64,
     ):
         """Plotter for graph data.
@@ -179,7 +179,7 @@ class GraphPlotter:
             indir: Input directory with graphs (if loading by name)
             n_sectors:
         """
-        self.indir = indir
+        self.indir = Path(indir)
         self.n_sectors = n_sectors
 
     def configure_plt(self, style="seaborn-paper"):
@@ -207,7 +207,7 @@ class GraphPlotter:
         """
         fig, axs = plt.subplots(nrows=1, ncols=3, dpi=200, figsize=(24, 8))
         if graph is None:
-            f = join(self.indir, f"{name}.pt")
+            f = self.indir / f"{name}.pt"
             graph = torch.load(f)
         x, edge_index, y = graph.x, graph.edge_index, graph.y
         phi, eta = x[:, 1], x[:, 3]

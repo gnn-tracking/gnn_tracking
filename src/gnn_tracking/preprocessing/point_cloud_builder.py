@@ -3,7 +3,6 @@ from __future__ import annotations
 import collections
 import logging
 import os
-from os.path import join
 from pathlib import PurePath
 from typing import Any
 
@@ -57,9 +56,9 @@ class PointCloudBuilder:
         """
         # create outdir if necessary
         os.makedirs(outdir, exist_ok=True)
-        self.outdir = outdir
+        self.outdir = PurePath(outdir)
 
-        self.indir = indir
+        self.indir = PurePath(indir)
         self.n_sectors = n_sectors
         self.redo = redo
         self.pixel_only = pixel_only
@@ -86,7 +85,7 @@ class PointCloudBuilder:
                 for s in range(self.n_sectors):
                     key = f"data{evtid}_s{s}.pt"
                     self.exists[key] = key in outfiles
-                self.prefixes.append(join(indir, prefix))
+                self.prefixes.append(self.indir / prefix)
 
         self.data_list: list[Data] = []
         self.logger = get_logger("PointCloudBuilder", level=log_level)
@@ -308,7 +307,7 @@ class PointCloudBuilder:
                 name = f"data{evtid}_s{s}.pt"
                 if self.exists[name] and not self.redo:
                     if self._collect_data:
-                        data = torch.load(join(self.outdir, name))
+                        data = torch.load(self.outdir / name)
                         self.data_list.append(data)
                     self.logger.debug(f"skipping {name}")
                     continue
@@ -319,7 +318,7 @@ class PointCloudBuilder:
                     n_sector_hits += len(sector)
                     n_sector_particles += len(np.unique(sector.particle_id.values))
                     sector = self.to_pyg_data(sector)
-                    outfile = join(self.outdir, name)
+                    outfile = self.outdir / name
                     if self.write_output:
                         torch.save(sector, outfile)
                     self.data_list.append(sector)
