@@ -12,6 +12,10 @@ def train_test_val_split(
     data: list[Data], *, test_frac: float = 0.1, val_frac: float = 0.1
 ) -> dict[str, list[Data]]:
     """Split up data into train, test, and validation sets."""
+    assert 0 <= test_frac <= 1
+    assert 0 <= val_frac <= 1
+    if not data:
+        return {"train": [], "val": [], "test": []}
     if test_frac + val_frac > 1:
         raise ValueError("test_frac and val_frac must sum to less than 1")
     rest, test_graphs = sklearn.model_selection.train_test_split(
@@ -47,10 +51,15 @@ def get_loaders(
     """
 
     def get_params(key: str) -> dict[str, Any]:
+        shuffle = key == "train"
+        if not graph_dct[key]:
+            # Shuffle dataloader checks explicitly for empty list, so let's work
+            # around that
+            shuffle = False
         return {
             "batch_size": batch_size,
-            "num_workers": cpus,
-            "shuffle": key == "train",
+            "num_workers": max(1, min(len(graph_dct[key]), cpus)),
+            "shuffle": shuffle,
             "pin_memory": True,
         }
 

@@ -11,6 +11,7 @@ import numpy as np
 import pandas as pd
 import torch
 from torch_geometric.data import Data
+from tqdm import tqdm
 
 from gnn_tracking.utils.log import get_logger, logger
 
@@ -392,7 +393,7 @@ class GraphBuilder:
         sectorid = int(sectorid_s)
         return evtid, sectorid
 
-    def process(self, start=0, stop=1, only_sector: int = -1):
+    def process(self, start=0, stop=1, *, only_sector: int = -1, progressbar=False):
         """
 
         Args:
@@ -417,7 +418,10 @@ class GraphBuilder:
             len(considered_files),
             len(available_files),
         )
-        for f in considered_files:
+        iterator = considered_files
+        if progressbar:
+            iterator = tqdm(iterator)
+        for f in iterator:
             if f.split(".")[-1] != "pt":
                 continue
             name = f.split("/")[-1]
@@ -508,6 +512,9 @@ def load_graphs(
     Returns:
 
     """
+    if start == stop:
+        return []
+
     if n_processes == 1:
         logger.warning(
             "Only using one process to load graphs to CPU memory. This might be slow."

@@ -449,3 +449,30 @@ class ClusterHyperParamScanner(AbstractClusterHyperParamScanner):
             tdf.max(),
         )
         return result
+
+
+class ClusterFctType(Protocol):
+    """Type of a clustering scanner function"""
+
+    #: Maps the keys from `TCNTrainer.evaluate_model` to the inputs to `__call__`
+    required_model_outputs = {
+        "x": "graphs",
+        "particle_id": "truth",
+        "sector": "sectors",
+        "pt": "pts",
+        "reconstructable": "reconstructable",
+        "ec_hit_mask": "node_mask",
+    }
+
+    def __call__(
+        self,
+        graphs: list[np.ndarray],
+        truth: list[np.ndarray],
+        sectors: list[np.ndarray],
+        pts: list[np.ndarray],
+        reconstructable: list[np.ndarray],
+        epoch=None,
+        start_params: dict[str, Any] | None = None,
+        node_mask: list[np.ndarray] | None = None,
+    ) -> ClusterScanResult:
+        ...

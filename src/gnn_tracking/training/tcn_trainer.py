@@ -6,7 +6,7 @@ import os
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path, PurePath
-from typing import Any, Callable, Mapping, Protocol
+from typing import Any, Callable, DefaultDict, Mapping
 
 import numpy as np
 import pandas as pd
@@ -23,7 +23,8 @@ from gnn_tracking.metrics.binary_classification import (
     get_maximized_bcs,
     roc_auc_score,
 )
-from gnn_tracking.postprocessing.clusterscanner import ClusterScanResult
+from gnn_tracking.metrics.losses import LossFctType
+from gnn_tracking.postprocessing.clusterscanner import ClusterFctType
 from gnn_tracking.training.dynamiclossweights import (
     ConstantLossWeights,
     DynamicLossWeights,
@@ -41,33 +42,6 @@ from gnn_tracking.utils.timing import timing
 train_hook_type = Callable[["TCNTrainer", dict[str, Tensor]], None]
 test_hook_type = Callable[["TCNTrainer", dict[str, Tensor]], None]
 batch_hook_type = Callable[["TCNTrainer", int, int, dict[str, Tensor], Data], None]
-
-
-class LossFctType(Protocol):
-    """Type of a loss function"""
-
-    def __call__(self, *args: Any, **kwargs: Any) -> Tensor:
-        ...
-
-    def to(self, device: torch.device) -> LossFctType:
-        ...
-
-
-class ClusterFctType(Protocol):
-    """Type of a clustering scanner function"""
-
-    def __call__(
-        self,
-        graphs: list[np.ndarray],
-        truth: list[np.ndarray],
-        sectors: list[np.ndarray],
-        pts: list[np.ndarray],
-        reconstructable: list[np.ndarray],
-        epoch=None,
-        start_params: dict[str, Any] | None = None,
-        node_mask: list[np.ndarray] | None = None,
-    ) -> ClusterScanResult:
-        ...
 
 
 @dataclass
@@ -221,7 +195,7 @@ class TCNTrainer:
         self.skip_test_during_training = False
 
         # todo: This should rather be read from the model, because it makes only
-        #   sense if it actually amtches
+        #   sense if it actually matches
         #: Threshold for edge classification in test step (does not
         #: affect training)
         self.ec_threshold = 0.5
@@ -281,9 +255,9 @@ class TCNTrainer:
         if apply_truth_cuts:
             node_mask, edge_mask = self.training_truth_cuts.get_masks(data)
             data = self._apply_mask(data, node_mask, edge_mask)
-            out = self.model(data)
-        else:
-            out = self.model(data)
+
+        out = self.model(data)
+
         if mask_pids_reco:
             pid_field = data.particle_id * data.reconstructable.long()
         else:
@@ -301,12 +275,8 @@ class TCNTrainer:
             except KeyError:
                 return None
 
-        ec_hit_mask = out.get("ec_hit_mask")
-        ec_edge_mask = out.get("ec_edge_mask")
-        if ec_hit_mask is None:
-            ec_hit_mask = torch.full_like(data.pt, True, device=self.device).long()
-        if ec_edge_mask is None:
-            ec_edge_mask = torch.full_like(data.y, True, device=self.device)
+        ec_hit_mask = out.get("ec_hit_mask", torch.full_like(data.pt, True))
+        ec_edge_mask = out.get("ec_edge_mask", torch.full_like(data.y, True))
 
         dct = {
             # -------- flags
@@ -499,15 +469,10 @@ class TCNTrainer:
         """
         self.model.eval()
 
-        # Objects in the following three lists are used for clustering
-        cluster_eval_input: dict[str, list[np.ndarray]] = {
-            "x": [],
-            "particle_id": [],
-            "sector": [],
-            "pt": [],
-            "reconstructable": [],
-            "ec_hit_mask": [],
-        }
+        # We connect part of the data in CPU memory for clustering & evaluation
+        cluster_eval_input: DefaultDict[
+            str, list[np.ndarray]
+        ] = collections.defaultdict(list)
 
         batch_metrics = collections.defaultdict(list)
         loader = self.val_loader if val else self.test_loader
@@ -532,15 +497,18 @@ class TCNTrainer:
             ).items():
                 batch_metrics[key].append(value)
 
+            # Build up a dictionary of inputs for clustering (note that we need to
+            # map the names of the model outputs to the names of the clustering input)
             if (
                 self.clustering_functions
                 and _batch_idx <= self.max_batches_for_clustering
             ):
-                for key in cluster_eval_input:
-                    cluster_eval_input[key].append(
-                        model_output[key].detach().cpu().numpy()
+                for mo_key, cf_key in ClusterFctType.required_model_outputs.items():
+                    cluster_eval_input[cf_key].append(
+                        model_output[mo_key].detach().cpu().numpy()
                     )
 
+        # Merge all metrics in one big dictionary
         metrics: dict[str, float] = (
             {k: np.nanmean(v) for k, v in batch_metrics.items()}
             | {
@@ -549,6 +517,7 @@ class TCNTrainer:
             }
             | self._evaluate_cluster_metrics(cluster_eval_input)
         )
+
         self.test_loss.append(pd.DataFrame(metrics, index=[self._epoch]))
         for hook in self._test_hooks:
             hook(self, metrics)
@@ -557,27 +526,32 @@ class TCNTrainer:
     def _evaluate_cluster_metrics(
         self, cluster_eval_input: dict[str, list[np.ndarray]]
     ) -> dict[str, float]:
+        """Perform cluster studies and evaluate corresponding metrics
+
+        Args:
+            cluster_eval_input: Dictionary of inputs for clustering collected in
+                `single_test_step`
+
+        Returns:
+            Dictionary of cluster metrics
+        """
         metrics = {}
         for fct_name, fct in self.clustering_functions.items():
             cluster_result = fct(
-                cluster_eval_input["x"],
-                cluster_eval_input["particle_id"],
-                cluster_eval_input["sector"],
-                cluster_eval_input["pt"],
-                cluster_eval_input["reconstructable"],
+                **cluster_eval_input,
                 epoch=self._epoch,
                 start_params=self._best_cluster_params.get(fct_name),
-                node_mask=cluster_eval_input["ec_hit_mask"],
             )
-            if cluster_result is not None:
-                metrics.update(cluster_result.metrics)
-                self._best_cluster_params[fct_name] = cluster_result.best_params
-                metrics.update(
-                    {
-                        f"best_{fct_name}_{param}": val
-                        for param, val in cluster_result.best_params.items()
-                    }
-                )
+            if cluster_result is None:
+                continue
+            metrics.update(cluster_result.metrics)
+            self._best_cluster_params[fct_name] = cluster_result.best_params
+            metrics.update(
+                {
+                    f"best_{fct_name}_{param}": val
+                    for param, val in cluster_result.best_params.items()
+                }
+            )
         return metrics
 
     @torch.no_grad()
@@ -735,6 +709,7 @@ class TCNTrainer:
 
     def load_checkpoint(self, path: str | PurePath, device=None) -> None:
         """Resume training from checkpoint"""
+        device = guess_device(device)
         checkpoint = torch.load(self.get_checkpoint_path(path), map_location=device)
         self.model.load_state_dict(checkpoint["model_state_dict"])
         self.optimizer.load_state_dict(checkpoint["optimizer_state_dict"])

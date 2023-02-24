@@ -4,8 +4,10 @@ from __future__ import annotations
 
 import math
 from abc import ABC, abstractmethod
+from typing import Any, Protocol
 
 import torch
+from torch import Tensor
 from torch.nn.functional import binary_cross_entropy, mse_loss, relu
 from typing_extensions import TypeAlias
 
@@ -176,6 +178,7 @@ class HaughtyFocalLoss(torch.nn.Module):
         self._gamma = gamma
         self._pt_thld = pt_thld
 
+    # noinspection PyUnusedLocal
     def forward(self, *, w: T, y: T, edge_index: T, pt: T, **kwargs) -> T:
         pos_weight = falsify_low_pt_edges(
             y=y, edge_index=edge_index, pt=pt, pt_thld=self._pt_thld
@@ -352,3 +355,13 @@ class ObjectLoss(torch.nn.Module):
             truth=track_params[mask],
             particle_id=particle_id[mask],
         )
+
+
+class LossFctType(Protocol):
+    """Type of a loss function"""
+
+    def __call__(self, *args: Any, **kwargs: Any) -> Tensor:
+        ...
+
+    def to(self, device: torch.device) -> LossFctType:
+        ...
