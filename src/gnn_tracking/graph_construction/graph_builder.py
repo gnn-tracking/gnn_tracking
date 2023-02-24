@@ -20,7 +20,7 @@ from gnn_tracking.utils.log import get_logger, logger
 #   methods are actually static and might better be extracted; some of the __init__
 #   arguments are better for the process method; internal methods should be marked
 #   as private; pathlib should be used instead of os.path/string manipulations;
-#   typing is incomplete
+#   typing is incomplete; log level should just be that of the logging module
 class GraphBuilder:
     def __init__(
         self,

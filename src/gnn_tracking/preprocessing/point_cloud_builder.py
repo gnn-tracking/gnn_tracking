@@ -18,6 +18,9 @@ from gnn_tracking.utils.log import get_logger
 pd.options.mode.chained_assignment = None  # default='warn'
 
 
+# TODO: In need of refactoring: load_point_clouds should be factored out (this should
+# only be used for building the graphs), and the parsing of the filenames should be
+# done with the function that is also used in build_point_clouds
 class PointCloudBuilder:
     def __init__(
         self,
@@ -36,7 +39,8 @@ class PointCloudBuilder:
         log_level=logging.INFO,
         collect_data=True,
     ):
-        """
+        """Build point clouds, that is, read the input data files and convert them
+        to pytorch geometric data objects (without any edges yet).
 
         Args:
             outdir: Directory for the output files
