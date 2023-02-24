@@ -25,34 +25,32 @@ class PointCloudBuilder:
         indir: str | PurePath,
         *,
         n_sectors: int,
-        redo=True,
-        pixel_only=True,
-        sector_di=0.0001,
-        sector_ds=1.1,
-        measurement_mode=False,
-        thld=0.5,
-        remove_noise=False,
-        write_output=True,
-        log_level=logging.INFO,
-        collect_data=True,
+        redo: bool = True,
+        pixel_only: bool = True,
+        sector_di: float = 0.0001,
+        sector_ds: float = 1.1,
+        measurement_mode: bool = False,
+        thld: float = 0.5,
+        remove_noise: bool = False,
+        write_output: bool = True,
+        log_level: bool = logging.INFO,
+        collect_data: bool = True,
     ):
         """
 
         Args:
             outdir: Directory for the output files
-            indir: Directory of input files
+            indir: Directory for the input files
             n_sectors: Total number of sectors
-            redo: Force recompute of point cloud building
+            redo: Re-compute the point cloud even if it is found
             pixel_only: Construct tracks only from pixel layers
-            sector_di:
-            sector_ds:
-            feature_names: Names of features that are passed on to pyg data
-            feature_scale: Scaling of features given by ``feature_names``
-            measurement_mode:
-            thld: pt threshold for reconstructable particles
-            remove_noise:
-            write_output:
-            log_level:
+            sector_di: The intercept offset for the extended sector
+            sector_ds: The slope offset for the extended sector
+            measurement_mode: Produce statistics about the sectorization
+            thld: Threshold pt for measurements
+            remove_noise: Remove hits with particle_id==0
+            write_output: Store the point clouds in a torch .pt file
+            log_level: Specify INFO (0) or DEBUG (>0)
             collect_data: Collect data in memory
         """
         # create outdir if necessary
@@ -65,14 +63,25 @@ class PointCloudBuilder:
         self.pixel_only = pixel_only
         self.sector_di = sector_di
         self.sector_ds = sector_ds
-        self.feature_names = ["r", "phi", "z", "eta_rz", "u", "v"]
-        self.feature_scale = np.array([1, 1, 1, 1, 1, 1])
         self.measurement_mode = measurement_mode
         self.thld = thld
         self.stats = {}
         self.remove_noise = remove_noise
         self.measurements: list[dict[str, Any]] = []
         self.write_output = write_output
+
+        # select which features to store in X, optionally scale them
+        # !!! do not scale the features if building a graph downstream !!!
+        self.feature_names = [
+            "r",
+            "phi",
+            "z",
+            "eta_rz",
+            "u",
+            "v",
+            "charge_frac",
+        ]
+        self.feature_scale = np.array([1, 1, 1, 1, 10**-2, 10**-2, 1])
 
         suffix = "-hits.csv.gz"
         self.prefixes: list[str] = []
@@ -92,11 +101,12 @@ class PointCloudBuilder:
         self._collect_data = collect_data
 
     def calc_eta(self, r, z):
+        """Compute pseudorapidity (spatial)."""
         theta = np.arctan2(r, z)
         return -1.0 * np.log(np.tan(theta / 2.0))
 
     def restrict_to_subdetectors(self, hits: pd.DataFrame) -> pd.DataFrame:
-        # select barrel layers and assign convenient layer number [0-9]
+        """Rename (volume, layer) pairs with an integer label."""
         pixel_barrel = [(8, 2), (8, 4), (8, 6), (8, 8)]
         pixel_LEC = [(7, 14), (7, 12), (7, 10), (7, 8), (7, 6), (7, 4), (7, 2)]
         pixel_REC = [(9, 2), (9, 4), (9, 6), (9, 8), (9, 10), (9, 12), (9, 14)]
@@ -150,7 +160,7 @@ class PointCloudBuilder:
         cells["charge_frac"] = cells.charge_sum / cells.channel_counts
         hits = pd.merge(hits, cells, on="hit_id", how="left")
 
-        # append volume labels
+        # append volume labels as one-hot features to X
         volume_labels = ["V7", "V8", "V9", "V12", "V13", "V14", "V16", "V17", "V18"]
         for v in volume_labels:
             hits[v] = (hits.volume_id == int(v[1:])).astype(int)
@@ -171,6 +181,7 @@ class PointCloudBuilder:
                 "z",
                 "u",
                 "v",
+                "charge_frac",
                 "volume_id",
                 "layer",
             ]
@@ -181,9 +192,12 @@ class PointCloudBuilder:
     def sector_hits(
         self, hits: pd.DataFrame, s, particle_id_counts: dict[int, int]
     ) -> pd.DataFrame:
+        """Break an event into (optionally) extended sectors."""
+
         if self.n_sectors == 1:
             hits["sector"] = 0
             return hits
+
         # build sectors in each 2*np.pi/self.n_sectors window
         theta = np.pi / self.n_sectors
         slope = np.arctan(theta)
@@ -204,7 +218,7 @@ class PointCloudBuilder:
                 continue
             hits_in_sector = len(sector[sector.particle_id == pid])
             hits_for_pid = particle_id_counts[pid]
-            if (hits_in_sector / hits_for_pid) > 0.5:
+            if (hits_in_sector / hits_for_pid) >= 0.5:
                 particle_id_sectors[pid] = s
 
         lower_bound = -self.sector_ds * slope * hits.ur - self.sector_di
@@ -265,6 +279,8 @@ class PointCloudBuilder:
             x=torch.from_numpy(
                 hits[self.feature_names].values / self.feature_scale
             ).float(),
+            edge_index=torch.zeros((2, 0)).long(),
+            y=torch.zeros(0).float(),
             layer=torch.from_numpy(hits.layer.values).long(),
             particle_id=torch.from_numpy(hits["particle_id"].values).long(),
             pt=torch.from_numpy(hits["pt"].values).float(),
