@@ -4,7 +4,6 @@ import logging
 import os
 import traceback
 from multiprocessing import Pool
-from os.path import join as join
 from pathlib import Path
 
 import numpy as np
@@ -24,8 +23,8 @@ from gnn_tracking.utils.log import get_logger, logger
 class GraphBuilder:
     def __init__(
         self,
-        indir,
-        outdir,
+        indir: str | os.PathLike,
+        outdir: str | os.PathLike,
         *,
         pixel_only=True,
         redo=True,
@@ -54,9 +53,9 @@ class GraphBuilder:
             log_level:
             collect_data: Deprecated: Directly load the data into memory
         """
-        self.indir = indir
+        self.indir = Path(indir)
         os.makedirs(outdir, exist_ok=True)
-        self.outdir = outdir
+        self.outdir = Path(outdir)
         self.pixel_only = pixel_only
         self.redo = redo
         self.phi_slope_max = phi_slope_max
@@ -434,11 +433,11 @@ class GraphBuilder:
             if self._collect_data:
                 # Deprecated, remove soon
                 if f in self.outfiles and not self.redo:
-                    graph = torch.load(join(self.outdir, name))
+                    graph = torch.load(self.outdir / name)
                     self._data_list.append(graph)
                     continue
             self.logger.debug(f"Processing {f}")
-            f = join(self.indir, f)
+            f = self.indir / f
             graph = torch.load(f)
             df = self.get_dataframe(graph, evtid)
             edge_index, edge_attr, y, edge_pt = self.build_edges(df)
@@ -466,7 +465,7 @@ class GraphBuilder:
             graph = self.to_pyg_data(
                 graph, edge_index, edge_attr, y, evtid=evtid, s=sector
             )
-            outfile = join(self.outdir, name)
+            outfile = self.outdir / name
             self.logger.debug(f"Writing {outfile}")
             if self.write_output:
                 torch.save(graph, outfile)
