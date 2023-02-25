@@ -3,7 +3,7 @@ from __future__ import annotations
 import collections
 import logging
 import os
-from pathlib import PurePath
+from pathlib import Path, PurePath
 from typing import Any
 
 import numpy as np
@@ -56,9 +56,9 @@ class PointCloudBuilder:
         """
         # create outdir if necessary
         os.makedirs(outdir, exist_ok=True)
-        self.outdir = PurePath(outdir)
+        self.outdir = Path(outdir)
 
-        self.indir = PurePath(indir)
+        self.indir = Path(indir)
         self.n_sectors = n_sectors
         self.redo = redo
         self.pixel_only = pixel_only
@@ -281,7 +281,7 @@ class PointCloudBuilder:
         for f in self.prefixes[start:stop]:
             self.logger.debug(f"Processing {f}")
 
-            evtid = int(f[-9:])
+            evtid = int(f.name[-9:])
             hits, particles, truth = load_event(f, parts=["hits", "particles", "truth"])
 
             hits = self.restrict_to_subdetectors(hits)
