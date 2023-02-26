@@ -54,8 +54,8 @@ class GraphBuilder:
             collect_data: Deprecated: Directly load the data into memory
         """
         self.indir = Path(indir)
-        os.makedirs(outdir, exist_ok=True)
         self.outdir = Path(outdir)
+        self.outdir.mkdir(parents=True, exist_ok=True)
         self.pixel_only = pixel_only
         self.redo = redo
         self.phi_slope_max = phi_slope_max
@@ -68,7 +68,7 @@ class GraphBuilder:
             [1000.0, np.pi, 1000.0, 1, 1 / 1000.0, 1 / 1000.0]
         )
         self._data_list = []
-        self.outfiles = os.listdir(outdir)
+        self.outfiles = [child.name for child in self.outdir.iterdir()]
         self.directed = directed
         self.measurement_mode = measurement_mode
         self.write_output = write_output
@@ -404,7 +404,7 @@ class GraphBuilder:
         Returns:
 
         """
-        available_files = os.listdir(self.indir)
+        available_files = [child.name for child in self.indir.iterdir()]
         if stop is not None and stop > len(available_files):
             # to avoid tracking wrong hyperparameters
             raise ValueError(

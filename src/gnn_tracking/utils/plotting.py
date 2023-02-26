@@ -23,7 +23,7 @@ class EventPlotter:
         indir: str | os.PathLike,
     ):
         self.indir = Path(indir)
-        self.infiles = os.listdir(self.indir)
+        self.infiles = [child.name for child in self.indir.iterdir()]
 
     def calc_eta(self, r, z):
         theta = np.arctan2(r, z)
@@ -83,7 +83,7 @@ class EventPlotter:
 class PointCloudPlotter:
     def __init__(self, indir: str | os.PathLike, n_sectors=64):
         self.indir = Path(indir)
-        self.infiles = os.listdir(indir)
+        self.infiles = [child.name for child in self.indir.iterdir()]
         self.n_sectors = n_sectors
         self.colors = cm.prism(np.linspace(0, 1, n_sectors))
 
