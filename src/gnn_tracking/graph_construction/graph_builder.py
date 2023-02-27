@@ -68,7 +68,6 @@ class GraphBuilder:
             [1000.0, np.pi, 1000.0, 1, 1 / 1000.0, 1 / 1000.0]
         )
         self._data_list = []
-        self.outfiles = [child.name for child in self.outdir.iterdir()]
         self.directed = directed
         self.measurement_mode = measurement_mode
         self.write_output = write_output
@@ -404,7 +403,8 @@ class GraphBuilder:
         Returns:
 
         """
-        available_files = [child.name for child in self.indir.iterdir()]
+        available_files = list(self.indir.iterdir())
+        outfiles = [child.name for child in self.outdir.iterdir()]
         if stop is not None and stop > len(available_files):
             # to avoid tracking wrong hyperparameters
             raise ValueError(
@@ -421,23 +421,21 @@ class GraphBuilder:
         if progressbar:
             iterator = tqdm(iterator)
         for f in iterator:
-            if f.split(".")[-1] != "pt":
+            if f.suffix != ".pt":
                 continue
-            name = f.split("/")[-1]
             try:
-                evtid, sector = self.get_event_id_sector_from_str(name)
+                evtid, sector = self.get_event_id_sector_from_str(f.name)
             except (ValueError, KeyError) as e:
-                raise ValueError(f"{name} is not a valid file name") from e
+                raise ValueError(f"{f.name} is not a valid file name") from e
             if only_sector >= 0 and sector != only_sector:
                 continue
             if self._collect_data:
                 # Deprecated, remove soon
-                if f in self.outfiles and not self.redo:
-                    graph = torch.load(self.outdir / name)
+                if f.name in outfiles and not self.redo:
+                    graph = torch.load(self.outdir / f.name)
                     self._data_list.append(graph)
                     continue
-            self.logger.debug(f"Processing {f}")
-            f = self.indir / f
+            self.logger.debug(f"Processing {f.name}")
             graph = torch.load(f)
             df = self.get_dataframe(graph, evtid)
             edge_index, edge_attr, y, edge_pt = self.build_edges(df)
@@ -465,7 +463,7 @@ class GraphBuilder:
             graph = self.to_pyg_data(
                 graph, edge_index, edge_attr, y, evtid=evtid, s=sector
             )
-            outfile = self.outdir / name
+            outfile = self.outdir / f.name
             self.logger.debug(f"Writing {outfile}")
             if self.write_output:
                 torch.save(graph, outfile)
