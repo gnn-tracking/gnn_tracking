@@ -209,25 +209,17 @@ class ClusterHyperParamScanner(AbstractClusterHyperParamScanner):
         """Pad clustering output to length with noise labels."""
         return np.concatenate([labels, np.full(length - len(labels), -1)])
 
-    def _get_sector_to_study(self, i_graph: int):
-        """Return index of sector to study for graph $i_graph.
-        Takes a random one the first time, but then remembers the sector so that we
-        get the same one for the same graph.
-        """
+    def _get_sector_to_study(self, i_graph: int) -> int:
+        """Return index of sector to study for graph $i_graph."""
         try:
             return self._graph_to_sector[i_graph]
         except KeyError:
             pass
-        available: list[int] = np.unique(  # type: ignore
-            self._sectors[i_graph][: len(self._data[i_graph])]
-        ).tolist()
-        try:
-            available.remove(-1)
-        except ValueError:
-            pass
-        choice = np.random.choice(available).item()
-        self._graph_to_sector[i_graph] = choice
-        return choice
+        sectors, counts = np.unique(self._sectors[i_graph], return_counts=True)
+        no_noise_mask = sectors > 0
+        chosen_idx = np.argmax(counts[no_noise_mask])
+        chosen_sector = sectors[no_noise_mask][chosen_idx]
+        return chosen_sector
 
     def _get_explicit_metric(
         self,
