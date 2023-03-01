@@ -319,20 +319,18 @@ class ClusterHyperParamScanner(AbstractClusterHyperParamScanner):
         parameters that we just found with optuna.
         """
         self.logger.debug("Evaluating all metrics for best clustering")
-        with timing("Evaluating all metrics", self.logger):
-            if best_params is None:
-                assert self._study is not None  # mypy
-                best_params = self._study.best_params
-            return self.__evaluate(best_params=best_params)
-
-    def __evaluate(self, best_params: dict[str, float]) -> dict[str, float]:
-        """See _evaluate."""
+        timer = Timer()
+        if best_params is None:
+            assert self._study is not None  # mypy
+            best_params = self._study.best_params
         em = self._evaluate_metrics(best_params, self._metrics.keys())
         metric_timing_str = ", ".join(
             f"{name}: {t}" for name, t in em.metric_evaluation_time.items()
         )
         self.logger.debug(
-            "Clustering time: %f, total metric eval: %f, individual: %s",
+            "Evaluating metrics took %f seconds: Clustering time: %f, total metric "
+            "eval: %f, individual: %s",
+            timer(),
             em.clustering_time,
             sum(em.metric_evaluation_time.values()),
             metric_timing_str,
