@@ -15,6 +15,8 @@ from gnn_tracking.utils.timing import Timer, timing
 
 
 class ClusterScanResult:
+    """Result of scan over different clustering hyperparameters."""
+
     def __init__(
         self,
         metrics: dict[str, float],
@@ -59,6 +61,7 @@ class AbstractClusterHyperParamScanner(ABC):
     def _scan(
         self,
         start_params: dict[str, Any] | None = None,
+        **kwargs,
     ) -> ClusterScanResult:
         pass
 
@@ -292,8 +295,8 @@ class ClusterHyperParamScanner(AbstractClusterHyperParamScanner):
     def _objective(self, trial: optuna.trial.Trial) -> float:
         """Objective function for optuna."""
         params = self._suggest(trial)
-        ems = self._evaluate_metrics(params, self._guide)
-        global_fom = np.nanmean(ems.foms).item()
+        ems = self._evaluate_metrics(params, [self._guide])
+        global_fom = np.nanmean(ems.foms[self._guide]).item()
         if self._es(global_fom):
             self.logger.info("Stopped early")
             trial.study.stop()
@@ -332,7 +335,6 @@ class ClusterHyperParamScanner(AbstractClusterHyperParamScanner):
         """Run the scan."""
         self._es.reset()
         if start_params is not None and kwargs.get("n_trials") == 1:
-            # Do not even start optuna, because that takes time
             self.logger.debug(
                 "Skipping optuna, because start_params are given and only "
                 "one trial to run"
