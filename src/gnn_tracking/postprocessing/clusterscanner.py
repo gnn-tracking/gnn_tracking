@@ -110,7 +110,6 @@ class ClusterHyperParamScanner(AbstractClusterHyperParamScanner):
         guide: str,
         metrics: dict[str, ClusterMetricType],
         sectors: list[np.ndarray] | None = None,
-        guide_proxy="",
         early_stopping=no_early_stopping,
         pt_thlds: Iterable[float] = (
             0.0,
@@ -137,8 +136,8 @@ class ClusterHyperParamScanner(AbstractClusterHyperParamScanner):
             sectors: List of 1D arrays of sector indices (answering which sector each
                 hit from each graph belongs to). If None, all hits are assumed to be
                 from the same sector.
-            guide_proxy: Faster proxy for guiding metric. See
-            early_stopping: Instance that can be called and has a reset method
+            early_stopping: Callable that can be called with result and has a reset
+                method. If it returns True, the scan is stopped.
             pt_thlds: Pt thresholds to be used in metric evaluation (for metrics that
                 support it).
             node_mask: If data has been masked before clustering, this is the mask that
@@ -186,12 +185,11 @@ class ClusterHyperParamScanner(AbstractClusterHyperParamScanner):
         self._metrics: dict[str, ClusterMetricType] = metrics
         self._es = early_stopping
         self._study = None
-        self._cheap_metric = guide_proxy
-        self._expensive_metric = guide
+        self._guide = guide
+        #: Cache for sector to study for each graph.
         self._graph_to_sector: dict[int, int] = {}
         #: Number of graphs to look at before using accumulated statistics to maybe
         #: prune trial.
-        self.pruning_grace_period = 20
         self.pt_thlds = list(pt_thlds)
 
     @staticmethod
@@ -293,20 +291,8 @@ class ClusterHyperParamScanner(AbstractClusterHyperParamScanner):
     def _objective(self, trial: optuna.trial.Trial) -> float:
         """Objective function for optuna."""
         params = self._suggest(trial)
-        # Do a first run, looking only at the cheap metric, stopping early
-        ems = self._evaluate_metrics(
-            params, [self._cheap_metric or self._expensive_metric]
-        )
-        cheap_foms = ems.foms[self._cheap_metric or self._expensive_metric]
-        if not self._cheap_metric:
-            # What we just evaluated is actually already the expensive metric
-            expensive_foms = cheap_foms
-        else:
-            ems = self._evaluate_metrics(
-                params, [self._expensive_metric], all_labels=ems.all_labels
-            )
-            expensive_foms = ems.foms[self._expensive_metric]
-        global_fom = np.nanmean(expensive_foms).item()
+        ems = self._evaluate_metrics(params, self._guide)
+        global_fom = np.nanmean(ems.foms).item()
         if self._es(global_fom):
             self.logger.info("Stopped early")
             trial.study.stop()
@@ -354,7 +340,7 @@ class ClusterHyperParamScanner(AbstractClusterHyperParamScanner):
             return ClusterScanResult(
                 metrics=metrics,
                 best_params=start_params,
-                best_value=metrics[self._expensive_metric],
+                best_value=metrics[self._guide],
             )
 
         if self._study is None:
