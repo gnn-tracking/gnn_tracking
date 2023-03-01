@@ -182,14 +182,8 @@ class ClusterHyperParamScanner(AbstractClusterHyperParamScanner):
         self._reconstructable: list[np.ndarray] = sort_according_to_mask(
             reconstructable, node_mask
         )
+        self._sectors = sort_according_to_mask(sectors, node_mask)
         self._metrics: dict[str, ClusterMetricType] = metrics
-        if sectors is None:
-            self._sectors: list[np.ndarray] = [
-                np.ones(t, dtype=int) for t in self._truth
-            ]
-        else:
-            assert [len(s) for s in sectors] == [len(t) for t in truth]
-            self._sectors = sort_according_to_mask(sectors, node_mask)
         self._es = early_stopping
         self._study = None
         self._cheap_metric = guide_proxy
