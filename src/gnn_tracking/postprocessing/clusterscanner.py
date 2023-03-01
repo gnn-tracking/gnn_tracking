@@ -192,10 +192,6 @@ class ClusterHyperParamScanner(AbstractClusterHyperParamScanner):
         #: Number of graphs to look at before using accumulated statistics to maybe
         #: prune trial.
         self.pruning_grace_period = 20
-        #: Number of trials completed
-        self._n_trials_completed = 0
-        #: Number of trials that were pruned
-        self._n_trials_pruned = 0
         self.pt_thlds = list(pt_thlds)
 
     @staticmethod
@@ -210,11 +206,12 @@ class ClusterHyperParamScanner(AbstractClusterHyperParamScanner):
         except KeyError:
             pass
         sectors, counts = np.unique(self._sectors[i_graph], return_counts=True)
-        no_noise_mask = sectors > 0
+        no_noise_mask = sectors >= 0
         chosen_idx = np.argmax(counts[no_noise_mask])
         chosen_sector = sectors[no_noise_mask][chosen_idx]
         return chosen_sector
 
+    # todo: rename
     def _get_explicit_metric(
         self,
         name: str,
@@ -224,7 +221,7 @@ class ClusterHyperParamScanner(AbstractClusterHyperParamScanner):
         pts: np.ndarray,
         reconstructable: np.ndarray,
     ) -> float:
-        """Get metric value from dict of metrics."""
+        """Evaluate metric specified by name on clustered data for single graph"""
         arguments = dict(
             truth=truth,
             predicted=predicted,
@@ -240,80 +237,79 @@ class ClusterHyperParamScanner(AbstractClusterHyperParamScanner):
                 pass
         return self._metrics[name](**arguments)  # type: ignore
 
-    def _objective(self, trial: optuna.trial.Trial) -> float:
-        """Objective function for optuna."""
-        params = self._suggest(trial)
-        cheap_foms = []
-        all_labels = []
-        # Do a first run, looking only at the cheap metric, stopping early
-        for i_graph, (data, truth, pts, reconstructable) in enumerate(
-            zip(
-                self._data,
-                self._truth,
-                self._pts,
-                self._reconstructable,
-            )
-        ):
-            # Consider a random sector for each graph, but keep the sector consistent
-            # between different trials.
+    _EvaluatedMetrics = collections.namedtuple(
+        "EvaluatedMetrics",
+        ["all_labels", "foms", "clustering_time", "metric_evaluation_time"],
+    )
+
+    def _evaluate_metrics(
+        self, cluster_params: dict[str, Any], metrics: Iterable[str], all_labels=None
+    ) -> ClusterHyperParamScanner._EvaluatedMetrics:
+        if all_labels is None:
+            all_labels = []
+        foms = defaultdict(list)
+        clustering_time = 0.0
+        metric_evaluation_time = collections.defaultdict(float)
+        timer = Timer()
+        for i_graph in range(len(self._data)):
             sector = self._get_sector_to_study(i_graph)
             sector_mask = self._sectors[i_graph] == sector
-            data = data[sector_mask[: len(data)]]
-            truth = truth[sector_mask]
-            pts = pts[sector_mask]
-            reconstructable = reconstructable[sector_mask]
-            labels = self._pad_output_with_noise(
-                self._algorithm(data, **params), len(reconstructable)
-            )
-            all_labels.append(labels)
-            cheap_foms.append(
-                self._get_explicit_metric(
-                    self._cheap_metric or self._expensive_metric,
+            _data = self._data[i_graph]
+            data = _data[sector_mask[: len(_data)]]
+            truth = self._truth[i_graph][sector_mask]
+            pts = self._pts[i_graph][sector_mask]
+            reconstructable = self._reconstructable[i_graph][sector_mask]
+            try:
+                labels = all_labels[i_graph]
+            except IndexError:
+                timer()
+                labels = self._pad_output_with_noise(
+                    self._algorithm(data, **cluster_params), len(reconstructable)
+                )
+                all_labels.append(labels)
+                clustering_time += timer()
+            for metric_name in metrics:
+                timer()
+                r = self._get_explicit_metric(
+                    metric_name,
                     truth=truth,
                     predicted=labels,
                     pts=pts,
                     reconstructable=reconstructable,
                 )
-            )
-            if i_graph >= self.pruning_grace_period:
-                v = np.nanmean(cheap_foms).item()
-                trial.report(v, i_graph)
-            if trial.should_prune():
-                self._n_trials_pruned += 1
-                raise optuna.TrialPruned()
+                if not isinstance(r, Mapping):
+                    foms[metric_name].append(r)
+                else:
+                    for k, v in r.items():
+                        foms[f"{metric_name}.{k}"].append(v)
+                metric_evaluation_time[metric_name] += timer()
+        return self._EvaluatedMetrics(
+            all_labels=all_labels,
+            foms=foms,
+            clustering_time=clustering_time,
+            metric_evaluation_time=metric_evaluation_time,
+        )
+
+    def _objective(self, trial: optuna.trial.Trial) -> float:
+        """Objective function for optuna."""
+        params = self._suggest(trial)
+        # Do a first run, looking only at the cheap metric, stopping early
+        ems = self._evaluate_metrics(
+            params, [self._cheap_metric or self._expensive_metric]
+        )
+        cheap_foms = ems.foms[self._cheap_metric or self._expensive_metric]
         if not self._cheap_metric:
             # What we just evaluated is actually already the expensive metric
             expensive_foms = cheap_foms
         else:
-            expensive_foms = []
-            # If we haven't stopped early, do a second run, looking at the expensive
-            # metric
-            for i_labels, (labels, truth, pts, reconstructable) in enumerate(
-                zip(all_labels, self._truth, self._pts, self._reconstructable)
-            ):
-                sector = self._get_sector_to_study(i_labels)
-                sector_mask = self._sectors[i_labels] == sector
-                truth = truth[sector_mask]
-                expensive_fom = self._get_explicit_metric(
-                    self._expensive_metric,
-                    truth=truth,
-                    predicted=labels,
-                    pts=pts,
-                    reconstructable=reconstructable,
-                )
-                expensive_foms.append(expensive_fom)
-                if i_labels >= 2:
-                    trial.report(
-                        np.nanmean(expensive_foms).item(), i_labels + len(self._data)
-                    )
-                if trial.should_prune():
-                    self._n_trials_pruned += 1
-                    raise optuna.TrialPruned()
+            ems = self._evaluate_metrics(
+                params, [self._expensive_metric], all_labels=ems.all_labels
+            )
+            expensive_foms = ems.foms[self._expensive_metric]
         global_fom = np.nanmean(expensive_foms).item()
         if self._es(global_fom):
             self.logger.info("Stopped early")
             trial.study.stop()
-        self._n_trials_completed += 1
         return global_fom
 
     def _evaluate(
@@ -331,62 +327,18 @@ class ClusterHyperParamScanner(AbstractClusterHyperParamScanner):
 
     def __evaluate(self, best_params: dict[str, float]) -> dict[str, float]:
         """See _evaluate."""
-        metrics = defaultdict(list)
-        clustering_time = 0.0
-        metric_evaluation_time = collections.defaultdict(float)
-        timer = Timer()
-        for data, truth, sectors, pts, reconstructable in zip(
-            self._data,
-            self._truth,
-            self._sectors,
-            self._pts,
-            self._reconstructable,
-        ):
-            available_sectors: list[int] = np.unique(  # type: ignore
-                sectors[: len(data)]
-            ).tolist()
-            try:
-                available_sectors.remove(-1)
-            except ValueError:
-                pass
-            for sector in available_sectors:
-                sector_mask = sectors == sector
-                sector_data = data[sector_mask[: len(data)]]
-                sector_truth = truth[sector_mask]
-                sector_pts = pts[sector_mask]
-                sector_reconstructable = reconstructable[sector_mask]
-                timer()
-                labels = self._pad_output_with_noise(
-                    self._algorithm(sector_data, **best_params),
-                    len(sector_truth),
-                )
-                clustering_time += timer()
-                for name, metric in self._metrics.items():
-                    timer()
-                    r = metric(
-                        truth=sector_truth,
-                        predicted=labels,
-                        pts=sector_pts,
-                        reconstructable=sector_reconstructable,
-                        pt_thlds=self.pt_thlds,
-                    )
-                    if not isinstance(r, Mapping):
-                        metrics[name].append(r)
-                    else:
-                        for k, v in r.items():
-                            metrics[f"{name}.{k}"].append(v)
-                    metric_evaluation_time[name] += timer()
+        em = self._evaluate_metrics(best_params, self._metrics.keys())
         metric_timing_str = ", ".join(
-            f"{name}: {t}" for name, t in metric_evaluation_time.items()
+            f"{name}: {t}" for name, t in em.metric_evaluation_time.items()
         )
         self.logger.debug(
             "Clustering time: %f, total metric eval: %f, individual: %s",
-            clustering_time,
-            sum(metric_evaluation_time.values()),
+            em.clustering_time,
+            sum(em.metric_evaluation_time.values()),
             metric_timing_str,
         )
-        return {k: np.nanmean(v).item() for k, v in metrics.items() if v} | {
-            f"{k}_std": np.nanstd(v, ddof=1).item() for k, v in metrics.items() if v
+        return {k: np.nanmean(v).item() for k, v in em.foms.items() if v} | {
+            f"{k}_std": np.nanstd(v, ddof=1).item() for k, v in em.foms.items() if v
         }
 
     def _scan(
@@ -419,11 +371,6 @@ class ClusterHyperParamScanner(AbstractClusterHyperParamScanner):
         self._study.optimize(
             self._objective,
             **kwargs,
-        )
-        self.logger.info(
-            "Completed %d trials, pruned %d trials",
-            self._n_trials_completed,
-            self._n_trials_pruned,
         )
         result = OptunaClusterScanResult(study=self._study, metrics=self._evaluate())
         tdf = result.get_trial_values()
