@@ -97,6 +97,17 @@ def sort_according_to_mask(
     return [inner(x, mask) for x, mask in zip(xs, masks)]
 
 
+def get_majority_sector(sectors: np.ndarray) -> int:
+    """Return most frequent sector that is not noise."""
+    unique_sectors, counts = np.unique(sectors, return_counts=True)
+    no_noise_mask = unique_sectors >= 0
+    if not np.any(no_noise_mask):
+        raise ValueError("Only noise in this graph")
+    chosen_idx = np.argmax(counts[no_noise_mask])
+    chosen_sector = unique_sectors[no_noise_mask][chosen_idx]
+    return chosen_sector
+
+
 class ClusterHyperParamScanner(AbstractClusterHyperParamScanner):
     def __init__(
         self,
@@ -187,7 +198,9 @@ class ClusterHyperParamScanner(AbstractClusterHyperParamScanner):
         self._study = None
         self._guide = guide
         #: Cache for sector to study for each graph.
-        self._graph_to_sector: dict[int, int] = {}
+        self._graph_to_sector = [
+            get_majority_sector(sectors) for sectors in self._sectors
+        ]
         #: Number of graphs to look at before using accumulated statistics to maybe
         #: prune trial.
         self.pt_thlds = list(pt_thlds)
@@ -196,18 +209,6 @@ class ClusterHyperParamScanner(AbstractClusterHyperParamScanner):
     def _pad_output_with_noise(labels: np.ndarray, length: int) -> np.ndarray:
         """Pad clustering output to length with noise labels."""
         return np.concatenate([labels, np.full(length - len(labels), -1)])
-
-    def _get_sector_to_study(self, i_graph: int) -> int:
-        """Return index of sector to study for graph $i_graph."""
-        try:
-            return self._graph_to_sector[i_graph]
-        except KeyError:
-            pass
-        sectors, counts = np.unique(self._sectors[i_graph], return_counts=True)
-        no_noise_mask = sectors >= 0
-        chosen_idx = np.argmax(counts[no_noise_mask])
-        chosen_sector = sectors[no_noise_mask][chosen_idx]
-        return chosen_sector
 
     # todo: rename
     def _get_explicit_metric(
@@ -250,7 +251,7 @@ class ClusterHyperParamScanner(AbstractClusterHyperParamScanner):
         metric_evaluation_time = collections.defaultdict(float)
         timer = Timer()
         for i_graph in range(len(self._data)):
-            sector = self._get_sector_to_study(i_graph)
+            sector = self._graph_to_sector[i_graph]
             sector_mask = self._sectors[i_graph] == sector
             _data = self._data[i_graph]
             data = _data[sector_mask[: len(_data)]]
