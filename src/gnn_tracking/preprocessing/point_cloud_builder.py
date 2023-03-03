@@ -81,7 +81,7 @@ class PointCloudBuilder:
             "v",
             "charge_frac",
         ]
-        self.feature_scale = np.array([1, 1, 1, 1, 10**-2, 10**-2, 1])
+        self.feature_scale = np.array([1, 1, 1, 1, 10**-3, 10**-3, 1])
 
         suffix = "-hits.csv.gz"
         self.prefixes: list[str] = []
