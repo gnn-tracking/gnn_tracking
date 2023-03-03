@@ -37,6 +37,8 @@ class PointCloudBuilder:
         write_output: bool = True,
         log_level: bool = logging.INFO,
         collect_data: bool = True,
+        feature_names: tuple = ("r", "phi", "z", "eta_rz", "u", "v", "charge_frac"),
+        feature_scale: tuple = (1, 1, 1, 1, 1, 1, 1),
     ):
         """Build point clouds, that is, read the input data files and convert them
         to pytorch geometric data objects (without any edges yet).
@@ -73,18 +75,8 @@ class PointCloudBuilder:
         self.measurements: list[dict[str, Any]] = []
         self.write_output = write_output
 
-        # select which features to store in X, optionally scale them
-        # !!! do not scale the features if building a graph downstream !!!
-        self.feature_names = [
-            "r",
-            "phi",
-            "z",
-            "eta_rz",
-            "u",
-            "v",
-            "charge_frac",
-        ]
-        self.feature_scale = np.array([1, 1, 1, 1, 10**-3, 10**-3, 1])
+        self.feature_names = list(feature_names)
+        self.feature_scale = list(feature_scale)
 
         suffix = "-hits.csv.gz"
         self.prefixes: list[str] = []
