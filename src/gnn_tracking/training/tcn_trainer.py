@@ -402,16 +402,23 @@ class TCNTrainer:
         for batch_idx, data in enumerate(self.train_loader):
             if max_batches and batch_idx > max_batches:
                 break
-            data = data.to(self.device)
-            model_output = self.evaluate_model(data, apply_truth_cuts=True)
+            try:
+                data = data.to(self.device)
+                model_output = self.evaluate_model(data, apply_truth_cuts=True)
+                batch_loss, batch_losses = self.get_batch_losses(model_output)
+                self.optimizer.zero_grad(set_to_none=True)
+                batch_loss.backward()
+                self.optimizer.step()
+            except RuntimeError as e:
+                if "out of memory" in str(e).casefold():
+                    self.logger.warning(
+                        "WARNING: ran out of memory, skipping batch. "
+                        "If this happens frequently, decrease the batch size."
+                    )
+                    continue
+
             for hook in self._batch_hooks:
                 hook(self, self._epoch, batch_idx, model_output, data)
-
-            batch_loss, batch_losses = self.get_batch_losses(model_output)
-
-            self.optimizer.zero_grad(set_to_none=True)
-            batch_loss.backward()
-            self.optimizer.step()
 
             if (batch_idx % 10) == 0:
                 _losses_w = {}
