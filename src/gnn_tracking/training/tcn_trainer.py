@@ -400,9 +400,9 @@ class TCNTrainer:
         self.model.train()
         _losses = collections.defaultdict(list)
         for batch_idx, data in enumerate(self.train_loader):
-            data = data.to(self.device)
             if max_batches and batch_idx > max_batches:
                 break
+            data = data.to(self.device)
             model_output = self.evaluate_model(data, apply_truth_cuts=True)
             for hook in self._batch_hooks:
                 hook(self, self._epoch, batch_idx, model_output, data)
