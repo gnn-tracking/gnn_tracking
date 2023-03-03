@@ -275,8 +275,8 @@ class TCNTrainer:
             except KeyError:
                 return None
 
-        ec_hit_mask = out.get("ec_hit_mask", torch.full_like(data.pt, True))
-        ec_edge_mask = out.get("ec_edge_mask", torch.full_like(data.y, True))
+        ec_hit_mask = out.get("ec_hit_mask", torch.full_like(data.pt, True)).bool()
+        ec_edge_mask = out.get("ec_edge_mask", torch.full_like(data.y, True)).bool()
 
         dct = {
             # -------- flags
