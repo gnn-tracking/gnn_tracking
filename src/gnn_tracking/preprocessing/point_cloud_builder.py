@@ -3,8 +3,7 @@ from __future__ import annotations
 import collections
 import logging
 import os
-from os.path import join
-from pathlib import PurePath
+from pathlib import Path, PurePath
 from typing import Any
 
 import numpy as np
@@ -18,6 +17,9 @@ from gnn_tracking.utils.log import get_logger
 pd.options.mode.chained_assignment = None  # default='warn'
 
 
+# TODO: In need of refactoring: load_point_clouds should be factored out (this should
+# only be used for building the graphs), and the parsing of the filenames should be
+# done with the function that is also used in build_point_clouds
 class PointCloudBuilder:
     def __init__(
         self,
@@ -36,7 +38,8 @@ class PointCloudBuilder:
         log_level: bool = logging.INFO,
         collect_data: bool = True,
     ):
-        """
+        """Build point clouds, that is, read the input data files and convert them
+        to pytorch geometric data objects (without any edges yet).
 
         Args:
             outdir: Directory for the output files
@@ -55,9 +58,9 @@ class PointCloudBuilder:
         """
         # create outdir if necessary
         os.makedirs(outdir, exist_ok=True)
-        self.outdir = outdir
+        self.outdir = Path(outdir)
 
-        self.indir = indir
+        self.indir = Path(indir)
         self.n_sectors = n_sectors
         self.redo = redo
         self.pixel_only = pixel_only
@@ -95,7 +98,8 @@ class PointCloudBuilder:
                 for s in range(self.n_sectors):
                     key = f"data{evtid}_s{s}.pt"
                     self.exists[key] = key in outfiles
-                self.prefixes.append(join(indir, prefix))
+                self.prefixes.append(self.indir / prefix)
+
         self.data_list: list[Data] = []
         self.logger = get_logger("PointCloudBuilder", level=log_level)
         self._collect_data = collect_data
@@ -318,7 +322,7 @@ class PointCloudBuilder:
         for f in self.prefixes[start:stop]:
             self.logger.debug(f"Processing {f}")
 
-            evtid = int(f[-9:])
+            evtid = int(f.name[-9:])
             hits, particles, truth, cells = load_event(
                 f, parts=["hits", "particles", "truth", "cells"]
             )
@@ -346,7 +350,7 @@ class PointCloudBuilder:
                 name = f"data{evtid}_s{s}.pt"
                 if self.exists[name] and not self.redo:
                     if self._collect_data:
-                        data = torch.load(join(self.outdir, name))
+                        data = torch.load(self.outdir / name)
                         self.data_list.append(data)
                     self.logger.debug(f"skipping {name}")
                     continue
@@ -357,7 +361,7 @@ class PointCloudBuilder:
                     n_sector_hits += len(sector)
                     n_sector_particles += len(np.unique(sector.particle_id.values))
                     sector = self.to_pyg_data(sector)
-                    outfile = join(self.outdir, name)
+                    outfile = self.outdir / name
                     if self.write_output:
                         torch.save(sector, outfile)
                     self.data_list.append(sector)

@@ -1,10 +1,10 @@
 from __future__ import annotations
 
+import itertools
 import logging
 import os
 import traceback
 from multiprocessing import Pool
-from os.path import join as join
 from pathlib import Path
 
 import numpy as np
@@ -20,12 +20,12 @@ from gnn_tracking.utils.log import get_logger, logger
 #   methods are actually static and might better be extracted; some of the __init__
 #   arguments are better for the process method; internal methods should be marked
 #   as private; pathlib should be used instead of os.path/string manipulations;
-#   typing is incomplete
+#   typing is incomplete; log level should just be that of the logging module
 class GraphBuilder:
     def __init__(
         self,
-        indir,
-        outdir,
+        indir: str | os.PathLike,
+        outdir: str | os.PathLike,
         *,
         pixel_only=True,
         redo=True,
@@ -54,9 +54,9 @@ class GraphBuilder:
             log_level:
             collect_data: Deprecated: Directly load the data into memory
         """
-        self.indir = indir
+        self.indir = Path(indir)
         os.makedirs(outdir, exist_ok=True)
-        self.outdir = outdir
+        self.outdir = Path(outdir)
         self.pixel_only = pixel_only
         self.redo = redo
         self.phi_slope_max = phi_slope_max
@@ -434,11 +434,11 @@ class GraphBuilder:
             if self._collect_data:
                 # Deprecated, remove soon
                 if f in self.outfiles and not self.redo:
-                    graph = torch.load(join(self.outdir, name))
+                    graph = torch.load(self.outdir / name)
                     self._data_list.append(graph)
                     continue
             self.logger.debug(f"Processing {f}")
-            f = join(self.indir, f)
+            f = self.indir / f
             graph = torch.load(f)
             df = self.get_dataframe(graph, evtid)
             edge_index, edge_attr, y, edge_pt = self.build_edges(df)
@@ -466,7 +466,7 @@ class GraphBuilder:
             graph = self.to_pyg_data(
                 graph, edge_index, edge_attr, y, evtid=evtid, s=sector
             )
-            outfile = join(self.outdir, name)
+            outfile = self.outdir / name
             self.logger.debug(f"Writing {outfile}")
             if self.write_output:
                 torch.save(graph, outfile)
@@ -491,7 +491,7 @@ def _load_graph(f: Path) -> Data | None:
 
 
 def load_graphs(
-    in_dir: str | os.PathLike,
+    in_dir: str | os.PathLike | list[str] | list[os.PathLike],
     *,
     start=0,
     stop=None,
@@ -501,9 +501,11 @@ def load_graphs(
     """Load graphs.
 
     Args:
-        in_dir: Directory that contains the graphs
+        in_dir: Directory or multiple directories that contains the graphs
         start: First graph to load. This doesn't reference the event ID of the graph,
             but sorts all files in the directory and takes the ``start``-th file.
+            If multiple directories are given, this is applied to the merged list of
+            paths.
         stop: Last graph to load. See ``start`` for details.
         sector: If specified, only files with the given sector are loaded (and
             ``start``, ``stop`` are applied after this selection)
@@ -520,12 +522,16 @@ def load_graphs(
             "Only using one process to load graphs to CPU memory. This might be slow."
         )
 
-    in_dir = Path(in_dir)
     if sector is None:
         glob = "*.pt"
     else:
         glob = f"*_s{sector}.pt"
-    available_files = sorted(in_dir.glob(glob))
+
+    if not isinstance(in_dir, list):
+        in_dir = [in_dir]
+    available_files = sorted(
+        itertools.chain.from_iterable([Path(d).glob(glob) for d in in_dir])
+    )
 
     if stop is not None and stop > len(available_files):
         # to avoid tracking wrong hyperparameters

@@ -8,6 +8,7 @@ from torch_geometric.data import Data
 from torch_geometric.loader import DataLoader
 
 
+# todo: Can we make this accept both fracs and absolute numbers?
 def train_test_val_split(
     data: list[Data], *, test_frac: float = 0.1, val_frac: float = 0.1
 ) -> dict[str, list[Data]]:
@@ -57,7 +58,7 @@ def get_loaders(
             # around that
             shuffle = False
         return {
-            "batch_size": batch_size,
+            "batch_size": batch_size if key == "train" else 1,
             "num_workers": max(1, min(len(graph_dct[key]), cpus)),
             "shuffle": shuffle,
             "pin_memory": True,
