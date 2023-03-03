@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import itertools
 import logging
 import os
 import traceback
@@ -490,7 +491,7 @@ def _load_graph(f: Path) -> Data | None:
 
 
 def load_graphs(
-    in_dir: str | os.PathLike,
+    in_dir: str | os.PathLike | list[str] | list[os.PathLike],
     *,
     start=0,
     stop=None,
@@ -500,9 +501,11 @@ def load_graphs(
     """Load graphs.
 
     Args:
-        in_dir: Directory that contains the graphs
+        in_dir: Directory or multiple directories that contains the graphs
         start: First graph to load. This doesn't reference the event ID of the graph,
             but sorts all files in the directory and takes the ``start``-th file.
+            If multiple directories are given, this is applied to the merged list of
+            paths.
         stop: Last graph to load. See ``start`` for details.
         sector: If specified, only files with the given sector are loaded (and
             ``start``, ``stop`` are applied after this selection)
@@ -519,12 +522,16 @@ def load_graphs(
             "Only using one process to load graphs to CPU memory. This might be slow."
         )
 
-    in_dir = Path(in_dir)
     if sector is None:
         glob = "*.pt"
     else:
         glob = f"*_s{sector}.pt"
-    available_files = sorted(in_dir.glob(glob))
+
+    if not isinstance(in_dir, list):
+        in_dir = [in_dir]
+    available_files = sorted(
+        itertools.chain.from_iterable([Path(d).glob(glob) for d in in_dir])
+    )
 
     if stop is not None and stop > len(available_files):
         # to avoid tracking wrong hyperparameters
