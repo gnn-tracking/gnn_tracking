@@ -63,10 +63,10 @@ class GraphBuilder:
         self.z0_max = z0_max
         self.dR_max = dR_max
         #: Name/meaning of the node features
-        self.feature_names = ["r", "phi", "z", "eta_rz", "u", "v"]
+        self.feature_names = ["r", "phi", "z", "eta_rz", "u", "v", "charge_frac"]
         #: Scaling of node features
         self.feature_scale = np.array(
-            [1000.0, np.pi, 1000.0, 1, 1 / 1000.0, 1 / 1000.0]
+            [1000.0, np.pi, 1000.0, 1, 1 / 1000.0, 1 / 1000.0, 1.0]
         )
         self._data_list = []
         self.outfiles = os.listdir(outdir)
