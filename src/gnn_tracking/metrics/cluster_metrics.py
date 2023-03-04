@@ -50,7 +50,7 @@ class TrackingMetrics(TypedDict):
     #: of particles
     perfect: float
     #: The number of reconstructed tracks containing over 50% of hits from the same
-    #: particle and over 50% of that particle’s hits, divided by the total number of
+    #: particle and over 50% of that particle`s hits, divided by the total number of
     #: true particles
     double_majority: float
     #: The number of reconstructed tracks containing over 75% of hits from the same

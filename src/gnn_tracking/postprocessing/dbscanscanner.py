@@ -40,7 +40,7 @@ class DBSCANHyperParamScanner(AbstractClusterHyperParamScanner):
         def suggest(trial):
             eps = trial.suggest_float("eps", *eps_range)
             min_samples = trial.suggest_int("min_samples", *min_samples_range)
-            return dict(eps=eps, min_samples=min_samples)
+            return {"eps": eps, "min_samples": min_samples}
 
         self.chps = ClusterHyperParamScanner(
             algorithm=dbscan,

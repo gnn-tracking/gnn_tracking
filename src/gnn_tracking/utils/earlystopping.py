@@ -7,12 +7,10 @@ class EarlyStopper(ABC):
     @abstractmethod
     def reset(self):
         """Reset the early stopper"""
-        pass
 
     @abstractmethod
     def __call__(self, *args, **kwargs) -> bool:
         """Return true if we should stop"""
-        pass
 
 
 class RelEarlyStopper(EarlyStopper):
@@ -62,7 +60,6 @@ class RelEarlyStopper(EarlyStopper):
 class NoEarlyStopping(EarlyStopper):
     def __init__(self, *args, **kwargs):
         """Never stop early"""
-        pass
 
     def reset(self):
         pass

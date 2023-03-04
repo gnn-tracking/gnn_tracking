@@ -324,7 +324,7 @@ class TCNTrainer:
 
         total = sum(
             self._loss_weight_setter[k] * individual_losses[k]
-            for k in individual_losses.keys()
+            for k in individual_losses
         )
         if torch.isnan(total):
             raise RuntimeError("NaN loss encountered in test step")
@@ -347,10 +347,7 @@ class TCNTrainer:
         Returns:
             None
         """
-        if header:
-            report_str = header
-        else:
-            report_str = ""
+        report_str = header if header else ""
         if style == "table":
             report_str += "\n"
             non_error_keys: list[str] = sorted(

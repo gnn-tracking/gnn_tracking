@@ -4,7 +4,7 @@ import sys
 
 if sys.version_info >= (3, 9):
     # noinspection PyUnusedLocal
-    from importlib import resources  # noqa: F401
+    pass
 else:
     # noinspection PyUnusedLocal
     # noinspection PyUnresolvedReferences

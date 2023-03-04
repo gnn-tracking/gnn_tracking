@@ -224,13 +224,13 @@ class ClusterHyperParamScanner(AbstractClusterHyperParamScanner):
         reconstructable: np.ndarray,
     ) -> float:
         """Evaluate metric specified by name on clustered data for single graph"""
-        arguments = dict(
-            truth=truth,
-            predicted=predicted,
-            pts=pts,
-            reconstructable=reconstructable,
-            pt_thlds=self.pt_thlds,
-        )
+        arguments = {
+            "truth": truth,
+            "predicted": predicted,
+            "pts": pts,
+            "reconstructable": reconstructable,
+            "pt_thlds": self.pt_thlds,
+        }
         if "." in name:
             metric, _, subkey = name.partition(".")
             try:
