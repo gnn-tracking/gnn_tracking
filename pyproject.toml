@@ -37,6 +37,7 @@ extend-ignore = [
   "PLR",    # Design related pylint codes
   "E501",   # Line too long
   "PT004",  # Use underscore for non-returning fixture (use usefixture instead)
+  "PD901",  # df is a bad name
 ]
 target-version = "py37"
 typing-modules = ["{{ cookiecutter.project_slug }}._compat.typing"]
