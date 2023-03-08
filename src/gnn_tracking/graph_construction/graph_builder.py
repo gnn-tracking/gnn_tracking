@@ -529,6 +529,10 @@ def load_graphs(
 
     if not isinstance(in_dir, list):
         in_dir = [in_dir]
+
+    for d in in_dir:
+        if not Path(d).exists():
+            raise FileNotFoundError(f"Directory {d} does not exist.")
     available_files = sorted(
         itertools.chain.from_iterable([Path(d).glob(glob) for d in in_dir])
     )
