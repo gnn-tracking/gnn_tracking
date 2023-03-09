@@ -7,8 +7,9 @@ from functools import cached_property
 
 import numpy as np
 import torch
-from sklearn.metrics import roc_auc_score as _roc_auc_score
+from torchmetrics.classification import BinaryAUROC
 
+from gnn_tracking.utils.device import guess_device
 from gnn_tracking.utils.log import logger
 from gnn_tracking.utils.types import assert_int
 
@@ -162,12 +163,19 @@ def get_maximized_bcs(
     return dct
 
 
-def roc_auc_score(*args, **kwargs):
-    """Wrapper around `sklearn.metrics.roc_auc_score` that ignores exceptions
+def roc_auc_score(
+    *,
+    y_true: torch.Tensor,
+    y_score: torch.Tensor,
+    max_fpr: float | None = None,
+    device=None,
+) -> float:
+    """Wrapper that ignores exceptions
     that can e.g., be raised if there's only one label present.
     """
+    metric = BinaryAUROC(max_fpr=max_fpr).to(device=guess_device(device))
     try:
-        return _roc_auc_score(*args, **kwargs)
+        return metric(preds=y_score, target=y_true).item()
     except ValueError as e:
         logger.error(e)
         return np.nan
