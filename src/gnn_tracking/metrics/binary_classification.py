@@ -178,4 +178,4 @@ def roc_auc_score(
         return metric(preds=y_score, target=y_true).item()
     except ValueError as e:
         logger.error(e)
-        return np.nan
+        return float("nan")
