@@ -26,7 +26,8 @@ def mask_select(src: T, dim: int, mask: T) -> T:
     assert mask.dim() == 1
     assert src.size(dim) == mask.numel()
     dim = dim + src.dim() if dim < 0 else dim
-    assert dim >= 0 and dim < src.dim()
+    assert dim >= 0
+    assert dim < src.dim()
 
     size = [1] * src.dim()
     size[dim] = mask.numel()

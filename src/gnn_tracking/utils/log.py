@@ -28,10 +28,7 @@ def get_logger(name="gnn-tracking", level=LOG_DEFAULT_LEVEL):
         "ERROR": "red",
         "CRITICAL": "red",
     }
-    if name == "gnn-tracking":
-        name_incl = ""
-    else:
-        name_incl = f" {name}"
+    name_incl = "" if name == "gnn-tracking" else f" {name}"
     formatter = colorlog.ColoredFormatter(
         f"%(log_color)s[%(asctime)s{name_incl}] %(levelname)s: %(message)s",
         log_colors=log_colors,

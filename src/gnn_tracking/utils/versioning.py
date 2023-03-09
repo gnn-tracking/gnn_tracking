@@ -15,10 +15,7 @@ def get_commit_hash(module: None | ModuleType | str | PathLike = None) -> str:
         import gnn_tracking
 
         module = gnn_tracking
-    if isinstance(module, ModuleType):
-        base_path = module.__path__[0]
-    else:
-        base_path = module
+    base_path = module.__path__[0] if isinstance(module, ModuleType) else module
     try:
         repo = git.Repo(path=base_path, search_parent_directories=True)
     except git.InvalidGitRepositoryError:

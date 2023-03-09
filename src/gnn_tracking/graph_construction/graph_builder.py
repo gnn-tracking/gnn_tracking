@@ -375,7 +375,7 @@ class GraphBuilder:
             layer = group.layer.values
             unique, counts = np.unique(layer, return_counts=True)
             n_segs = sum(counts[1:] * counts[:-1])
-            for pt_thld in n_truth_edges.keys():
+            for pt_thld in n_truth_edges:
                 if group.pt.values[0] > pt_thld:
                     n_truth_edges[pt_thld] += n_segs
         return n_truth_edges
@@ -520,10 +520,7 @@ def load_graphs(
             "Only using one process to load graphs to CPU memory. This might be slow."
         )
 
-    if sector is None:
-        glob = "*.pt"
-    else:
-        glob = f"*_s{sector}.pt"
+    glob = "*.pt" if sector is None else f"*_s{sector}.pt"
 
     if not isinstance(in_dir, list):
         in_dir = [in_dir]

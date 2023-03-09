@@ -179,8 +179,8 @@ class PointCloudBuilder:
                 "charge_frac",
                 "volume_id",
                 "layer",
+                *volume_labels,
             ]
-            + volume_labels
         ].merge(truth[["hit_id", "particle_id", "pt", "eta_pt"]], on="hit_id")
         return hits
 

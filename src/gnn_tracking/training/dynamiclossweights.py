@@ -72,9 +72,8 @@ class NormalizeAt(DynamicLossWeights):
         """
         super().__init__()
         self.at = at
-        if relative_weights is not None:
-            if not len(relative_weights) == len(at):
-                raise ValueError("Length of relative_weights must match length of at")
+        if relative_weights is not None and not len(relative_weights) == len(at):
+            raise ValueError("Length of relative_weights must match length of at")
         self.relative_weights = relative_weights
         self._n_epoch = 0
         self._losses: DefaultDict[str, list[float]] = collections.defaultdict(list)
