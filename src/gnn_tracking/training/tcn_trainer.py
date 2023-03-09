@@ -586,15 +586,15 @@ class TCNTrainer:
             thld=ec_threshold,
         )
         metrics = bcs.get_all() | get_maximized_bcs(output=predicted, y=true)
-        metrics["roc_auc"] = roc_auc_score(y_true=true.cpu(), y_score=predicted.cpu())
+        metrics["roc_auc"] = roc_auc_score(y_true=true, y_score=predicted)
         for max_fpr in [
             0.001,
             0.01,
             0.1,
         ]:
             metrics[f"roc_auc_{max_fpr}FPR"] = roc_auc_score(
-                y_true=true.cpu(),
-                y_score=predicted.cpu(),
+                y_true=true,
+                y_score=predicted,
                 max_fpr=max_fpr,
             )
         return {denote_pt(k, pt_min): v for k, v in metrics.items()}
