@@ -38,13 +38,18 @@ def train_test_val_split(
 
 
 def get_loaders(
-    graph_dct: dict[str, list[Data]], *, batch_size=1, cpus=1
+    graph_dct: dict[str, list[Data]],
+    *,
+    batch_size=1,
+    cpus=1,
+    other_batch_size=1,
 ) -> dict[str, DataLoader]:
     """Get data loaders from a dictionary of lists of input graph.
 
     Args:
         graph_dct: Mapping from dataset name (e.g., train/test/val) to list of graphs
-        batch_size: Batch size for data loaders
+        batch_size: Batch size for training data loaders
+        other_batch_size: Batch size for data loaders other than training
         cpus: Number of CPUs for data loaders
 
     Returns:
@@ -58,7 +63,7 @@ def get_loaders(
             # around that
             shuffle = False
         return {
-            "batch_size": batch_size if key == "train" else 1,
+            "batch_size": batch_size if key == "train" else other_batch_size,
             "num_workers": max(1, min(len(graph_dct[key]), cpus)),
             "shuffle": shuffle,
             "pin_memory": True,
