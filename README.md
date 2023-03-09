@@ -33,7 +33,7 @@ pip3 install -e '.[testing,dev]'
 pre-commit install
 ```
 
-If you open a PR and pre-commit fails for formatting, comment`pre-commit.ci run`
+If you open a PR and pre-commit fails for formatting, comment`pre-commit.ci autofix`
 to trigger a fixup commit from `pre-commit`.
 
 ## 💚 Contributing
