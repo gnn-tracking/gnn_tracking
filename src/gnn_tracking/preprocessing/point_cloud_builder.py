@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import collections
 import logging
-import os
 from pathlib import Path, PurePath
 from typing import Any
 
@@ -59,8 +58,8 @@ class PointCloudBuilder:
             collect_data: Collect data in memory
         """
         # create outdir if necessary
-        os.makedirs(outdir, exist_ok=True)
         self.outdir = Path(outdir)
+        self.outdir.mkdir(parents=True, exist_ok=True)
 
         self.indir = Path(indir)
         self.n_sectors = n_sectors
@@ -82,10 +81,10 @@ class PointCloudBuilder:
         self.prefixes: list[str] = []
         #: Does an output file for a given key exist?
         self.exists: dict[str, bool] = {}
-        outfiles = os.listdir(outdir)
-        for p in os.listdir(self.indir):
-            if str(p).endswith(suffix):
-                prefix = str(p).replace(suffix, "")
+        outfiles = [child.name for child in self.outdir.iterdir()]
+        for p in self.indir.iterdir():
+            if p.name.endswith(suffix):
+                prefix = p.name.replace(suffix, "")
                 evtid = int(prefix[-9:])
                 for s in range(self.n_sectors):
                     key = f"data{evtid}_s{s}.pt"
