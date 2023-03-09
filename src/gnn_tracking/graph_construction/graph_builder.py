@@ -4,7 +4,7 @@ import itertools
 import logging
 import os
 import traceback
-from multiprocessing import Pool
+from multiprocessing.pool import ThreadPool
 from pathlib import Path
 
 import numpy as np
@@ -557,7 +557,7 @@ def load_graphs(
     if n_processes == 1 or len(considered_files) == 1:
         ret = [_load_graph(f) for f in considered_files]
     else:
-        with Pool(min(n_processes, len(considered_files))) as pool:
+        with ThreadPool(min(n_processes, len(considered_files))) as pool:
             ret = pool.map(_load_graph, considered_files)
 
     return [r for r in ret if r is not None]
