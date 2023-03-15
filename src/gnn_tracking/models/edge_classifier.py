@@ -77,7 +77,8 @@ class ECForGraphTCN(nn.Module):
                 not reasonable.
             h_dim: node dimension in latent space
             e_dim: edge dimension in latent space
-            hidden_dim: width of hidden layers in all perceptrons
+            hidden_dim: width of hidden layers in all perceptrons (edge and node
+                encoders, hidden dims for MLPs in object and relation networks)
             L_ec: message passing depth for edge classifier
             alpha_ec: strength of residual connection for EC
         """

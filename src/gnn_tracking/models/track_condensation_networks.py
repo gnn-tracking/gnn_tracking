@@ -200,8 +200,8 @@ class ModularGraphTCN(nn.Module):
         self.p_cluster = MLP(h_dim, h_outdim, hidden_dim, L=3)
         #: NN to predict track parameters
         self.p_track_param = IN(
-            h_dim,
-            e_dim + hc_in.length_concatenated_edge_attrs,
+            node_indim=h_dim,
+            edge_indim=e_dim + hc_in.length_concatenated_edge_attrs,
             node_outdim=1,
             edge_outdim=1,
             node_hidden_dim=hidden_dim,
