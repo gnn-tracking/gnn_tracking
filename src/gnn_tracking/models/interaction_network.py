@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import torch
-from torch import Tensor
+from torch import Tensor as T
 from torch_geometric.nn import MessagePassing
 
 from gnn_tracking.models.mlp import MLP
@@ -10,6 +10,7 @@ from gnn_tracking.models.mlp import MLP
 class InteractionNetwork(MessagePassing):
     def __init__(
         self,
+        *,
         node_indim: int,
         edge_indim: int,
         node_outdim=3,
@@ -42,20 +43,46 @@ class InteractionNetwork(MessagePassing):
             node_hidden_dim,
         )
 
-    def forward(
-        self, x: Tensor, edge_index: Tensor, edge_attr: Tensor
-    ) -> tuple[Tensor, Tensor]:
+    def forward(self, x: T, edge_index: T, edge_attr: T) -> tuple[T, T]:
+        """Forward pass
+
+        Args:
+            x: Input node features
+            edge_index:
+            edge_attr: Input edge features
+
+        Returns:
+            Output node embedding, output edge embedding
+        """
         x_tilde = self.propagate(edge_index, x=x, edge_attr=edge_attr, size=None)
-        return x_tilde, self.E_tilde
+        return x_tilde, self._e_tilde
 
-    def message(self, x_i, x_j, edge_attr):
-        # x_i --> incoming, x_j --> outgoing
+    # noinspection PyMethodOverriding
+    def message(self, x_i: T, x_j: T, edge_attr: T) -> T:
+        """Calculate message of an edge
+
+        Args:
+            x_i: Features of node 1 (node where the edge ends)
+            x_j: Features of node 2 (node where the edge starts)
+            edge_attr: Edge features
+
+        Returns:
+            Message
+        """
         m = torch.cat([x_i, x_j, edge_attr], dim=1)
-        self.E_tilde = self.relational_model(m)
-        return self.E_tilde
+        self._e_tilde = self.relational_model(m)
+        return self._e_tilde
 
-    def update(self, aggr_out, x):
-        # aggr_output: Output of aggregating all messages
-        # x: Input node features
+    # noinspection PyMethodOverriding
+    def update(self, aggr_out: T, x: T) -> T:
+        """Update for node embedding
+
+        Args:
+            aggr_out: Aggregated messages of all edges
+            x: Node features for the node that receives all edges
+
+        Returns:
+            Updated node features/embedding
+        """
         c = torch.cat([x, aggr_out], dim=1)
         return self.object_model(c)
