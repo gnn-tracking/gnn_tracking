@@ -305,8 +305,8 @@ class GraphTCN(nn.Module):
             h_dim=h_dim,
             e_dim=e_dim,
             hidden_dim=hidden_dim,
-            interaction_node_hidden_dim=interaction_node_hidden_dim,
-            interaction_edge_hidden_dim=interaction_edge_hidden_dim,
+            interaction_node_dim=interaction_node_hidden_dim,
+            interaction_edge_dim=interaction_edge_hidden_dim,
             L_ec=L_ec,
             alpha_ec=alpha_ec,
         )

@@ -55,13 +55,12 @@ class ECForGraphTCN(nn.Module):
         *,
         node_indim: int,
         edge_indim: int,
-        interaction_node_hidden_dim=5,
-        interaction_edge_hidden_dim=4,
-        h_dim=5,
-        e_dim=4,
+        interaction_node_dim=5,
+        interaction_edge_dim=4,
         hidden_dim=40,
         L_ec=3,
         alpha_ec: float = 0.5,
+        add_bn: bool = True,
     ):
         """Edge classification step to be used for Graph Track Condensor network
         (Graph TCN)
@@ -69,44 +68,40 @@ class ECForGraphTCN(nn.Module):
         Args:
             node_indim: Node feature dim
             edge_indim: Edge feature dim
-            interaction_node_hidden_dim: Hidden dimension of interaction networks.
+            interaction_node_dim: Hidden dimension of interaction networks.
                 Defaults to 5 for backward compatibility, but this is probably
                 not reasonable.
-            interaction_edge_hidden_dim: Hidden dimension of interaction networks
+            interaction_edge_dim: Hidden dimension of interaction networks
                 Defaults to 4 for backward compatibility, but this is probably
                 not reasonable.
-            h_dim: node dimension in latent space
-            e_dim: edge dimension in latent space
             hidden_dim: width of hidden layers in all perceptrons (edge and node
                 encoders, hidden dims for MLPs in object and relation networks)
             L_ec: message passing depth for edge classifier
             alpha_ec: strength of residual connection for EC
+            add_bn: Add batch normalization to the ResIn
         """
         super().__init__()
         self.relu = nn.ReLU()
 
-        # specify the edge classifier
         self.ec_node_encoder = MLP(
-            node_indim, h_dim, hidden_dim=hidden_dim, L=2, bias=False
+            node_indim, interaction_node_dim, hidden_dim=hidden_dim, L=2, bias=False
         )
         self.ec_edge_encoder = MLP(
-            edge_indim, e_dim, hidden_dim=hidden_dim, L=2, bias=False
+            edge_indim, interaction_edge_dim, hidden_dim=hidden_dim, L=2, bias=False
         )
         self.ec_resin = ResIN.identical_in_layers(
-            node_indim=h_dim,
-            edge_indim=e_dim,
-            node_outdim=h_dim,
-            edge_outdim=e_dim,
-            node_hidden_dim=interaction_node_hidden_dim,
-            edge_hidden_dim=interaction_edge_hidden_dim,
+            node_dim=interaction_node_dim,
+            edge_dim=interaction_edge_dim,
             object_hidden_dim=hidden_dim,
             relational_hidden_dim=hidden_dim,
-            alpha=alpha_ec,
+            alpha_node=alpha_ec,
+            alpha_edge=alpha_ec,
             n_layers=L_ec,
+            add_bn=add_bn,
         )
 
         self.W = MLP(
-            e_dim + self.ec_resin.length_concatenated_edge_attrs, 1, hidden_dim, L=3
+            input_size=interaction_edge_dim, output_size=1, hidden_dim=hidden_dim, L=3
         )
 
     def forward(
@@ -117,11 +112,10 @@ class ECForGraphTCN(nn.Module):
         x, edge_index, edge_attr = data.x, data.edge_index, data.edge_attr
         h_ec = self.relu(self.ec_node_encoder(x))
         edge_attr_ec = self.relu(self.ec_edge_encoder(edge_attr))
-        h_ec, _, edge_attrs_ec = self.ec_resin(h_ec, edge_index, edge_attr_ec)
+        _, edge_attr_ec = self.ec_resin(h_ec, edge_index, edge_attr_ec)
 
         # append edge weights as new edge features
-        edge_attrs_ec = torch.cat(edge_attrs_ec, dim=1)
-        edge_weights = torch.sigmoid(self.W(edge_attrs_ec))
+        edge_weights = torch.sigmoid(self.W(edge_attr_ec))
         return edge_weights
 
 
