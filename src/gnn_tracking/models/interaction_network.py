@@ -42,6 +42,7 @@ class InteractionNetwork(MessagePassing):
             node_outdim,
             node_hidden_dim,
         )
+        self._e_tilde: T | None = None
 
     def forward(self, x: T, edge_index: T, edge_attr: T) -> tuple[T, T]:
         """Forward pass
@@ -55,6 +56,7 @@ class InteractionNetwork(MessagePassing):
             Output node embedding, output edge embedding
         """
         x_tilde = self.propagate(edge_index, x=x, edge_attr=edge_attr, size=None)
+        assert self._e_tilde is not None  # mypy
         return x_tilde, self._e_tilde
 
     # noinspection PyMethodOverriding
@@ -71,6 +73,7 @@ class InteractionNetwork(MessagePassing):
         """
         m = torch.cat([x_i, x_j, edge_attr], dim=1)
         self._e_tilde = self.relational_model(m)
+        assert self._e_tilde is not None  # mypy
         return self._e_tilde
 
     # noinspection PyMethodOverriding
