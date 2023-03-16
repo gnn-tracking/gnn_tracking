@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import math
+
 import torch
 from torch import Tensor
 from torch import Tensor as T
@@ -11,9 +13,27 @@ from gnn_tracking.models.mlp import MLP
 
 
 @torch.jit.script
-def convex_combination(*, delta: T, residue: T, alpha_residue: float) -> T:
-    """Convex combination of ``relu(delta)`` and the residue."""
+def _convex_combination(*, delta: T, residue: T, alpha_residue: float) -> T:
     return alpha_residue * residue + (1 - alpha_residue) * relu(delta)
+
+
+_IDENTITY = nn.Identity()
+
+
+def convex_combination(
+    *,
+    delta: T,
+    residue: T,
+    alpha_residue: float,
+    residue_encoder: nn.Module = _IDENTITY,
+) -> T:
+    """Convex combination of ``relu(delta)`` and the residue."""
+    if math.isclose(alpha_residue, 0.0):
+        return relu(delta)
+    assert 0 <= alpha_residue <= 1
+    return _convex_combination(
+        delta=delta, residue=residue_encoder(residue), alpha_residue=alpha_residue
+    )
 
 
 class ResIN(nn.Module):
@@ -36,15 +56,15 @@ class ResIN(nn.Module):
             layers: List of layers
             length_concatenated_edge_attrs: Length of the concatenated edge attributes
                 (from all the different layers)
-            alpha: Strength of the residual connection
+            alpha: Strength of the node embedding residual connection
         """
         super().__init__()
-        self.layers = nn.ModuleList(layers)
-        self.alpha = alpha
+        self._layers = nn.ModuleList(layers)
+        self._alpha = alpha
         #: Because of the residual connections, we need map the output of the previous
         #: layer to the dimension of the next layer (if they are different). This
         #: can be done with these encoders.
-        self.residue_encoders = nn.ModuleList([nn.Identity() for _ in layers])
+        self._residue_node_encoders = nn.ModuleList([nn.Identity() for _ in layers])
         self.length_concatenated_edge_attrs = length_concatenated_edge_attrs
 
     @classmethod
@@ -100,7 +120,7 @@ class ResIN(nn.Module):
                 )
             else:
                 first_encoder = nn.Identity()
-            mod.residue_encoders = nn.ModuleList([first_encoder])
+            mod._residue_node_encoders = nn.ModuleList([first_encoder])
             return mod
 
         first_layer = InteractionNetwork(
@@ -156,30 +176,30 @@ class ResIN(nn.Module):
         assert len(layers) == n_layers == len(encoders)
         length_concatenated_edge_attrs = edge_hidden_dim * (n_layers - 1) + edge_outdim
         mod = cls(layers, length_concatenated_edge_attrs, alpha=alpha)
-        mod.residue_encoders = nn.ModuleList(encoders)
+        mod._residue_node_encoders = nn.ModuleList(encoders)
         return mod
 
     def forward(
-        self, h, edge_index, edge_attr
+        self, x, edge_index, edge_attr
     ) -> tuple[Tensor, list[Tensor], list[Tensor]]:
-        """
+        """Forward pass
 
         Args:
-            h: Node features
+            x: Node features
             edge_index:
             edge_attr: Edge features
 
         Returns:
-            Last node features, node features at each layer (including the input),
-            edge features at each layer (including the input)
+            node embedding, node embedding at each layer (including the input and
+            final node embedding), edge embedding at each layer (including the input)
         """
         edge_attrs = [edge_attr]
-        hs = [h]
-        for layer, re in zip(self.layers, self.residue_encoders):
-            delta_h, edge_attr = layer(h, edge_index, edge_attr)
-            h = convex_combination(
-                delta=delta_h, residue=re(h), alpha_residue=self.alpha
+        xs = [x]
+        for layer, re in zip(self._layers, self._residue_node_encoders):
+            delta_x, edge_attr = layer(x, edge_index, edge_attr)
+            x = convex_combination(
+                delta=delta_x, residue=x, alpha_residue=self._alpha, residue_encoder=re
             )
-            hs.append(h)
+            xs.append(x)
             edge_attrs.append(edge_attr)
-        return h, hs, edge_attrs
+        return x, xs, edge_attrs
