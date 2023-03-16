@@ -40,8 +40,8 @@ class ResIN(nn.Module):
     def __init__(
         self,
         layers: list[nn.Module],
-        length_concatenated_edge_attrs: int,
         *,
+        length_concatenated_edge_attrs: int,
         alpha: float = 0.5,
     ):
         """Apply a list of layers in sequence with residual connections for the nodes.
@@ -66,6 +66,20 @@ class ResIN(nn.Module):
         #: can be done with these encoders.
         self._residue_node_encoders = nn.ModuleList([nn.Identity() for _ in layers])
         self.length_concatenated_edge_attrs = length_concatenated_edge_attrs
+
+    @staticmethod
+    def _get_residue_encoder(
+        *, in_dim: int, out_dim: int, hidden_dim: int
+    ) -> nn.Module:
+        if in_dim == out_dim:
+            return nn.Identity()
+        return MLP(
+            input_size=in_dim,
+            output_size=out_dim,
+            hidden_dim=hidden_dim,
+            include_last_activation=True,
+            L=2,
+        )
 
     @classmethod
     def identical_in_layers(
@@ -100,83 +114,44 @@ class ResIN(nn.Module):
             alpha: Strength of the residual connection
             n_layers: Total number of layers
         """
-        if n_layers == 1:
-            first_layer = InteractionNetwork(
-                node_indim=node_indim,
-                edge_indim=edge_indim,
-                node_outdim=node_outdim,
-                edge_outdim=edge_outdim,
-                node_hidden_dim=object_hidden_dim,
-                edge_hidden_dim=relational_hidden_dim,
-            )
-            mod = cls([first_layer], edge_outdim, alpha=alpha)
-            if node_indim != node_outdim:
-                first_encoder = MLP(
-                    input_size=node_indim,
-                    output_size=node_outdim,
-                    hidden_dim=node_outdim,
-                    L=2,
-                    include_last_activation=True,
-                )
-            else:
-                first_encoder = nn.Identity()
-            mod._residue_node_encoders = nn.ModuleList([first_encoder])
-            return mod
-
-        first_layer = InteractionNetwork(
-            node_indim=node_indim,
-            edge_indim=edge_indim,
-            node_outdim=node_hidden_dim,
-            edge_outdim=edge_hidden_dim,
-            node_hidden_dim=object_hidden_dim,
-            edge_hidden_dim=relational_hidden_dim,
-        )
-        if node_indim != node_hidden_dim:
-            first_encoder = MLP(
-                input_size=node_indim,
-                output_size=node_hidden_dim,
-                hidden_dim=node_hidden_dim,
-                L=2,
-                include_last_activation=True,
-            )
-        else:
-            first_encoder = nn.Identity()
-        hidden_layers = [
-            InteractionNetwork(
-                node_indim=node_hidden_dim,
-                edge_indim=edge_hidden_dim,
-                node_outdim=node_hidden_dim,
-                edge_outdim=edge_hidden_dim,
-                node_hidden_dim=object_hidden_dim,
-                edge_hidden_dim=relational_hidden_dim,
-            )
-            for _ in range(n_layers - 2)
+        node_dims = [
+            node_indim,
+            *[node_hidden_dim for _ in range(n_layers - 1)],
+            node_outdim,
         ]
-        hidden_encoders = [nn.Identity() for _ in hidden_layers]
-        last_layer = InteractionNetwork(
-            node_indim=node_hidden_dim,
-            edge_indim=edge_hidden_dim,
-            node_outdim=node_outdim,
-            edge_outdim=edge_outdim,
-            node_hidden_dim=object_hidden_dim,
-            edge_hidden_dim=relational_hidden_dim,
-        )
-        if node_hidden_dim != node_outdim:
-            last_encoder = MLP(
-                input_size=node_hidden_dim,
-                output_size=node_outdim,
-                hidden_dim=node_outdim,
-                L=2,
-                include_last_activation=True,
+        edge_dims = [
+            edge_indim,
+            *[edge_hidden_dim for _ in range(n_layers - 1)],
+            edge_outdim,
+        ]
+        assert len(node_dims) == len(edge_dims) == n_layers + 1
+        layers = [
+            InteractionNetwork(
+                node_indim=node_dims[i],
+                edge_indim=edge_dims[i],
+                node_outdim=node_dims[i + 1],
+                edge_outdim=edge_dims[i + 1],
+                node_hidden_dim=object_hidden_dim,
+                edge_hidden_dim=relational_hidden_dim,
             )
-        else:
-            last_encoder = nn.Identity()
-        layers = [first_layer, *hidden_layers, last_layer]
-        encoders = [first_encoder, *hidden_encoders, last_encoder]
-        assert len(layers) == n_layers == len(encoders)
+            for i in range(n_layers)
+        ]
         length_concatenated_edge_attrs = edge_hidden_dim * (n_layers - 1) + edge_outdim
-        mod = cls(layers, length_concatenated_edge_attrs, alpha=alpha)
-        mod._residue_node_encoders = nn.ModuleList(encoders)
+        mod = cls(
+            layers,
+            length_concatenated_edge_attrs=length_concatenated_edge_attrs,
+            alpha=alpha,
+        )
+        mod._residue_node_encoders = nn.ModuleList(
+            [
+                cls._get_residue_encoder(
+                    in_dim=node_dims[i],
+                    out_dim=node_dims[i + 1],
+                    hidden_dim=node_dims[i + 1],
+                )
+                for i in range(n_layers)
+            ]
+        )
         return mod
 
     def forward(
