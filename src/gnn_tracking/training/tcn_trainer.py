@@ -374,13 +374,15 @@ class TCNTrainer:
         metric = metric.casefold()
         if metric.startswith("tc_"):
             return False
+        if "_loc_" in metric:
+            return False
         if "0.9" not in metric and "1.5" not in metric:
             return False
         if "double_majority" in metric:
             return True
         if "tpr_eq_tnr" in metric:
-            return "loc" not in metric
-        if "roc_auc_pt" in metric:
+            return True
+        if "max_mcc" in metric:
             return True
         return False
 
