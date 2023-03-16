@@ -7,6 +7,7 @@ from torch_geometric.nn import MessagePassing
 from gnn_tracking.models.mlp import MLP
 
 
+# noinspection PyAbstractClass
 class InteractionNetwork(MessagePassing):
     def __init__(
         self,
