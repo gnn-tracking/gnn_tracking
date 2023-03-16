@@ -413,6 +413,7 @@ class TCNTrainer:
                         "If this happens frequently, decrease the batch size."
                     )
                     continue
+                raise
 
             for hook in self._batch_hooks:
                 hook(self, self._epoch, batch_idx, model_output, data)
