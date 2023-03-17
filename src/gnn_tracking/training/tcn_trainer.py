@@ -398,6 +398,7 @@ class TCNTrainer:
         """
         self.model.train()
         _losses = collections.defaultdict(list)
+        n_oom_errors_in_a_row = 0
         for batch_idx, data in enumerate(self.train_loader):
             if max_batches and batch_idx > max_batches:
                 break
@@ -410,12 +411,18 @@ class TCNTrainer:
                 self.optimizer.step()
             except RuntimeError as e:
                 if "out of memory" in str(e).casefold():
+                    n_oom_errors_in_a_row += 1
                     self.logger.warning(
-                        "WARNING: ran out of memory, skipping batch. "
+                        "WARNING: ran out of memory (OOM), skipping batch. "
                         "If this happens frequently, decrease the batch size."
+                        "Will abort if we get 10 consecutive OOM errors."
                     )
+                    if n_oom_errors_in_a_row > 10:
+                        raise
                     continue
                 raise
+            else:
+                n_oom_errors_in_a_row = 0
 
             for hook in self._batch_hooks:
                 hook(self, self._epoch, batch_idx, model_output, data)
