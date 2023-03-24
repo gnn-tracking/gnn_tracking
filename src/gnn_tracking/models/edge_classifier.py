@@ -130,6 +130,10 @@ class PerfectEdgeClassification(nn.Module):
         """An edge classifier that is perfect because it uses the truth information.
         If TPR or TNR is not 1.0, noise is added to the truth information.
 
+        This can be used to evaluate the maximal possible performance of a model
+        that relies on edge classification as a first step (e.g., the object
+        condensation approach).
+
         Args:
             tpr: True positive rate
             tnr: False positive rate
