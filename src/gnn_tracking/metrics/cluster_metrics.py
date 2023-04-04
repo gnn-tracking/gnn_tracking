@@ -129,9 +129,9 @@ def tracking_metrics(
     # For each cluster: Which true PID has the most hits?
     c_maj_pids = maj_df["id"]
     # For each cluster: How many hits does the PID with the most hits have?
-    c_maj_hits = maj_df[0]
+    c_maj_hits = maj_df["count"]
     # Number of hits per cluster
-    c_sizes = pid_counts_grouped[0].sum()
+    c_sizes = pid_counts_grouped["count"].sum()
     # Assume that negative cluster labels mean that the cluster was labeled as
     # invalid
     unique_predicted, predicted_counts = np.unique(predicted, return_counts=True)
