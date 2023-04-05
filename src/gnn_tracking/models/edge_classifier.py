@@ -7,7 +7,7 @@ from torch_geometric.data import Data
 
 from gnn_tracking.models.interaction_network import InteractionNetwork as IN
 from gnn_tracking.models.mlp import MLP
-from gnn_tracking.models.resin import ResIN
+from gnn_tracking.models.resin import build_resin
 
 
 class EdgeClassifier(nn.Module):
@@ -60,7 +60,8 @@ class ECForGraphTCN(nn.Module):
         hidden_dim=40,
         L_ec=3,
         alpha_ec: float = 0.5,
-        add_bn: bool = True,
+        residual_type="skip1",
+        **kwargs,
     ):
         """Edge classification step to be used for Graph Track Condensor network
         (Graph TCN)
@@ -78,7 +79,8 @@ class ECForGraphTCN(nn.Module):
                 encoders, hidden dims for MLPs in object and relation networks)
             L_ec: message passing depth for edge classifier
             alpha_ec: strength of residual connection for EC
-            add_bn: Add batch normalization to the ResIn
+            residual_type: type of residual connection for EC,
+            **kwargs: Passed to `build_resin`
         """
         super().__init__()
         self.relu = nn.ReLU()
@@ -89,7 +91,7 @@ class ECForGraphTCN(nn.Module):
         self.ec_edge_encoder = MLP(
             edge_indim, interaction_edge_dim, hidden_dim=hidden_dim, L=2, bias=False
         )
-        self.ec_resin = ResIN.identical_in_layers(
+        self.ec_resin = build_resin(
             node_dim=interaction_node_dim,
             edge_dim=interaction_edge_dim,
             object_hidden_dim=hidden_dim,
@@ -97,7 +99,8 @@ class ECForGraphTCN(nn.Module):
             alpha_node=alpha_ec,
             alpha_edge=alpha_ec,
             n_layers=L_ec,
-            add_bn=add_bn,
+            residual_type=residual_type,
+            **kwargs,
         )
 
         self.W = MLP(
@@ -112,7 +115,7 @@ class ECForGraphTCN(nn.Module):
         x, edge_index, edge_attr = data.x, data.edge_index, data.edge_attr
         h_ec = self.relu(self.ec_node_encoder(x))
         edge_attr_ec = self.relu(self.ec_edge_encoder(edge_attr))
-        _, edge_attr_ec = self.ec_resin(h_ec, edge_index, edge_attr_ec)
+        _, edge_attr_ec, *_ = self.ec_resin(h_ec, edge_index, edge_attr_ec)
 
         # append edge weights as new edge features
         edge_weights = torch.sigmoid(self.W(edge_attr_ec))

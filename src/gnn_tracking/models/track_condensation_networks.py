@@ -12,7 +12,7 @@ from gnn_tracking.models.dynamic_edge_conv import DynamicEdgeConv
 from gnn_tracking.models.edge_classifier import ECForGraphTCN, PerfectEdgeClassification
 from gnn_tracking.models.interaction_network import InteractionNetwork as IN
 from gnn_tracking.models.mlp import MLP
-from gnn_tracking.models.resin import ResIN
+from gnn_tracking.models.resin import build_resin
 from gnn_tracking.utils.graph_masks import edge_subgraph
 
 
@@ -165,8 +165,8 @@ class ModularGraphTCN(nn.Module):
                 ``length_concatenated_edge_attrs`` attribute (see `ResIN` module)
             node_indim: Node feature dimension
             edge_indim: Edge feature dimension
-            h_dim: node dimension after encoding with the initial MLP
-            e_dim: edge dimension after encoding with the initial MLP
+            h_dim: node dimension in the condensation interaction networks
+            e_dim: edge dimension in the condensation interaction networks
             h_outdim: output dimension in clustering space
             hidden_dim: width of hidden layers in all perceptrons
             feed_edge_weights: whether to feed edge weights to the track condenser
@@ -199,14 +199,14 @@ class ModularGraphTCN(nn.Module):
         #: NN to predict cluster coordinates
         self.p_cluster = MLP(h_dim, h_outdim, hidden_dim, L=3)
         #: NN to predict track parameters
-        self.p_track_param = IN(
-            node_indim=h_dim,
-            edge_indim=e_dim + hc_in.length_concatenated_edge_attrs,
-            node_outdim=1,
-            edge_outdim=1,
-            node_hidden_dim=hidden_dim,
-            edge_hidden_dim=hidden_dim,
-        )
+        # self.p_track_param = IN(
+        #     node_indim=h_dim,
+        #     edge_indim=e_dim + hc_in.length_concatenated_edge_attrs,
+        #     node_outdim=1,
+        #     edge_outdim=1,
+        #     node_hidden_dim=hidden_dim,
+        #     edge_hidden_dim=hidden_dim,
+        # )
         self._feed_edge_weights = feed_edge_weights
         self.threshold = ec_threshold
         self._mask_orphan_nodes = mask_orphan_nodes
@@ -237,20 +237,19 @@ class ModularGraphTCN(nn.Module):
         # apply the track condenser
         h_hc = self.relu(self.hc_node_encoder(data.x))
         edge_attr_hc = self.relu(self.hc_edge_encoder(edge_attr))
-        h_hc, _, edge_attrs_hc = self.hc_in(h_hc, data.edge_index, edge_attr_hc)
+        h_hc, _, _, edge_attrs_hc = self.hc_in(h_hc, data.edge_index, edge_attr_hc)
         beta = torch.sigmoid(self.p_beta(h_hc))
         # protect against nans
         beta = beta + torch.ones_like(beta) * 10e-9
 
         h = self.p_cluster(h_hc)
-        track_params, _ = self.p_track_param(
-            h_hc, data.edge_index, torch.cat(edge_attrs_hc, dim=1)
-        )
+        # track_params, _ = self.p_track_param(
+        #     h_hc, data.edge_index, torch.cat(edge_attrs_hc, dim=1)
+        # )
         return {
             "W": edge_weights_unmasked,
             "H": h,
             "B": beta,
-            "P": track_params,
             "ec_hit_mask": hit_mask,
             "ec_edge_mask": edge_mask,
         }
@@ -266,8 +265,6 @@ class GraphTCN(nn.Module):
         e_dim=4,
         h_outdim=2,
         hidden_dim=40,
-        interaction_node_hidden_dim=5,
-        interaction_edge_hidden_dim=4,
         L_ec=3,
         L_hc=3,
         alpha_ec: float = 0.5,
@@ -285,12 +282,6 @@ class GraphTCN(nn.Module):
             e_dim: edge dimension in latent space
             h_outdim: output dimension in clustering space
             hidden_dim: width of hidden layers in all perceptrons
-            interaction_node_hidden_dim: Hidden dimension of interaction networks.
-                Defaults to 5 for backward compatibility, but this is probably
-                not reasonable.
-            interaction_edge_hidden_dim: Hidden dimension of interaction networks
-                Defaults to 4 for backward compatibility, but this is probably
-                not reasonable.
             L_ec: message passing depth for edge classifier
             L_hc: message passing depth for track condenser
             alpha_ec: strength of residual connection for multi-layer interaction
@@ -302,24 +293,20 @@ class GraphTCN(nn.Module):
         ec = ECForGraphTCN(
             node_indim=node_indim,
             edge_indim=edge_indim,
-            h_dim=h_dim,
-            e_dim=e_dim,
             hidden_dim=hidden_dim,
-            interaction_node_dim=interaction_node_hidden_dim,
-            interaction_edge_dim=interaction_edge_hidden_dim,
+            interaction_node_dim=h_dim,
+            interaction_edge_dim=e_dim,
             L_ec=L_ec,
             alpha_ec=alpha_ec,
         )
-        hc_in = ResIN.identical_in_layers(
-            node_indim=h_dim,
-            edge_indim=e_dim,
-            node_hidden_dim=interaction_node_hidden_dim,
-            edge_hidden_dim=interaction_edge_hidden_dim,
-            node_outdim=h_dim,
-            edge_outdim=e_dim,
+        # Todo: Add other resin options
+        hc_in = build_resin(
+            node_dim=h_dim,
+            edge_dim=e_dim,
             object_hidden_dim=hidden_dim,
             relational_hidden_dim=hidden_dim,
-            alpha=alpha_hc,
+            alpha_node=alpha_hc,
+            alpha_edge=alpha_hc,
             n_layers=L_hc,
         )
         self._gtcn = ModularGraphTCN(
@@ -347,8 +334,6 @@ class PerfectECGraphTCN(nn.Module):
         *,
         node_indim: int,
         edge_indim: int,
-        interaction_node_hidden_dim=5,
-        interaction_edge_hidden_dim=4,
         h_dim=5,
         e_dim=4,
         h_outdim=2,
@@ -365,8 +350,6 @@ class PerfectECGraphTCN(nn.Module):
         Args:
             node_indim: Node feature dim. Determined by input data.
             edge_indim: Edge feature dim. Determined by input data.
-            interaction_node_hidden_dim: See `GraphTCN`
-            interaction_edge_hidden_dim: See `GraphTCN`
             h_dim: node dimension after encoding
             e_dim: edge dimension after encoding
             h_outdim: output dimension in clustering space
@@ -381,16 +364,13 @@ class PerfectECGraphTCN(nn.Module):
         """
         super().__init__()
         ec = PerfectEdgeClassification(tpr=ec_tpr, tnr=ec_tnr)
-        hc_in = ResIN.identical_in_layers(
-            node_indim=h_dim,
-            edge_indim=e_dim,
-            node_hidden_dim=interaction_node_hidden_dim,
-            edge_hidden_dim=interaction_edge_hidden_dim,
-            node_outdim=h_dim,
-            edge_outdim=e_dim,
+        hc_in = build_resin(
+            node_dim=h_dim,
+            edge_dim=e_dim,
             object_hidden_dim=hidden_dim,
             relational_hidden_dim=hidden_dim,
-            alpha=alpha_hc,
+            alpha_node=alpha_hc,
+            alpha_edge=alpha_hc,
             n_layers=L_hc,
         )
         self._gtcn = ModularGraphTCN(
@@ -419,8 +399,6 @@ class PreTrainedECGraphTCN(nn.Module):
         *,
         node_indim: int,
         edge_indim: int,
-        interaction_node_hidden_dim=5,
-        interaction_edge_hidden_dim=4,
         h_dim=5,
         e_dim=4,
         h_outdim=2,
@@ -433,19 +411,25 @@ class PreTrainedECGraphTCN(nn.Module):
 
         Args:
             ec: Pre-trained edge classifier
-            **kwargs: Additional keyword arguments for `PerfectECGraphTCN`
+            node_indim: Node feature dim. Determined by input data.
+            edge_indim: Edge feature dim. Determined by input data.
+            h_dim: node dimension after encoding
+            e_dim: edge dimension after encoding
+            h_outdim: output dimension in clustering space
+            hidden_dim: dimension of hidden layers in all MLPs used in the interaction
+                networks
+            L_hc: message passing depth for track condenser
+            alpha_hc: strength of residual connection for multi-layer interaction
+                networks
         """
         super().__init__()
-        hc_in = ResIN.identical_in_layers(
-            node_indim=h_dim,
-            edge_indim=e_dim,
-            node_hidden_dim=interaction_node_hidden_dim,
-            edge_hidden_dim=interaction_edge_hidden_dim,
-            node_outdim=h_dim,
-            edge_outdim=e_dim,
+        hc_in = build_resin(
+            node_dim=h_dim,
+            edge_dim=e_dim,
             object_hidden_dim=hidden_dim,
             relational_hidden_dim=hidden_dim,
-            alpha=alpha_hc,
+            alpha_node=alpha_hc,
+            alpha_edge=alpha_hc,
             n_layers=L_hc,
         )
         self._gtcn = ModularGraphTCN(
