@@ -3,7 +3,6 @@ from __future__ import annotations
 from functools import partial
 
 import pytest
-from torch_geometric.loader import DataLoader
 
 from gnn_tracking.metrics.losses import (
     BackgroundLoss,
@@ -29,12 +28,11 @@ def test_train(tmp_path, built_graphs, loss_weights: str) -> None:
     graphs = graph_builder.data_list
     n_graphs = len(graphs)
     assert n_graphs == 2
-    params = {"batch_size": 1, "num_workers": 1}
 
     loaders = {
-        "train": DataLoader([graphs[0]], **params, shuffle=True),
-        "test": DataLoader([graphs[1]], **params),
-        "val": DataLoader([graphs[1]], **params),
+        "train": [graphs[0]],
+        "test": [graphs[1]],
+        "val": [graphs[1]],
     }
 
     q_min, sb = 0.01, 0.1
@@ -49,9 +47,9 @@ def test_train(tmp_path, built_graphs, loss_weights: str) -> None:
         node_indim,
         edge_indim,
         h_dim=2,
-        hidden_dim=64,
-        interaction_edge_hidden_dim=3,
-        interaction_node_hidden_dim=3,
+        hidden_dim=2,
+        L_ec=2,
+        L_hc=2,
     )
 
     _loss_weights = None
@@ -78,7 +76,7 @@ def test_train(tmp_path, built_graphs, loss_weights: str) -> None:
     )
     trainer.training_truth_cuts = tcc
 
-    trainer.train(epochs=2, max_batches=1)
-    trainer.test_step()
+    trainer.train_step(max_batches=1)
+    trainer.test_step(max_batches=1)
     trainer.save_checkpoint("model.pt")
     trainer.load_checkpoint("model.pt")

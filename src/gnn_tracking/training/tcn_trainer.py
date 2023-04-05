@@ -100,7 +100,7 @@ class TCNTrainer:
     def __init__(
         self,
         model,
-        loaders: dict[str, DataLoader],
+        loaders: dict[str, DataLoader] | dict[str, list[Data]],
         loss_functions: dict[str, LossFctType],
         *,
         device=None,
