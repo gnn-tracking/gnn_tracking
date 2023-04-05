@@ -161,4 +161,6 @@ class PerfectEdgeClassification(nn.Module):
         if self.false_below_pt > 0.0:
             false_mask = data.pt < self.false_below_pt
             r[false_mask] = False
-        return r
+        # Return as float, because that's what a normal model would do
+        # (and also what BCE expects)
+        return r.float()
