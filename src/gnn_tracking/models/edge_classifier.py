@@ -7,7 +7,7 @@ from torch_geometric.data import Data
 
 from gnn_tracking.models.interaction_network import InteractionNetwork as IN
 from gnn_tracking.models.mlp import MLP
-from gnn_tracking.models.resin import build_resin
+from gnn_tracking.models.resin import ResIN
 
 
 class EdgeClassifier(nn.Module):
@@ -84,7 +84,7 @@ class ECForGraphTCN(nn.Module):
             use_intermediate_layers: If true, don't only feed the final layer of the
                 stacked interaction networks to the final MLP, but all intermediate
                 output
-            residual_kwargs: Keyword arguments passed to `build_resin`
+            residual_kwargs: Keyword arguments passed to `ResIN`
         """
         super().__init__()
         if residual_kwargs is None:
@@ -97,7 +97,7 @@ class ECForGraphTCN(nn.Module):
         self.ec_edge_encoder = MLP(
             edge_indim, interaction_edge_dim, hidden_dim=hidden_dim, L=2, bias=False
         )
-        self.ec_resin = build_resin(
+        self.ec_resin = ResIN(
             node_dim=interaction_node_dim,
             edge_dim=interaction_edge_dim,
             object_hidden_dim=hidden_dim,
@@ -111,11 +111,7 @@ class ECForGraphTCN(nn.Module):
 
         w_input_dim = interaction_edge_dim
         if use_intermediate_layers:
-            if residual_type != "skip2":
-                w_input_dim *= L_ec + 1
-            else:
-                w_input_dim *= L_ec // 2 + 1
-        print(f"{w_input_dim:=}, {L_ec:=}")
+            w_input_dim = self.ec_resin.concat_edge_embeddings_length
         self.W = MLP(input_size=w_input_dim, output_size=1, hidden_dim=hidden_dim, L=3)
         self._use_intermediate_layers = use_intermediate_layers
 
@@ -135,7 +131,6 @@ class ECForGraphTCN(nn.Module):
         w_input = edge_attr_ec
         if self._use_intermediate_layers:
             w_input = torch.cat(edge_attrs_ec, dim=1)
-        print("W input", w_input.shape, edge_attrs_ec[0].shape, len(edge_attrs_ec))
         edge_weights = torch.sigmoid(self.W(w_input))
         return edge_weights
 

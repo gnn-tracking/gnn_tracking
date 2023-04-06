@@ -12,7 +12,7 @@ from gnn_tracking.models.dynamic_edge_conv import DynamicEdgeConv
 from gnn_tracking.models.edge_classifier import ECForGraphTCN, PerfectEdgeClassification
 from gnn_tracking.models.interaction_network import InteractionNetwork as IN
 from gnn_tracking.models.mlp import MLP
-from gnn_tracking.models.resin import build_resin
+from gnn_tracking.models.resin import ResIN
 from gnn_tracking.utils.graph_masks import edge_subgraph
 
 
@@ -300,7 +300,7 @@ class GraphTCN(nn.Module):
             alpha_ec=alpha_ec,
         )
         # Todo: Add other resin options
-        hc_in = build_resin(
+        hc_in = ResIN(
             node_dim=h_dim,
             edge_dim=e_dim,
             object_hidden_dim=hidden_dim,
@@ -364,7 +364,7 @@ class PerfectECGraphTCN(nn.Module):
         """
         super().__init__()
         ec = PerfectEdgeClassification(tpr=ec_tpr, tnr=ec_tnr)
-        hc_in = build_resin(
+        hc_in = ResIN(
             node_dim=h_dim,
             edge_dim=e_dim,
             object_hidden_dim=hidden_dim,
@@ -423,7 +423,7 @@ class PreTrainedECGraphTCN(nn.Module):
                 networks
         """
         super().__init__()
-        hc_in = build_resin(
+        hc_in = ResIN(
             node_dim=h_dim,
             edge_dim=e_dim,
             object_hidden_dim=hidden_dim,
