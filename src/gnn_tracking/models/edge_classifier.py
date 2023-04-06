@@ -62,7 +62,7 @@ class ECForGraphTCN(nn.Module):
         alpha_ec: float = 0.5,
         residual_type="skip1",
         use_intermediate_layers: bool = True,
-        **kwargs,
+        residual_kwargs: dict | None = None,
     ):
         """Edge classification step to be used for Graph Track Condensor network
         (Graph TCN)
@@ -84,9 +84,11 @@ class ECForGraphTCN(nn.Module):
             use_intermediate_layers: If true, don't only feed the final layer of the
                 stacked interaction networks to the final MLP, but all intermediate
                 output
-            **kwargs: Passed to `build_resin`
+            residual_kwargs: Keyword arguments passed to `build_resin`
         """
         super().__init__()
+        if residual_kwargs is None:
+            residual_kwargs = {}
         self.relu = nn.ReLU()
 
         self.ec_node_encoder = MLP(
@@ -104,7 +106,7 @@ class ECForGraphTCN(nn.Module):
             alpha_edge=alpha_ec,
             n_layers=L_ec,
             residual_type=residual_type,
-            **kwargs,
+            residual_kwargs=residual_kwargs,
         )
 
         w_input_dim = interaction_edge_dim
