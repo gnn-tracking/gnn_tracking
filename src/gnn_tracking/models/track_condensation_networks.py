@@ -297,7 +297,7 @@ class GraphTCN(nn.Module):
             interaction_node_dim=h_dim,
             interaction_edge_dim=e_dim,
             L_ec=L_ec,
-            alpha_ec=alpha_ec,
+            alpha_ec_node=alpha_ec,
         )
         # Todo: Add other resin options
         hc_in = ResIN(
