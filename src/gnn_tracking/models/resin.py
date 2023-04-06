@@ -112,7 +112,7 @@ class Skip2ResidualNetwork(ResidualNetwork):
         *,
         node_dim: int,
         edge_dim: int,
-        add_bn: bool = True,
+        add_bn: bool = False,
         **kwargs,
     ):
         """Residual network with skip connections every two layers.
