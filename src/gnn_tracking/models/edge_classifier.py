@@ -61,6 +61,7 @@ class ECForGraphTCN(nn.Module):
         L_ec=3,
         alpha_ec: float = 0.5,
         residual_type="skip1",
+        use_intermediate_layers: bool = True,
         **kwargs,
     ):
         """Edge classification step to be used for Graph Track Condensor network
@@ -69,17 +70,20 @@ class ECForGraphTCN(nn.Module):
         Args:
             node_indim: Node feature dim
             edge_indim: Edge feature dim
-            interaction_node_dim: Hidden dimension of interaction networks.
+            interaction_node_dim: Node dimension for interaction networks.
                 Defaults to 5 for backward compatibility, but this is probably
                 not reasonable.
-            interaction_edge_dim: Hidden dimension of interaction networks
+            interaction_edge_dim: Edge dimension of interaction networks
                 Defaults to 4 for backward compatibility, but this is probably
                 not reasonable.
             hidden_dim: width of hidden layers in all perceptrons (edge and node
                 encoders, hidden dims for MLPs in object and relation networks)
             L_ec: message passing depth for edge classifier
             alpha_ec: strength of residual connection for EC
-            residual_type: type of residual connection for EC,
+            residual_type: type of residual connection for EC
+            use_intermediate_layers: If true, don't only feed the final layer of the
+                stacked interaction networks to the final MLP, but all intermediate
+                output
             **kwargs: Passed to `build_resin`
         """
         super().__init__()
@@ -103,9 +107,12 @@ class ECForGraphTCN(nn.Module):
             **kwargs,
         )
 
-        self.W = MLP(
-            input_size=interaction_edge_dim, output_size=1, hidden_dim=hidden_dim, L=3
-        )
+        w_input_dim = interaction_edge_dim
+        if use_intermediate_layers:
+            w_input_dim *= L_ec + 1
+        print(f"{w_input_dim:=}, {L_ec:=}")
+        self.W = MLP(input_size=w_input_dim, output_size=1, hidden_dim=hidden_dim, L=3)
+        self._use_intermediate_layers = use_intermediate_layers
 
     def forward(
         self,
@@ -115,10 +122,16 @@ class ECForGraphTCN(nn.Module):
         x, edge_index, edge_attr = data.x, data.edge_index, data.edge_attr
         h_ec = self.relu(self.ec_node_encoder(x))
         edge_attr_ec = self.relu(self.ec_edge_encoder(edge_attr))
-        _, edge_attr_ec, *_ = self.ec_resin(h_ec, edge_index, edge_attr_ec)
+        _, edge_attr_ec, _, edge_attrs_ec = self.ec_resin(
+            h_ec, edge_index, edge_attr_ec
+        )
 
         # append edge weights as new edge features
-        edge_weights = torch.sigmoid(self.W(edge_attr_ec))
+        w_input = edge_attr_ec
+        if self._use_intermediate_layers:
+            w_input = torch.cat(edge_attrs_ec, dim=1)
+        print("W input", w_input.shape, edge_attrs_ec[0].shape, len(edge_attrs_ec))
+        edge_weights = torch.sigmoid(self.W(w_input))
         return edge_weights
 
 

@@ -100,6 +100,7 @@ class Skip1ResidualNetwork(ResidualNetwork):
                 alpha_residue=self._alpha_edge,
             )
             xs.append(x)
+            edge_attrs.append(edge_attr)
         return x, edge_attr, xs, edge_attrs
 
 
@@ -159,6 +160,8 @@ class Skip2ResidualNetwork(ResidualNetwork):
             edge_attr = convex_combination(
                 delta=delta_edge_attr, residue=edge_attr, alpha_residue=self._alpha_edge
             )
+            xs.append(x)
+            edge_attrs.append(edge_attr)
         return x, edge_attr, xs, edge_attrs
 
 
