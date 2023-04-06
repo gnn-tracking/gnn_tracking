@@ -59,9 +59,10 @@ class ECForGraphTCN(nn.Module):
         interaction_edge_dim=4,
         hidden_dim=40,
         L_ec=3,
-        alpha_ec: float = 0.5,
+        alpha_ec_node: float = 0.5,
+        alpha_ec_edge: float = 0.0,
         residual_type="skip1",
-        use_intermediate_layers: bool = True,
+        use_intermediate_encodings: bool = True,
         residual_kwargs: dict | None = None,
     ):
         """Edge classification step to be used for Graph Track Condensor network
@@ -81,9 +82,9 @@ class ECForGraphTCN(nn.Module):
             L_ec: message passing depth for edge classifier
             alpha_ec: strength of residual connection for EC
             residual_type: type of residual connection for EC
-            use_intermediate_layers: If true, don't only feed the final layer of the
-                stacked interaction networks to the final MLP, but all intermediate
-                output
+            use_intermediate_encodings: If true, don't only feed the final encoding of
+                the stacked interaction networks to the final MLP, but all intermediate
+                encodings
             residual_kwargs: Keyword arguments passed to `ResIN`
         """
         super().__init__()
@@ -102,18 +103,18 @@ class ECForGraphTCN(nn.Module):
             edge_dim=interaction_edge_dim,
             object_hidden_dim=hidden_dim,
             relational_hidden_dim=hidden_dim,
-            alpha_node=alpha_ec,
-            alpha_edge=alpha_ec,
+            alpha_node=alpha_ec_node,
+            alpha_edge=alpha_ec_edge,
             n_layers=L_ec,
             residual_type=residual_type,
             residual_kwargs=residual_kwargs,
         )
 
         w_input_dim = interaction_edge_dim
-        if use_intermediate_layers:
+        if use_intermediate_encodings:
             w_input_dim = self.ec_resin.concat_edge_embeddings_length
         self.W = MLP(input_size=w_input_dim, output_size=1, hidden_dim=hidden_dim, L=3)
-        self._use_intermediate_layers = use_intermediate_layers
+        self._use_intermediate_encodings = use_intermediate_encodings
 
     def forward(
         self,
@@ -129,7 +130,7 @@ class ECForGraphTCN(nn.Module):
 
         # append edge weights as new edge features
         w_input = edge_attr_ec
-        if self._use_intermediate_layers:
+        if self._use_intermediate_encodings:
             w_input = torch.cat(edge_attrs_ec, dim=1)
         edge_weights = torch.sigmoid(self.W(w_input))
         return edge_weights
