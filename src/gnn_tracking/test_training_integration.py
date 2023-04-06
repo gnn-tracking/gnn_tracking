@@ -42,6 +42,14 @@ _test_train_test_cases = [
     ),
     TestTrainCase(
         "pretrainedec",
+        ec_params=dict(residual_type="skip2"),
+    ),
+    TestTrainCase(
+        "pretrainedec",
+        ec_params=dict(residual_type="skip_top"),
+    ),
+    TestTrainCase(
+        "pretrainedec",
         ec_params=dict(use_intermediate_layers=False),
     ),
     TestTrainCase(
