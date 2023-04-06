@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+from dataclasses import dataclass
 from functools import partial
+from typing import Any
 
 import pytest
 
@@ -21,17 +23,37 @@ from gnn_tracking.training.dynamiclossweights import NormalizeAt
 from gnn_tracking.training.tcn_trainer import TCNTrainer, TrainingTruthCutConfig
 from gnn_tracking.utils.seeds import fix_seeds
 
+
+@dataclass
+class TestTrainCase:
+    model: str = "graphtcn"
+    loss_weights: str = "default"
+    ec_params: dict[str, Any] | None = None
+
+    def __post_init__(self):
+        if self.ec_params is None:
+            self.ec_params = {}
+
+
 _test_train_test_cases = [
-    ("graphtcn", "default"),
-    ("graphtcn", "auto"),
-    ("graphtcn", "default"),
-    ("pretrainedec", "default"),
-    ("perfectec", "default"),
+    TestTrainCase(
+        "graphtcn",
+    ),
+    TestTrainCase("graphtcn", loss_weights="auto"),
+    TestTrainCase(
+        "graphtcn",
+    ),
+    TestTrainCase(
+        "pretrainedec",
+    ),
+    TestTrainCase(
+        "perfectec",
+    ),
 ]
 
 
-@pytest.mark.parametrize("model,loss_weights", _test_train_test_cases)
-def test_train(tmp_path, built_graphs, model: str, loss_weights: str) -> None:
+@pytest.mark.parametrize("t", _test_train_test_cases)
+def test_train(tmp_path, built_graphs, t: TestTrainCase) -> None:
     fix_seeds()
     _, graph_builder = built_graphs
     g = graph_builder.data_list[0]
@@ -55,9 +77,17 @@ def test_train(tmp_path, built_graphs, model: str, loss_weights: str) -> None:
         "background": BackgroundLoss(sb=sb),
     }
 
+    _loss_weights = None
+    if t.loss_weights == "default":
+        _loss_weights = None
+    elif t.loss_weights == "auto":
+        _loss_weights = NormalizeAt(at=[0])
+    else:
+        raise ValueError()
+
     # set up a model and trainer
-    if model == "graphtcn":
-        model_ = GraphTCN(
+    if t.model == "graphtcn":
+        model = GraphTCN(
             node_indim,
             edge_indim,
             h_dim=2,
@@ -65,22 +95,23 @@ def test_train(tmp_path, built_graphs, model: str, loss_weights: str) -> None:
             L_ec=2,
             L_hc=2,
         )
-    elif model == "pretrainedec":
+    elif t.model == "pretrainedec":
         ec = ECForGraphTCN(
             node_indim=node_indim,
             edge_indim=edge_indim,
             hidden_dim=2,
             L_ec=2,
+            **t.ec_params,
         )
-        model_ = PreTrainedECGraphTCN(
+        model = PreTrainedECGraphTCN(
             ec,
             node_indim=node_indim,
             edge_indim=edge_indim,
             hidden_dim=2,
             L_hc=2,
         )
-    elif model == "perfectec":
-        model_ = PerfectECGraphTCN(
+    elif t.model == "perfectec":
+        model = PerfectECGraphTCN(
             node_indim=node_indim,
             edge_indim=edge_indim,
             hidden_dim=2,
@@ -89,18 +120,10 @@ def test_train(tmp_path, built_graphs, model: str, loss_weights: str) -> None:
             ec_tnr=0.4,
         )
     else:
-        raise ValueError(f"Unknown model type {model}")
-
-    _loss_weights = None
-    if loss_weights == "default":
-        _loss_weights = None
-    elif loss_weights == "auto":
-        _loss_weights = NormalizeAt(at=[0])
-    else:
-        raise ValueError()
+        raise ValueError(f"Unknown model type {t.model}")
 
     trainer = TCNTrainer(
-        model=model_,
+        model=model,
         loaders=loaders,
         loss_functions=loss_functions,
         lr=0.0001,
