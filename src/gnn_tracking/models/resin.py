@@ -1,3 +1,5 @@
+"""Deep stacked interaction networks with residual connections"""
+
 from __future__ import annotations
 
 import math
@@ -52,7 +54,8 @@ class ResidualNetwork(ABC, nn.Module):
         This is an abstract base class that does not contain code for the type of
         residual connections.
 
-        Use one of the subclasses below.
+        Use one of the subclasses below or use `ResIN` (a convenience wrapper around
+        the subclasses for layers of identical INs).
 
         Args:
             layers: List of layers
@@ -85,6 +88,12 @@ class ResidualNetwork(ABC, nn.Module):
 
 
 class Skip1ResidualNetwork(ResidualNetwork):
+    def __init__(self, *args, **kwargs):
+        """A residual network in which any two successive layers are connected by a
+        residual connection.
+        """
+        super().__init__(*args, **kwargs)
+
     def _forward(self, x, edge_index, edge_attr) -> tuple[T, T, list[T], list[T]]:
         xs = [x]
         edge_attrs = [edge_attr]
@@ -115,7 +124,8 @@ class Skip2ResidualNetwork(ResidualNetwork):
         add_bn: bool = False,
         **kwargs,
     ):
-        """Residual network with skip connections every two layers.
+        """A residual network built from blocks of two layers. Each of these blocks
+        is connected to its predecessor by a residual connection.
 
         Args:
             layers: List of layers
