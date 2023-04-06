@@ -109,7 +109,10 @@ class ECForGraphTCN(nn.Module):
 
         w_input_dim = interaction_edge_dim
         if use_intermediate_layers:
-            w_input_dim *= L_ec + 1
+            if residual_type != "skip2":
+                w_input_dim *= L_ec + 1
+            else:
+                w_input_dim *= L_ec // 2 + 1
         print(f"{w_input_dim:=}, {L_ec:=}")
         self.W = MLP(input_size=w_input_dim, output_size=1, hidden_dim=hidden_dim, L=3)
         self._use_intermediate_layers = use_intermediate_layers
