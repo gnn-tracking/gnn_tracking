@@ -205,6 +205,7 @@ def _condensation_loss(
 ) -> dict[str, T]:
     """Extracted function for JIT-compilation. See `PotentialLoss` for details."""
     pids = torch.unique(particle_id[particle_id > 0])
+    assert len(pids) > 0, "No particles found, cannot evaluate loss"
     # n_nodes x n_pids
     pid_masks = particle_id[:, None] == pids[None, :]  # type: ignore
 
@@ -267,6 +268,8 @@ class PotentialLoss(torch.nn.Module):
         reconstructable = reconstructable[ec_hit_mask]
         track_params = track_params[ec_hit_mask]
         mask = (reconstructable > 0) & (track_params > self.pt_thld)
+        # If there are no hits left after masking, then we get a NaN loss.
+        assert mask.sum() > 0, "No hits left after masking"
         return _condensation_loss(
             beta=beta,
             x=x,
