@@ -327,7 +327,9 @@ class TCNTrainer:
             for k in individual_losses
         )
         if torch.isnan(total):
-            raise RuntimeError("NaN loss encountered in test step")
+            raise RuntimeError(
+                f"NaN loss encountered in test step. {individual_losses=}."
+            )
         return total, individual_losses
 
     def _log_losses(
