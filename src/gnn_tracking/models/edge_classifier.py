@@ -64,6 +64,7 @@ class ECForGraphTCN(nn.Module):
         residual_type="skip1",
         use_intermediate_encodings: bool = True,
         residual_kwargs: dict | None = None,
+        feed_node_attributes: bool = True,
     ):
         """Edge classification step to be used for Graph Track Condensor network
         (Graph TCN)
@@ -86,6 +87,8 @@ class ECForGraphTCN(nn.Module):
                 the stacked interaction networks to the final MLP, but all intermediate
                 encodings
             residual_kwargs: Keyword arguments passed to `ResIN`
+            feed_node_attributes: If true, feed node attributes to the final MLP for
+                EC
         """
         super().__init__()
         if residual_kwargs is None:
@@ -113,8 +116,12 @@ class ECForGraphTCN(nn.Module):
         w_input_dim = interaction_edge_dim
         if use_intermediate_encodings:
             w_input_dim = self.ec_resin.concat_edge_embeddings_length
+        if feed_node_attributes:
+            w_input_dim += interaction_node_dim * 2
+        print(f"{w_input_dim=}")
         self.W = MLP(input_size=w_input_dim, output_size=1, hidden_dim=hidden_dim, L=3)
         self._use_intermediate_encodings = use_intermediate_encodings
+        self._feed_node_attributes = feed_node_attributes
 
     def forward(
         self,
@@ -124,7 +131,7 @@ class ECForGraphTCN(nn.Module):
         x, edge_index, edge_attr = data.x, data.edge_index, data.edge_attr
         h_ec = self.relu(self.ec_node_encoder(x))
         edge_attr_ec = self.relu(self.ec_edge_encoder(edge_attr))
-        _, edge_attr_ec, _, edge_attrs_ec = self.ec_resin(
+        h_ec, edge_attr_ec, _, edge_attrs_ec = self.ec_resin(
             h_ec, edge_index, edge_attr_ec
         )
 
@@ -132,6 +139,10 @@ class ECForGraphTCN(nn.Module):
         w_input = edge_attr_ec
         if self._use_intermediate_encodings:
             w_input = torch.cat(edge_attrs_ec, dim=1)
+        if self._feed_node_attributes:
+            h_ec_0 = h_ec[edge_index[0]]
+            h_ec_1 = h_ec[edge_index[1]]
+            w_input = torch.cat([h_ec_0, h_ec_1, w_input], dim=1)
         edge_weights = torch.sigmoid(self.W(w_input))
         return edge_weights
 
