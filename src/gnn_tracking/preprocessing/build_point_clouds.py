@@ -1,20 +1,52 @@
+"""Build point clouds.
+
+Expected run time: ~1s / file for 32 sectors and pixel only.
+One stream has ~900 files.
+"""
+
 from __future__ import annotations
 
+import argparse
 import logging
 import os
 
 from point_cloud_builder import PointCloudBuilder
 
-# configure initial params
-idx = int(os.environ["SLURM_ARRAY_TASK_ID"])
-indir = "/tigress/jdezoort/codalab/train_1"
-outdir = "/tigress/jdezoort/object_condensation/point_clouds"
+
+def get_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(description="Build point clouds")
+    parser.add_argument(
+        "--indir",
+        type=str,
+        help="Input directory",
+    )
+    parser.add_argument(
+        "--outdir",
+        type=str,
+        help="Output directory",
+    )
+    default_start = int(os.environ.get("SLURM_ARRAY_TASK_ID", 0))
+    parser.add_argument(
+        "--start",
+        type=int,
+        default=default_start,
+        help="We'll start at this value * batch size. Default will be slurm array"
+        " index, if available, else 0.",
+    )
+    parser.add_argument(
+        "--batch-size",
+        type=int,
+        default=1,
+        help="Number of files to process. If set to 0: process all.",
+    )
+    return parser
 
 
 if __name__ == "__main__":
+    args = get_parser().parse_args()
     pc_builder = PointCloudBuilder(
-        indir=indir,
-        outdir=outdir,
+        indir=args.indir,
+        outdir=args.outdir,
         n_sectors=32,
         pixel_only=True,
         redo=True,
@@ -25,4 +57,8 @@ if __name__ == "__main__":
         log_level=logging.WARNING,
         collect_data=False,
     )
-    pc_builder.process(start=idx, stop=idx + 1)
+    start = args.start * args.batch_size
+    stop = None
+    if args.batch_size > 0:
+        stop = start + args.batch_size
+    pc_builder.process(start=start, stop=stop)
