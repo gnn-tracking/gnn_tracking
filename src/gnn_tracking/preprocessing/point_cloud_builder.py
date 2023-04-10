@@ -34,7 +34,7 @@ class PointCloudBuilder:
         thld: float = 0.5,
         remove_noise: bool = False,
         write_output: bool = True,
-        log_level: bool = logging.INFO,
+        log_level=logging.INFO,
         collect_data: bool = True,
         feature_names: tuple = ("r", "phi", "z", "eta_rz", "u", "v", "charge_frac"),
         feature_scale: tuple = (1, 1, 1, 1, 1, 1, 1),
