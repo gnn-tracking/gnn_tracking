@@ -161,8 +161,7 @@ class ModularGraphTCN(nn.Module):
 
         Args:
             ec: Edge classifier
-            hc_in: Track condensor interaction network. Must have the
-                ``length_concatenated_edge_attrs`` attribute (see `ResIN` module)
+            hc_in: Track condensor interaction network.
             node_indim: Node feature dimension
             edge_indim: Edge feature dimension
             h_dim: node dimension in the condensation interaction networks
@@ -271,7 +270,7 @@ class GraphTCN(nn.Module):
         alpha_hc: float = 0.5,
         feed_edge_weights=False,
     ):
-        """Particular implementation of `ModularTCN` with `ECForGraphTCN` as
+        """`ModularTCN` with `ECForGraphTCN` as
         edge classification step and several interaction networks as residual layers
         for the track condensor network.
 
