@@ -54,7 +54,13 @@ _test_train_test_cases = [
     ),
     TestTrainCase(
         "pretrainedec",
-        ec_params=dict(use_intermediate_edge_embeddings=False),
+        ec_params=dict(
+            use_intermediate_edge_embeddings=False, use_node_embedding=False
+        ),
+    ),
+    TestTrainCase(
+        "pretrainedec",
+        ec_params=dict(use_node_embedding=False),
     ),
     TestTrainCase(
         "perfectec",
