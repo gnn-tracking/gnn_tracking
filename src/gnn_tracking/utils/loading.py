@@ -5,7 +5,6 @@ import os
 from pathlib import Path
 from typing import Any
 
-import sklearn.model_selection
 import torch
 from torch_geometric.data import Data, Dataset, InMemoryDataset
 from torch_geometric.loader import DataLoader
@@ -13,35 +12,7 @@ from torch_geometric.loader import DataLoader
 from gnn_tracking.utils.log import logger
 
 
-# todo: Can we make this accept both fracs and absolute numbers?
-def train_test_val_split(
-    data: list[Data], *, test_frac: float = 0.1, val_frac: float = 0.1
-) -> dict[str, list[Data]]:
-    """Split up data into train, test, and validation sets."""
-    assert 0 <= test_frac <= 1
-    assert 0 <= val_frac <= 1
-    if not data:
-        return {"train": [], "val": [], "test": []}
-    if test_frac + val_frac > 1:
-        raise ValueError("test_frac and val_frac must sum to less than 1")
-    rest, test_graphs = sklearn.model_selection.train_test_split(
-        data, test_size=test_frac
-    )
-    if len(rest) == 0:
-        # Avoid zero div error
-        train_graphs = []
-        val_graphs = []
-    else:
-        train_graphs, val_graphs = sklearn.model_selection.train_test_split(
-            rest, test_size=val_frac / (1 - test_frac)
-        )
-    return {
-        "train": train_graphs,
-        "val": val_graphs,
-        "test": test_graphs,
-    }
-
-
+# noinspection PyAbstractClass
 class TrackingDataset(Dataset):
     """Dataloader that works with both point cloud and graphs."""
 
@@ -106,6 +77,7 @@ class TrackingDataset(Dataset):
         return torch.load(self._processed_paths[idx])
 
 
+# noinspection PyAbstractClass
 class InMemoryTrackingDataset(InMemoryDataset, TrackingDataset):
     pass
 
