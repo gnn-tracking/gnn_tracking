@@ -191,7 +191,7 @@ class SkipTopResidualNetwork(ResidualNetwork):
         return x, edge_attr, edge_attrs
 
 
-RESIDUALNETWORKS_BY_NAME: dict[str, Any] = {
+RESIDUAL_NETWORKS_BY_NAME: dict[str, Any] = {
     "skip1": Skip1ResidualNetwork,
     "skip2": Skip2ResidualNetwork,
     "skip_top": SkipTopResidualNetwork,
@@ -244,7 +244,7 @@ class ResIN(nn.Module):
             residual_kwargs["node_dim"] = node_dim
             residual_kwargs["edge_dim"] = edge_dim
 
-        network = RESIDUALNETWORKS_BY_NAME[residual_type](
+        network = RESIDUAL_NETWORKS_BY_NAME[residual_type](
             layers,
             alpha=alpha,
             **residual_kwargs,
