@@ -1,11 +1,16 @@
 from __future__ import annotations
 
+import itertools
+import os
+from pathlib import Path
 from typing import Any
 
 import sklearn.model_selection
-from gnn_tracking_hpo.util.log import logger
-from torch_geometric.data import Data
+import torch
+from torch_geometric.data import Data, Dataset, InMemoryDataset
 from torch_geometric.loader import DataLoader
+
+from gnn_tracking.utils.log import logger
 
 
 # todo: Can we make this accept both fracs and absolute numbers?
@@ -37,8 +42,76 @@ def train_test_val_split(
     }
 
 
+class TrackingDataset(Dataset):
+    """Dataloader that works with both point cloud and graphs."""
+
+    def __init__(
+        self,
+        in_dir: str | os.PathLike | list[str] | list[os.PathLike],
+        *,
+        start=0,
+        stop=None,
+        sector: int | None = None,
+    ):
+        super().__init__()
+        self._processed_paths = self._get_paths(
+            in_dir, start=start, stop=stop, sector=sector
+        )
+
+    def _get_paths(
+        self,
+        in_dir: str | os.PathLike | list[str] | list[os.PathLike],
+        *,
+        start=0,
+        stop: int | None = None,
+        sector: int | None = None,
+    ) -> list[Path]:
+        """Collect all paths that should be in this dataset."""
+        if start == stop:
+            return []
+
+        if not isinstance(in_dir, list):
+            in_dir = [in_dir]
+        for d in in_dir:
+            if not Path(d).exists():
+                raise FileNotFoundError(f"Directory {d} does not exist.")
+        glob = "*.pt" if sector is None else f"*_s{sector}.pt"
+        available_files = sorted(
+            itertools.chain.from_iterable([Path(d).glob(glob) for d in in_dir])
+        )
+
+        if stop is not None and stop > len(available_files):
+            # to avoid tracking wrong hyperparameters
+            raise ValueError(
+                f"stop={stop} is larger than the number of files "
+                f"({len(available_files)})"
+            )
+        considered_files = available_files[start:stop]
+        logger.info(
+            "DataLoader will load %d graphs (out of %d available).",
+            len(considered_files),
+            len(available_files),
+        )
+        logger.debug(
+            "First graph is %s, last graph is %s",
+            considered_files[0],
+            considered_files[-1],
+        )
+        return considered_files
+
+    def len(self) -> int:
+        return len(self._processed_paths)
+
+    def get(self, idx: int) -> Data:
+        return torch.load(self._processed_paths[idx])
+
+
+class InMemoryTrackingDataset(InMemoryDataset, TrackingDataset):
+    pass
+
+
 def get_loaders(
-    graph_dct: dict[str, list[Data]],
+    graph_dct: dict[str, list[Data] | Dataset],
     *,
     batch_size=1,
     cpus=1,
