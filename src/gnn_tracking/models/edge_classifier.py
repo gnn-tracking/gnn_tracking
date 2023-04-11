@@ -59,8 +59,7 @@ class ECForGraphTCN(nn.Module):
         interaction_edge_dim=4,
         hidden_dim=40,
         L_ec=3,
-        alpha_ec_node: float = 0.5,
-        alpha_ec_edge: float = 0.0,
+        alpha: float = 0.5,
         residual_type="skip1",
         use_intermediate_encodings: bool = True,
         residual_kwargs: dict | None = None,
@@ -81,7 +80,7 @@ class ECForGraphTCN(nn.Module):
             hidden_dim: width of hidden layers in all perceptrons (edge and node
                 encoders, hidden dims for MLPs in object and relation networks)
             L_ec: message passing depth for edge classifier
-            alpha_ec: strength of residual connection for EC
+            alpha: strength of residual connection for EC
             residual_type: type of residual connection for EC
             use_intermediate_encodings: If true, don't only feed the final encoding of
                 the stacked interaction networks to the final MLP, but all intermediate
@@ -106,8 +105,7 @@ class ECForGraphTCN(nn.Module):
             edge_dim=interaction_edge_dim,
             object_hidden_dim=hidden_dim,
             relational_hidden_dim=hidden_dim,
-            alpha_node=alpha_ec_node,
-            alpha_edge=alpha_ec_edge,
+            alpha=alpha,
             n_layers=L_ec,
             residual_type=residual_type,
             residual_kwargs=residual_kwargs,
@@ -131,7 +129,7 @@ class ECForGraphTCN(nn.Module):
         x, edge_index, edge_attr = data.x, data.edge_index, data.edge_attr
         h_ec = self.relu(self.ec_node_encoder(x))
         edge_attr_ec = self.relu(self.ec_edge_encoder(edge_attr))
-        h_ec, edge_attr_ec, _, edge_attrs_ec = self.ec_resin(
+        h_ec, edge_attr_ec, edge_attrs_ec = self.ec_resin(
             h_ec, edge_index, edge_attr_ec
         )
 

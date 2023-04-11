@@ -237,7 +237,7 @@ class ModularGraphTCN(nn.Module):
         # apply the track condenser
         h_hc = self.relu(self.hc_node_encoder(data.x))
         edge_attr_hc = self.relu(self.hc_edge_encoder(edge_attr))
-        h_hc, _, _, edge_attrs_hc = self.hc_in(h_hc, data.edge_index, edge_attr_hc)
+        h_hc, _, edge_attrs_hc = self.hc_in(h_hc, data.edge_index, edge_attr_hc)
         beta = torch.sigmoid(self.p_beta(h_hc))
         # protect against nans
         beta = beta + torch.ones_like(beta) * 10e-9
@@ -297,7 +297,7 @@ class GraphTCN(nn.Module):
             interaction_node_dim=h_dim,
             interaction_edge_dim=e_dim,
             L_ec=L_ec,
-            alpha_ec_node=alpha_ec,
+            alpha=alpha_ec,
         )
         # Todo: Add other resin options
         hc_in = ResIN(
@@ -305,8 +305,7 @@ class GraphTCN(nn.Module):
             edge_dim=e_dim,
             object_hidden_dim=hidden_dim,
             relational_hidden_dim=hidden_dim,
-            alpha_node=alpha_hc,
-            alpha_edge=alpha_hc,
+            alpha=alpha_hc,
             n_layers=L_hc,
         )
         self._gtcn = ModularGraphTCN(
@@ -369,8 +368,7 @@ class PerfectECGraphTCN(nn.Module):
             edge_dim=e_dim,
             object_hidden_dim=hidden_dim,
             relational_hidden_dim=hidden_dim,
-            alpha_node=alpha_hc,
-            alpha_edge=alpha_hc,
+            alpha=alpha_hc,
             n_layers=L_hc,
         )
         self._gtcn = ModularGraphTCN(
@@ -428,8 +426,7 @@ class PreTrainedECGraphTCN(nn.Module):
             edge_dim=e_dim,
             object_hidden_dim=hidden_dim,
             relational_hidden_dim=hidden_dim,
-            alpha_node=alpha_hc,
-            alpha_edge=alpha_hc,
+            alpha=alpha_hc,
             n_layers=L_hc,
         )
         self._gtcn = ModularGraphTCN(
