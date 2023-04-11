@@ -305,11 +305,6 @@ class PointCloudBuilder:
         Returns:
 
         """
-        if stop is not None and stop > len(self.prefixes):
-            # to avoid tracking wrong hyperparameters
-            raise ValueError(
-                f"stop={stop} is larger than the number of files ({len(self.prefixes)})"
-            )
         for f in self.prefixes[start:stop]:
             self.logger.debug(f"Processing {f}")
 
