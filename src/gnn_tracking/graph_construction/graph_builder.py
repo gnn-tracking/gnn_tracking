@@ -406,12 +406,6 @@ class GraphBuilder:
         """
         available_files = list(self.indir.iterdir())
         outfiles = [child.name for child in self.outdir.iterdir()]
-        if stop is not None and stop > len(available_files):
-            # to avoid tracking wrong hyperparameters
-            raise ValueError(
-                f"stop={stop} is larger than the number of files "
-                f"({len(available_files)})"
-            )
         considered_files = available_files[start:stop]
         logger.info(
             "Loading %d graphs (out of %d available).",
