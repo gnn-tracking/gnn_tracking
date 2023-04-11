@@ -124,7 +124,6 @@ class ECForGraphTCN(nn.Module):
         self,
         data: Data,
     ) -> Tensor:
-        # apply the edge classifier to generate edge weights
         x, edge_index, edge_attr = data.x, data.edge_index, data.edge_attr
         h_ec = self.relu(self.ec_node_encoder(x))
         edge_attr_ec = self.relu(self.ec_edge_encoder(edge_attr))
@@ -132,7 +131,6 @@ class ECForGraphTCN(nn.Module):
             h_ec, edge_index, edge_attr_ec
         )
 
-        # append edge weights as new edge features
         w_input = edge_attr_ec
         if self._use_intermediate_edge_embeddings:
             w_input = torch.cat(edge_attrs_ec, dim=1)
