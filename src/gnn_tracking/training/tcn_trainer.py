@@ -145,9 +145,9 @@ class TCNTrainer:
         #: Checkpoints are saved to this directory by default
         self.checkpoint_dir = Path(".")
         self.model = model.to(self.device)
-        self.train_loader = loaders["train"]
-        self.test_loader = loaders["test"]
-        self.val_loader = loaders["val"]
+        self.train_loader = loaders.get("train", None)
+        self.test_loader = loaders.get("test", None)
+        self.val_loader = loaders.get("val", None)
 
         self.loss_functions = {k: v.to(self.device) for k, v in loss_functions.items()}
         if cluster_functions is None:
@@ -401,6 +401,7 @@ class TCNTrainer:
         self.model.train()
         _losses = collections.defaultdict(list)
         n_oom_errors_in_a_row = 0
+        assert self.train_loader is not None
         for batch_idx, data in enumerate(self.train_loader):
             if max_batches and batch_idx > max_batches:
                 break
@@ -492,6 +493,7 @@ class TCNTrainer:
 
         batch_metrics = collections.defaultdict(list)
         loader = self.val_loader if val else self.test_loader
+        assert loader is not None
         for _batch_idx, data in enumerate(loader):
             if max_batches and _batch_idx > max_batches:
                 break
