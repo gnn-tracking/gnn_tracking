@@ -1,10 +1,7 @@
 from __future__ import annotations
 
-import itertools
 import logging
 import os
-import traceback
-from multiprocessing.pool import ThreadPool
 from pathlib import Path
 
 import numpy as np
@@ -467,87 +464,3 @@ class GraphBuilder:
 
         if self.measurement_mode:
             self.logger.info(self.get_measurements())
-
-
-# Implementation note: Don't inline in `load_graphs` function, because then it
-# cannot be pickled anymore.
-def _load_graph(f: Path) -> Data | None:
-    """Load a single file. See usage in `load_graphs` for details."""
-    try:
-        data = torch.load(f)
-    except Exception:
-        tb = traceback.format_exc()
-        logger.error(f"Failed to load {f}, we're simply ignoring this for now:\n{tb}")
-        return None
-    else:
-        return data
-
-
-def load_graphs(
-    in_dir: str | os.PathLike | list[str] | list[os.PathLike],
-    *,
-    start=0,
-    stop=None,
-    sector: int | None = None,
-    n_processes=1,
-) -> list[Data]:
-    """Load graphs.
-
-    Args:
-        in_dir: Directory or multiple directories that contains the graphs
-        start: First graph to load. This doesn't reference the event ID of the graph,
-            but sorts all files in the directory and takes the ``start``-th file.
-            If multiple directories are given, this is applied to the merged list of
-            paths.
-        stop: Last graph to load. See ``start`` for details.
-        sector: If specified, only files with the given sector are loaded (and
-            ``start``, ``stop`` are applied after this selection)
-        n_processes: Use multi-process loader with this many processes
-
-    Returns:
-
-    """
-    if start == stop:
-        return []
-
-    if n_processes == 1:
-        logger.warning(
-            "Only using one process to load graphs to CPU memory. This might be slow."
-        )
-
-    glob = "*.pt" if sector is None else f"*_s{sector}.pt"
-
-    if not isinstance(in_dir, list):
-        in_dir = [in_dir]
-
-    for d in in_dir:
-        if not Path(d).exists():
-            raise FileNotFoundError(f"Directory {d} does not exist.")
-    available_files = sorted(
-        itertools.chain.from_iterable([Path(d).glob(glob) for d in in_dir])
-    )
-
-    if stop is not None and stop > len(available_files):
-        # to avoid tracking wrong hyperparameters
-        raise ValueError(
-            f"stop={stop} is larger than the number of files ({len(available_files)})"
-        )
-    considered_files = available_files[start:stop]
-    logger.info(
-        "Loading %d graphs (out of %d available).",
-        len(considered_files),
-        len(available_files),
-    )
-    logger.debug(
-        "First graph is %s, last graph is %s",
-        considered_files[0].name,
-        considered_files[-1].name,
-    )
-
-    if n_processes == 1 or len(considered_files) == 1:
-        ret = [_load_graph(f) for f in considered_files]
-    else:
-        with ThreadPool(min(n_processes, len(considered_files))) as pool:
-            ret = pool.map(_load_graph, considered_files)
-
-    return [r for r in ret if r is not None]
