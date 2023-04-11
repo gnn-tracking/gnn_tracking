@@ -355,7 +355,8 @@ class PointCloudBuilder:
                     outfile = self.outdir / name
                     if self.write_output:
                         torch.save(sector, outfile)
-                    self.data_list.append(sector)
+                    if self._collect_data:
+                        self.data_list.append(sector)
                     self.logger.debug(f"wrote {outfile}")
 
             self.stats[evtid] = {

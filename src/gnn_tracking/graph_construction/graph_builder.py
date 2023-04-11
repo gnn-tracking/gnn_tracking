@@ -468,7 +468,8 @@ class GraphBuilder:
             self.logger.debug(f"Writing {outfile}")
             if self.write_output:
                 torch.save(graph, outfile)
-            self._data_list.append(graph)
+            if self._collect_data:
+                self._data_list.append(graph)
 
         if self.measurement_mode:
             self.logger.info(self.get_measurements())
