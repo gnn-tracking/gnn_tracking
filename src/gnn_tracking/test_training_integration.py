@@ -23,10 +23,13 @@ class TestTrainCase:
     model: str = "graphtcn"
     loss_weights: str = "default"
     ec_params: dict[str, Any] | None = None
+    tc_params: dict[str, Any] | None = None
 
     def __post_init__(self):
         if self.ec_params is None:
             self.ec_params = {}
+        if self.tc_params is None:
+            self.tc_params = {}
 
 
 _test_train_test_cases = [
@@ -36,6 +39,14 @@ _test_train_test_cases = [
     TestTrainCase("graphtcn", loss_weights="auto"),
     TestTrainCase(
         "graphtcn",
+    ),
+    TestTrainCase(
+        "graphtcn",
+        tc_params=dict(mask_orphan_nodes=True),
+    ),
+    TestTrainCase(
+        "graphtcn",
+        tc_params=dict(mask_orphan_nodes=True, use_ec_embeddings_for_hc=True),
     ),
     TestTrainCase(
         "pretrainedec",
@@ -61,6 +72,10 @@ _test_train_test_cases = [
     TestTrainCase(
         "pretrainedec",
         ec_params=dict(use_node_embedding=False),
+    ),
+    TestTrainCase(
+        "pretrainedec",
+        tc_params=dict(use_ec_embeddings_for_hc=True),
     ),
     TestTrainCase(
         "perfectec",
@@ -102,6 +117,7 @@ def test_train(tmp_path, built_graphs, t: TestTrainCase) -> None:
             hidden_dim=2,
             L_ec=2,
             L_hc=2,
+            **t.tc_params,
         )
     elif t.model == "pretrainedec":
         ec = ECForGraphTCN(
@@ -117,6 +133,7 @@ def test_train(tmp_path, built_graphs, t: TestTrainCase) -> None:
             edge_indim=edge_indim,
             hidden_dim=2,
             L_hc=2,
+            **t.tc_params,
         )
     elif t.model == "perfectec":
         model = PerfectECGraphTCN(
@@ -126,6 +143,7 @@ def test_train(tmp_path, built_graphs, t: TestTrainCase) -> None:
             L_hc=2,
             ec_tpr=0.8,
             ec_tnr=0.4,
+            **t.tc_params,
         )
     else:
         raise ValueError(f"Unknown model type {t.model}")
