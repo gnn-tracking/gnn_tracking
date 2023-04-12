@@ -12,6 +12,10 @@
 #SBATCH --output=build-point-clouds-%j-%a.log
 #SBATCH --array=0-4                   # total jobs in array
 
+# bash strict mode
+set -euo pipefail
+IFS=$'\n\t'
+
 #module purge
 #module load anaconda3
 #conda activate pyg2

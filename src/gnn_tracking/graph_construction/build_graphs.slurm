@@ -12,6 +12,10 @@
 #SBATCH --output=build-graphs-%j-%a.log
 #SBATCH --array=0-4                    # total jobs in array
 
+# bash strict mode
+set -euo pipefail
+IFS=$'\n\t'
+
 #module purge
 #module load anaconda3
 #conda activate pyg2
@@ -30,3 +34,5 @@ python build_graphs.py \
   --indir /scratch/gpfs/IOJALVO/gnn-tracking/object_condensation/point_clouds_v1/part_${PART} \
   --outdir /scratch/gpfs/IOJALVO/gnn-tracking/object_condensation/graphs_v1/part_${PART} \
   --batch-size 7000
+
+echo "Finished"
