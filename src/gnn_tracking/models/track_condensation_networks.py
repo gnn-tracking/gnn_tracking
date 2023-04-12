@@ -155,6 +155,7 @@ class ModularGraphTCN(nn.Module):
         feed_edge_weights=False,
         ec_threshold=0.5,
         mask_orphan_nodes=False,
+        use_ec_embeddings_for_hc=False,
     ):
         """General form of track condensation network based on preconstructed graphs
         with initial step of edge classification (passed as a parameter).
@@ -171,6 +172,9 @@ class ModularGraphTCN(nn.Module):
             feed_edge_weights: whether to feed edge weights to the track condenser
             ec_threshold: threshold for edge classification
             mask_orphan_nodes: Mask nodes with no connections after EC
+            use_ec_embeddings_for_hc: Use edge classifier embeddings as input to
+                track condenser. This currently assumes that h_dim and e_dim are
+                also the dimensions used in the EC.
         """
         super().__init__()
         self.relu = nn.ReLU()
@@ -180,13 +184,20 @@ class ModularGraphTCN(nn.Module):
         #: Track condensation network (usually made up of interaction networks)
         self.hc_in = hc_in
 
+        if use_ec_embeddings_for_hc:
+            node_enc_indim = node_indim + h_dim
+            edge_enc_indim = edge_indim + e_dim
+        else:
+            node_enc_indim = node_indim
+            edge_enc_indim = edge_indim + int(feed_edge_weights)
+
         #: Node encoder network for track condenser
         self.hc_node_encoder = MLP(
-            node_indim, h_dim, hidden_dim=hidden_dim, L=2, bias=False
+            node_enc_indim, h_dim, hidden_dim=hidden_dim, L=2, bias=False
         )
         #: Edge encoder network for track condenser
         self.hc_edge_encoder = MLP(
-            edge_indim + int(feed_edge_weights),
+            edge_enc_indim,
             e_dim,
             hidden_dim=hidden_dim,
             L=2,
@@ -209,13 +220,18 @@ class ModularGraphTCN(nn.Module):
         self._feed_edge_weights = feed_edge_weights
         self.threshold = ec_threshold
         self._mask_orphan_nodes = mask_orphan_nodes
+        self._use_ec_embeddings_for_hc = use_ec_embeddings_for_hc
 
     def forward(
         self,
         data: Data,
     ) -> dict[str, Tensor]:
-        # Assign it to the data object, so that the cuts will be applied to it as well
-        data.edge_weights = self.ec(data)["W"]
+        ec_result = self.ec(data)
+        # Assign all EC  output to the data object, so that the cuts
+        # will be applied automatically when we call `data.subgraph(...)` etc.
+        data.edge_weights = ec_result["W"]
+        data.ec_node_embedding = ec_result.get("node_embedding", None)
+        data.ec_edge_embedding = ec_result.get("edge_embedding", None)
         edge_weights_unmasked = data.edge_weights.clone().detach()
         edge_mask = (data.edge_weights > self.threshold).squeeze()
         data = edge_subgraph(data, edge_mask)
@@ -229,14 +245,19 @@ class ModularGraphTCN(nn.Module):
                 data.num_nodes, dtype=torch.bool, device=data.x.device
             )
 
+        # Get the encoded inputs for the track condenser
         edge_attr = data.edge_attr
+        x = data.x
         if self._feed_edge_weights:
             edge_attr = torch.concat([data.edge_attr, data.edge_weights], dim=1)
-
-        # apply the track condenser
-        h_hc = self.relu(self.hc_node_encoder(data.x))
+        if self._use_ec_embeddings_for_hc:
+            edge_attr = torch.cat([edge_attr, data.ec_edge_embedding], dim=1)
+            x = torch.cat([x, data.ec_node_embedding], dim=1)
+        h_hc = self.relu(self.hc_node_encoder(x))
         edge_attr_hc = self.relu(self.hc_edge_encoder(edge_attr))
-        h_hc, _, edge_attrs_hc = self.hc_in(h_hc, data.edge_index, edge_attr_hc)
+
+        # Run the track condenser
+        h_hc, _, _ = self.hc_in(h_hc, data.edge_index, edge_attr_hc)
         beta = torch.sigmoid(self.p_beta(h_hc))
         # protect against nans
         beta = beta + torch.ones_like(beta) * 10e-9
@@ -268,7 +289,7 @@ class GraphTCN(nn.Module):
         L_hc=3,
         alpha_ec: float = 0.5,
         alpha_hc: float = 0.5,
-        feed_edge_weights=False,
+        **kwargs,
     ):
         """`ModularTCN` with `ECForGraphTCN` as
         edge classification step and several interaction networks as residual layers
@@ -287,6 +308,7 @@ class GraphTCN(nn.Module):
                 networks in edge classifier
             alpha_hc: strength of residual connection for multi-layer interaction
                 networks in track condenser
+            **kwargs: Additional keyword arguments passed to `ModularGraphTCN`
         """
         super().__init__()
         ec = ECForGraphTCN(
@@ -316,7 +338,7 @@ class GraphTCN(nn.Module):
             e_dim=e_dim,
             h_outdim=h_outdim,
             hidden_dim=hidden_dim,
-            feed_edge_weights=feed_edge_weights,
+            **kwargs,
         )
 
     def forward(
