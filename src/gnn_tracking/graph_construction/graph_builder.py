@@ -421,12 +421,12 @@ class GraphBuilder:
                 raise ValueError(f"{f.name} is not a valid file name") from e
             if only_sector >= 0 and sector != only_sector:
                 continue
-            if self._collect_data:
-                # Deprecated, remove soon
-                if f.name in outfiles and not self.redo:
+            if f.name in outfiles and not self.redo:
+                if self._collect_data:
+                    # Deprecated, remove soon
                     graph = torch.load(self.outdir / f.name)
                     self._data_list.append(graph)
-                    continue
+                continue
             self.logger.debug(f"Processing {f.name}")
             graph = torch.load(f)
             df = self.get_dataframe(graph, evtid)
