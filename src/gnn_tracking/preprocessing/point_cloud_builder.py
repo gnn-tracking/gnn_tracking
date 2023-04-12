@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import collections
 import logging
+import traceback
 from pathlib import Path, PurePath
 from typing import Any
 
@@ -294,14 +295,20 @@ class PointCloudBuilder:
             output[var + "_err"] = stds[var]
         return output
 
-    def process(self, start: int | None = None, stop: int | None = None):
+    def process(
+        self,
+        start: int | None = None,
+        stop: int | None = None,
+        ignore_loading_errors=False,
+    ):
         """Process input files from self.input_files and write output files to
         self.output_files
 
         Args:
-            n: Number of events to process
-            verbose:
-
+            start: index of first file to process
+            stop: index of last file to process (or None). Can be higher than total
+                number of files.
+            ignore_loading_errors: if True, ignore errors when loading event
         Returns:
 
         """
@@ -309,9 +316,17 @@ class PointCloudBuilder:
             self.logger.debug(f"Processing {f}")
 
             evtid = int(f.name[-9:])
-            hits, particles, truth, cells = load_event(
-                f, parts=["hits", "particles", "truth", "cells"]
-            )
+
+            try:
+                hits, particles, truth, cells = load_event(
+                    f, parts=["hits", "particles", "truth", "cells"]
+                )
+            except Exception:
+                if ignore_loading_errors:
+                    self.logger.error("Error loading event %d", evtid)
+                    self.logger.error(traceback.format_exc())
+                    continue
+                raise
 
             hits = self.restrict_to_subdetectors(hits)
             hits = self.append_features(hits, particles, truth, cells)
