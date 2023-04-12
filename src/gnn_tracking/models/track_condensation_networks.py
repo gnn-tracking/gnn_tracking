@@ -157,7 +157,7 @@ class ModularGraphTCN(nn.Module):
         mask_orphan_nodes=False,
     ):
         """General form of track condensation network based on preconstructed graphs
-        with initial step of edge classification.
+        with initial step of edge classification (passed as a parameter).
 
         Args:
             ec: Edge classifier
@@ -215,7 +215,7 @@ class ModularGraphTCN(nn.Module):
         data: Data,
     ) -> dict[str, Tensor]:
         # Assign it to the data object, so that the cuts will be applied to it as well
-        data.edge_weights = self.ec(data)
+        data.edge_weights = self.ec(data)["W"]
         edge_weights_unmasked = data.edge_weights.clone().detach()
         edge_mask = (data.edge_weights > self.threshold).squeeze()
         data = edge_subgraph(data, edge_mask)

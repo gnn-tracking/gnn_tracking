@@ -123,7 +123,13 @@ class ECForGraphTCN(nn.Module):
     def forward(
         self,
         data: Data,
-    ) -> Tensor:
+    ) -> dict[str, Tensor]:
+        """Returns dictionary of the following:
+
+        * ``W``: Edge weights
+        * ``node_embedding``: Last node embedding (result of last interaction network)
+        * ``edge_embedding``: Last edge embedding (result of last interaction network)
+        """
         x, edge_index, edge_attr = data.x, data.edge_index, data.edge_attr
         h_ec = self.relu(self.ec_node_encoder(x))
         edge_attr_ec = self.relu(self.ec_edge_encoder(edge_attr))
@@ -139,7 +145,11 @@ class ECForGraphTCN(nn.Module):
             h_ec_1 = h_ec[edge_index[1]]
             w_input = torch.cat([h_ec_0, h_ec_1, w_input], dim=1)
         edge_weights = torch.sigmoid(self.W(w_input))
-        return edge_weights
+        return {
+            "W": edge_weights,
+            "node_embedding": h_ec,
+            "edge_embedding": edge_attr_ec,
+        }
 
 
 class PerfectEdgeClassification(nn.Module):
@@ -165,7 +175,7 @@ class PerfectEdgeClassification(nn.Module):
         self.tnr = tnr
         self.false_below_pt = false_below_pt
 
-    def forward(self, data: Data) -> Tensor:
+    def forward(self, data: Data) -> dict[str, Tensor]:
         r = data.y.bool()
         if not np.isclose(self.tpr, 1.0):
             true_mask = r.detach().clone()
@@ -180,4 +190,4 @@ class PerfectEdgeClassification(nn.Module):
             r[false_mask] = False
         # Return as float, because that's what a normal model would do
         # (and also what BCE expects)
-        return r.float()
+        return {"W": r.float()}
