@@ -83,7 +83,7 @@ class InMemoryTrackingDataset(InMemoryDataset, TrackingDataset):
 
 
 def get_loaders(
-    graph_dct: dict[str, list[Data] | Dataset],
+    ds_dct: dict[str, list[Data] | Dataset],
     *,
     batch_size=1,
     cpus=1,
@@ -92,7 +92,7 @@ def get_loaders(
     """Get data loaders from a dictionary of lists of input graph.
 
     Args:
-        graph_dct: Mapping from dataset name (e.g., train/test/val) to list of graphs
+        ds_dct: Mapping from dataset name (e.g., train/test/val) to list of graphs
         batch_size: Batch size for training data loaders
         other_batch_size: Batch size for data loaders other than training
         cpus: Number of CPUs for data loaders
@@ -103,20 +103,20 @@ def get_loaders(
 
     def get_params(key: str) -> dict[str, Any]:
         shuffle = key == "train"
-        if not graph_dct[key]:
+        if not ds_dct[key]:
             # Shuffle dataloader checks explicitly for empty list, so let's work
             # around that
             shuffle = False
         return {
             "batch_size": batch_size if key == "train" else other_batch_size,
-            "num_workers": max(1, min(len(graph_dct[key]), cpus)),
+            "num_workers": max(1, min(len(ds_dct[key]), cpus)),
             "shuffle": shuffle,
             "pin_memory": True,
         }
 
     loaders = {}
-    for key, graphs in graph_dct.items():
+    for key, ds in ds_dct.items():
         params = get_params(key)
         logger.debug("Parameters for data loader '%s': %s", key, params)
-        loaders[key] = DataLoader(list(graphs), **params)
+        loaders[key] = DataLoader(ds, **params)
     return loaders
