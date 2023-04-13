@@ -1,16 +1,17 @@
 name: gnn
 channels:
-  - pytorch
   - pyg
+  - pytorch
   - ostrokach-forge
   - conda-forge
-dependencies:
-  - python==3.10
-  - cudatoolkit=11.6
-  - pytorch==1.12
-  - pyg
-  - pandas
-  - numpy
   - scikit-learn
+dependencies:
+  - python >= 3.10
+  - cudatoolkit >= 11.8
+  - pytorch >= 2
+  - pyg
   - optuna
+  - numpy
+  - pandas < 2.0
+  - scikit-learn
   - pip
