@@ -9,8 +9,6 @@ dependencies:
   - python >= 3.10
   - cudatoolkit >= 11.8
   - pytorch >= 2
-  - pytorch-scatter
-  - pytorch-sparse
   - pyg
   - optuna
   - wandb
