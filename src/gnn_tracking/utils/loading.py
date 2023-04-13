@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Any
 
 import torch
+from torch.utils.data import RandomSampler
 from torch_geometric.data import Data, Dataset, InMemoryDataset
 from torch_geometric.loader import DataLoader
 
@@ -88,29 +89,38 @@ def get_loaders(
     batch_size=1,
     cpus=1,
     other_batch_size=1,
+    max_sample_size: int | None = None,
 ) -> dict[str, DataLoader]:
     """Get data loaders from a dictionary of lists of input graph.
 
     Args:
         ds_dct: Mapping from dataset name (e.g., train/test/val) to list of graphs
+            Special options apply to the 'train' key.
         batch_size: Batch size for training data loaders
         other_batch_size: Batch size for data loaders other than training
         cpus: Number of CPUs for data loaders
+        max_sample_size: Maximum size of samples to load for 'train' per epoch.
+            If None, all.
+            This doesn't mean that the data loader will only load this many samples.
+            Rather, this only affects the number of samples that are loaded per
+            epoch.
 
     Returns:
         Dictionary of data loaders
     """
 
     def get_params(key: str) -> dict[str, Any]:
-        shuffle = key == "train"
-        if not ds_dct[key]:
-            # Shuffle dataloader checks explicitly for empty list, so let's work
-            # around that
-            shuffle = False
+        sampler = None
+        if key == "train" and len(ds_dct[key]):
+            sampler = RandomSampler(
+                ds_dct[key],
+                replacement=True,
+                num_samples=max_sample_size,
+            )
         return {
             "batch_size": batch_size if key == "train" else other_batch_size,
             "num_workers": max(1, min(len(ds_dct[key]), cpus)),
-            "shuffle": shuffle,
+            "sampler": sampler,
             "pin_memory": True,
         }
 
