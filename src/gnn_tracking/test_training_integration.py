@@ -6,12 +6,7 @@ from typing import Any
 
 import pytest
 
-from gnn_tracking.metrics.losses import (
-    BackgroundLoss,
-    EdgeWeightBCELoss,
-    LossFctType,
-    PotentialLoss,
-)
+from gnn_tracking.metrics.losses import BackgroundLoss, EdgeWeightBCELoss, PotentialLoss
 from gnn_tracking.models.edge_classifier import ECForGraphTCN
 from gnn_tracking.models.track_condensation_networks import (
     GraphTCN,
@@ -70,10 +65,10 @@ def test_train(tmp_path, built_graphs, t: TestTrainCase) -> None:
     }
 
     q_min, sb = 0.01, 0.1
-    loss_functions: dict[str, LossFctType] = {
-        "edge": EdgeWeightBCELoss(),
-        "potential": PotentialLoss(q_min=q_min),
-        "background": BackgroundLoss(sb=sb),
+    loss_functions = {
+        "edge": (EdgeWeightBCELoss(), 1.0),
+        "potential": (PotentialLoss(q_min=q_min), dict(attractive=1.0, repulsive=1.0)),
+        "background": (BackgroundLoss(sb=sb), 1.0),
     }
 
     # set up a model and trainer

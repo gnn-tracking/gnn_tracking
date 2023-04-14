@@ -6,7 +6,7 @@ import os
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path, PurePath
-from typing import Any, Callable, DefaultDict, Mapping
+from typing import Any, Callable, DefaultDict
 
 import numpy as np
 import pandas as pd
@@ -23,7 +23,11 @@ from gnn_tracking.metrics.binary_classification import (
     get_maximized_bcs,
     roc_auc_score,
 )
-from gnn_tracking.metrics.losses import LossFctType
+from gnn_tracking.metrics.losses import (
+    LossFctType,
+    loss_weight_type,
+    unpack_loss_returns,
+)
 from gnn_tracking.postprocessing.clusterscanner import ClusterFctType
 from gnn_tracking.utils.device import guess_device
 from gnn_tracking.utils.dictionaries import add_key_suffix
@@ -97,13 +101,12 @@ class TCNTrainer:
         self,
         model,
         loaders: dict[str, DataLoader] | dict[str, list[Data]],
-        loss_functions: dict[str, LossFctType],
+        loss_functions: dict[str, tuple[LossFctType, loss_weight_type]],
         *,
         device=None,
         lr: Any = 5e-4,
         optimizer: Callable = Adam,
         lr_scheduler: Callable | None = None,
-        loss_weights: dict[str, float] | None = None,
         cluster_functions: dict[str, ClusterFctType] | None = None,
     ):
         """Main trainer class of the condensation network approach.
@@ -113,9 +116,13 @@ class TCNTrainer:
         ``_``.
 
         Args:
-            model:
-            loaders:
-            loss_functions: Dictionary of loss functions, keyed by loss name
+            model: The model to train
+            loaders: The data loaderes to use. The keys must be ``train``, ``test`` and
+                ``val``. The values can be either a `DataLoader` or a list of `Data`.
+            loss_functions: Dictionary of loss functions and their weights, keyed by
+                loss name. The weights can be specified as (1) float (2) list of floats
+                (if the loss function returns a list of losses) or (3) dictionary of
+                floats (if the loss function returns a dictionary of losses).
             device:
             lr: Learning rate
             optimizer: Optimizer to use (default: Adam): Function. Will be called with
@@ -123,13 +130,6 @@ class TCNTrainer:
                 rate as keyword argument (``lr``).
             lr_scheduler: Learning rate scheduler. If it needs parameters, apply
                 ``functools.partial`` first
-            loss_weights: Weight different loss functions.
-                Either `DynamicLossWeights` object or a dictionary of weights keyed by
-                loss name.
-                If a dictionary and a key is left out, the weight is set to 1.0.
-                The weights will be normalized to sum to 1.0 before use.
-                If one of the loss functions called ``l`` returns a dictionary with keys
-                k, the keys for loss_weights should be ``k_l``.
             cluster_functions: Dictionary of functions that take the output of the model
                 during testing and report additional figures of merits (e.g.,
                 clustering)
@@ -138,6 +138,8 @@ class TCNTrainer:
         self.device = guess_device(device)
         del device
         self.logger.info("Using device %s", self.device)
+        for lf in loss_functions.values():
+            lf[0].to(self.device)
         #: Checkpoints are saved to this directory by default
         self.checkpoint_dir = Path(".")
         self.model = model.to(self.device)
@@ -145,14 +147,11 @@ class TCNTrainer:
         self.test_loader = loaders.get("test", None)
         self.val_loader = loaders.get("val", None)
 
-        self.loss_functions = {k: v.to(self.device) for k, v in loss_functions.items()}
+        self.loss_functions = loss_functions
+
         if cluster_functions is None:
             cluster_functions = {}
         self.clustering_functions = cluster_functions
-
-        self._loss_weights = collections.defaultdict(lambda: 1.0)
-        if loss_weights is not None:
-            self._loss_weights.update(loss_weights)
 
         self.optimizer = optimizer(self.model.parameters(), lr=lr)
         self._lr_scheduler = lr_scheduler(self.optimizer) if lr_scheduler else None
@@ -296,33 +295,28 @@ class TCNTrainer:
 
     def get_batch_losses(
         self, model_output: dict[str, Tensor]
-    ) -> tuple[Tensor, dict[str, Tensor]]:
+    ) -> tuple[Tensor, dict[str, Tensor], dict[str, Tensor | float]]:
         """Calculate the losses for a batch of data
 
         Args:
             model_output:
 
         Returns:
-            total loss, dictionary of losses, where total loss includes the weights
-            assigned to the individual losses
+            total loss, individual losses, individual weights
         """
-        individual_losses = {}
-        for key, loss_func in self.loss_functions.items():
-            loss = loss_func(**model_output)
-            if isinstance(loss, Mapping):
-                for k, v in loss.items():
-                    individual_losses[f"{key}_{k}"] = v
-            else:
-                individual_losses[key] = loss
-
-        total = sum(
-            self._loss_weights[k] * individual_losses[k] for k in individual_losses
-        )
+        losses = {}
+        weights = collections.defaultdict(lambda: 1.0)
+        for key, (loss_func, these_weights) in self.loss_functions.items():
+            # We need to unpack depending on whether the loss function returns a
+            # single value, a list of values, or a dictionary of values.
+            losses.update(unpack_loss_returns(key, loss_func(**model_output)))
+            weights.update(unpack_loss_returns(key, these_weights))
+        total = sum(weights[k] * losses[k] for k in losses)
         if torch.isnan(total):
             raise RuntimeError(
-                f"NaN loss encountered in test step. {individual_losses=}."
+                f"NaN loss encountered in test step. {losses=}, {weights=}."
             )
-        return total, individual_losses
+        return total, losses, weights
 
     def _log_losses(
         self,
@@ -400,7 +394,9 @@ class TCNTrainer:
             try:
                 data = data.to(self.device)
                 model_output = self.evaluate_model(data, apply_truth_cuts=True)
-                batch_loss, batch_losses = self.get_batch_losses(model_output)
+                batch_loss, batch_losses, loss_weights = self.get_batch_losses(
+                    model_output
+                )
                 self.optimizer.zero_grad(set_to_none=True)
                 batch_loss.backward()
                 self.optimizer.step()
@@ -425,7 +421,7 @@ class TCNTrainer:
             if (batch_idx % 10) == 0:
                 _losses_w = {}
                 for key, loss in batch_losses.items():
-                    _losses_w[f"{key}_weighted"] = loss.item() * self._loss_weights[key]
+                    _losses_w[f"{key}_weighted"] = loss.item() * loss_weights[key]
                 self._log_losses(
                     # batch_losses,
                     _losses_w,
@@ -437,7 +433,7 @@ class TCNTrainer:
             _losses["total"].append(batch_loss.item())
             for key, loss in batch_losses.items():
                 _losses[f"{key}"].append(loss.item())
-                _losses[f"{key}_weighted"].append(loss.item() * self._loss_weights[key])
+                _losses[f"{key}_weighted"].append(loss.item() * loss_weights[key])
 
         losses = {k: np.nanmean(v) for k, v in _losses.items()}
         self.train_loss.append(pd.DataFrame(losses, index=[self._epoch]))
@@ -488,13 +484,15 @@ class TCNTrainer:
             model_output = self.evaluate_model(
                 data, mask_pids_reco=False, apply_truth_cuts=apply_truth_cuts
             )
-            batch_loss, these_batch_losses = self.get_batch_losses(model_output)
+            batch_loss, these_batch_losses, loss_weights = self.get_batch_losses(
+                model_output
+            )
 
             batch_metrics["total"].append(batch_loss.item())
             for key, value in these_batch_losses.items():
                 batch_metrics[key].append(value.item())
                 batch_metrics[f"{key}_weighted"].append(
-                    value.item() * self._loss_weights[key]
+                    value.item() * loss_weights[key]
                 )
 
             for key, value in self.evaluate_ec_metrics(
