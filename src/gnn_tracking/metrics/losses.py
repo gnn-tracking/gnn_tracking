@@ -38,9 +38,7 @@ def _binary_focal_loss(
     neg_term = -(1 - alpha) * probs_pos.pow(gamma) * (1.0 - target) * probs_neg.log()
     loss_tmp = pos_term + neg_term
 
-    loss = torch.mean(loss_tmp)
-
-    return loss
+    return torch.mean(loss_tmp)
 
 
 # Follows the implementation in kornia at
@@ -117,6 +115,7 @@ class FalsifyLowPtEdgeWeightLoss(torch.nn.Module, ABC):
         super().__init__(**kwargs)
         self.pt_thld = pt_thld
 
+    # noinspection PyUnusedLocal
     def forward(self, *, w: T, y: T, edge_index: T, pt: T, **kwargs) -> T:
         y = falsify_low_pt_edges(
             y=y, edge_index=edge_index, pt=pt, pt_thld=self.pt_thld
@@ -133,8 +132,7 @@ class EdgeWeightBCELoss(FalsifyLowPtEdgeWeightLoss):
 
     @staticmethod
     def _forward(*, w: T, y: T, **kwargs) -> T:
-        bce_loss = binary_cross_entropy(w, y, reduction="mean")
-        return bce_loss
+        return binary_cross_entropy(w, y, reduction="mean")
 
 
 class EdgeWeightFocalLoss(FalsifyLowPtEdgeWeightLoss):
@@ -155,14 +153,13 @@ class EdgeWeightFocalLoss(FalsifyLowPtEdgeWeightLoss):
         self.pos_weight = pos_weight
 
     def _forward(self, *, w: T, y: T, **kwargs) -> T:
-        focal_loss = binary_focal_loss(
+        return binary_focal_loss(
             inpt=w,
             target=y,
             alpha=self.alpha,
             gamma=self.gamma,
             pos_weight=self.pos_weight,
         )
-        return focal_loss
 
 
 class HaughtyFocalLoss(torch.nn.Module):
@@ -183,14 +180,13 @@ class HaughtyFocalLoss(torch.nn.Module):
         pos_weight = falsify_low_pt_edges(
             y=y, edge_index=edge_index, pt=pt, pt_thld=self._pt_thld
         )
-        focal_loss = binary_focal_loss(
+        return binary_focal_loss(
             inpt=w,
             target=y,
             alpha=self._alpha,
             gamma=self._gamma,
             pos_weight=pos_weight,
         )
-        return focal_loss
 
 
 @torch.jit.script
@@ -291,7 +287,7 @@ def _background_loss(*, beta: T, particle_id: T, sb: float) -> T:
     loss = torch.mean(1 - beta_alphas)
     noise_mask = particle_id == 0
     if noise_mask.any():
-        loss = loss + sb * torch.mean(beta[noise_mask])
+        loss += sb * torch.mean(beta[noise_mask])
     return loss
 
 
@@ -314,7 +310,8 @@ class ObjectLoss(torch.nn.Module):
         super().__init__()
         self.mode = mode
 
-    def _mse(self, *, pred: T, truth: T) -> T:
+    @staticmethod
+    def _mse(*, pred: T, truth: T) -> T:
         return torch.sum(mse_loss(pred, truth, reduction="none"), dim=1)
 
     def object_loss(self, *, pred: T, beta: T, truth: T, particle_id: T) -> T:
@@ -325,7 +322,7 @@ class ObjectLoss(torch.nn.Module):
             # shape: n_nodes
             xi = (~noise_mask) * torch.arctanh(beta) ** 2
             return 1 / torch.sum(xi) * torch.mean(xi * mse)
-        elif self.mode == "efficiency":
+        if self.mode == "efficiency":
             # shape: n_pids
             pids = torch.unique(particle_id[particle_id > 0])
             # PID masks (n_nodes x n_pids)
@@ -338,8 +335,8 @@ class ObjectLoss(torch.nn.Module):
             terms = torch.sum(mse[:, None] * xi_p, dim=0)
             loss = torch.mean(terms / xi_p_norm)
             return loss
-        else:
-            raise ValueError("Unknown mode: {mode}")
+        _ = f"Unknown mode: {self.mode}"
+        raise ValueError(_)
 
     # noinspection PyUnusedLocal
     def forward(
