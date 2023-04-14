@@ -12,3 +12,8 @@
 ```bash
 micromamba env create --name gnn --file default.yml
 ```
+
+## Explanations for lower limits
+
+* `pytorch > 1.12`: https://github.com/pytorch/pytorch/issues/80809 (though
+  the fix should already be available for fixup versions of 1.12)
