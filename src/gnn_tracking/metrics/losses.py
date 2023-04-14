@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import math
 from abc import ABC, abstractmethod
-from typing import Any, Protocol
+from typing import Any, Mapping, Protocol, Union
 
 import torch
 from torch import Tensor
@@ -369,3 +369,26 @@ class LossFctType(Protocol):
 
     def to(self, device: torch.device) -> LossFctType:
         ...
+
+
+loss_weight_type = Union[float, dict[str, float], list[float]]
+
+
+def unpack_loss_returns(key, returns) -> dict[str, float | Tensor]:
+    """Some of our loss functions return a dictionary or a list of individual losses.
+    This function unpacks these into a dictionary of individual losses with appropriate
+    keys.
+
+    Args:
+        key: str (name of the loss function)
+        returns: dict or list or single value
+
+    Returns:
+        dict of individual losses
+    """
+    if isinstance(returns, Mapping):
+        return {f"{key}_{k}": v for k, v in returns.items()}
+    if isinstance(returns, (list, tuple)):
+        # Don't put 'Sequence' here, because Tensors are Sequences
+        return {f"{key}_{i}": v for i, v in enumerate(returns)}
+    return {key: returns}
