@@ -19,7 +19,6 @@ from gnn_tracking.models.track_condensation_networks import (
     PreTrainedECGraphTCN,
 )
 from gnn_tracking.postprocessing.dbscanscanner import dbscan_scan
-from gnn_tracking.training.dynamiclossweights import NormalizeAt
 from gnn_tracking.training.tcn_trainer import TCNTrainer, TrainingTruthCutConfig
 from gnn_tracking.utils.seeds import fix_seeds
 
@@ -77,14 +76,6 @@ def test_train(tmp_path, built_graphs, t: TestTrainCase) -> None:
         "background": BackgroundLoss(sb=sb),
     }
 
-    _loss_weights = None
-    if t.loss_weights == "default":
-        _loss_weights = None
-    elif t.loss_weights == "auto":
-        _loss_weights = NormalizeAt(at=[0])
-    else:
-        raise ValueError()
-
     # set up a model and trainer
     if t.model == "graphtcn":
         model = GraphTCN(
@@ -128,7 +119,6 @@ def test_train(tmp_path, built_graphs, t: TestTrainCase) -> None:
         loss_functions=loss_functions,
         lr=0.0001,
         cluster_functions={"dbscan": partial(dbscan_scan, n_trials=1)},  # type: ignore
-        loss_weights=_loss_weights,
     )
     trainer.checkpoint_dir = tmp_path
     tcc = TrainingTruthCutConfig(
