@@ -9,6 +9,8 @@ from torch.nn.functional import binary_cross_entropy
 from typing_extensions import TypeAlias
 
 from gnn_tracking.metrics.losses import (
+    EdgeWeightBCELoss,
+    LossClones,
     ObjectLoss,
     _background_loss,
     _condensation_loss,
@@ -110,3 +112,18 @@ def test_unpack_loss_returns():
     assert unpack_loss_returns("a", {"b": 2}) == {"a_b": 2}
     assert unpack_loss_returns("a", [2]) == {"a_0": 2}
     assert unpack_loss_returns("a", []) == {}
+
+
+def test_ec_loss_clones():
+    loss = EdgeWeightBCELoss()
+    eclc = LossClones(loss, prefix="w")
+    evaluated = eclc(
+        w_0=torch.rand(10),
+        w_suffix=torch.rand(10),
+        y=(torch.rand(10) > 0.5).float(),
+        pt=torch.rand(5),
+        edge_index=torch.randint(0, 5, size=(2, 10)),
+    )
+    assert len(evaluated) == 2
+    assert "0" in evaluated
+    assert "suffix" in evaluated
