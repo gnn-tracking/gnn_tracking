@@ -3,7 +3,6 @@ from __future__ import annotations
 import collections
 import logging
 import os
-from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path, PurePath
 from typing import Any, Callable, DefaultDict
@@ -16,7 +15,6 @@ from torch import Tensor
 from torch.optim import Adam
 from torch_geometric.data import Data
 from torch_geometric.loader import DataLoader
-from torch_geometric.utils import mask_to_index
 
 from gnn_tracking.metrics.binary_classification import (
     BinaryClassificationStats,
@@ -30,8 +28,6 @@ from gnn_tracking.metrics.losses import (
 )
 from gnn_tracking.postprocessing.clusterscanner import ClusterFctType
 from gnn_tracking.utils.device import guess_device
-from gnn_tracking.utils.dictionaries import add_key_suffix
-from gnn_tracking.utils.graph_masks import edge_subgraph, get_edge_mask_from_node_mask
 from gnn_tracking.utils.log import get_logger
 from gnn_tracking.utils.nomenclature import denote_pt
 from gnn_tracking.utils.timing import timing
@@ -42,51 +38,6 @@ from gnn_tracking.utils.timing import timing
 train_hook_type = Callable[["TCNTrainer", dict[str, Tensor]], None]
 test_hook_type = Callable[["TCNTrainer", dict[str, Tensor]], None]
 batch_hook_type = Callable[["TCNTrainer", int, int, dict[str, Tensor], Data], None]
-
-
-@dataclass
-class TrainingTruthCutConfig:
-    """Configuration for truth cuts applied during training"""
-
-    #: Truth cut on pt during training
-    pt_thld: float = field(default=0.0)
-    #: Remove noise hits during training
-    without_noise: bool = field(default=False)
-    #: Remove hits that are not reconstructable during training
-    without_non_reconstructable: bool = field(default=False)
-
-    def is_trivial(self) -> bool:
-        """Return true if the truth cut is disabled"""
-        return (
-            np.isclose(self.pt_thld, 0.0)
-            and not self.without_noise
-            and not self.without_non_reconstructable
-        )
-
-    def get_masks(
-        self,
-        data: Data,
-    ) -> tuple[Tensor, Tensor]:
-        """Get mask for hits that are considered in training
-
-        Returns:
-            node mask, edge mask
-        """
-        node_mask = torch.full(
-            (len(data.x),), True, dtype=torch.bool, device=data.x.device
-        )
-        if self.pt_thld > 0:
-            # noise will also have pt = 0, so let's make sure we keep this independent
-            no_noise_mask = data.particle_id > 0
-            node_mask[no_noise_mask] &= data.pt[no_noise_mask] > self.pt_thld
-        if self.without_noise:
-            node_mask &= data.particle_id > 0
-        if self.without_non_reconstructable:
-            node_mask &= data.reconstructable > 0
-        edge_mask = get_edge_mask_from_node_mask(
-            node_mask=node_mask, edge_index=data.edge_index
-        )
-        return node_mask, edge_mask
 
 
 # The following abbreviations are used throughout the code:
@@ -177,8 +128,6 @@ class TCNTrainer:
         #: evaluation of the related metrics.
         self.max_batches_for_clustering = 10
 
-        self.training_truth_cuts = TrainingTruthCutConfig()
-
         #: pT thresholds that are being used in the evaluation of edge classification
         #: metrics in the test step
         self.ec_eval_pt_thlds = [0.9, 1.5]
@@ -218,35 +167,18 @@ class TCNTrainer:
         else:
             raise ValueError("Invalid value for called_at")
 
-    @staticmethod
-    def _apply_mask(
-        data: Data, node_mask: Tensor, edge_mask: Tensor | None = None
-    ) -> Data:
-        """Apply mask to data"""
-        if edge_mask is not None:
-            data = edge_subgraph(data, mask_to_index(edge_mask))
-        node_index = mask_to_index(node_mask)
-        data = data.subgraph(node_index)
-        return data
-
     def evaluate_model(
-        self, data: Data, mask_pids_reco=True, apply_truth_cuts=False
+        self,
+        data: Data,
+        mask_pids_reco=True,
     ) -> dict[str, Tensor]:
         """Evaluate the model on the data and return a dictionary of outputs
 
         Args:
             data:
             mask_pids_reco: If True, mask out PIDs for non-reconstructables
-            apply_truth_cuts: If True, apply pre-configured truth cuts (see
-                `_apply_mask`)
-
-        Returns:
-            All values correspond to the truth cuts (if applied).
         """
         data = data.to(self.device)
-        if apply_truth_cuts:
-            node_mask, edge_mask = self.training_truth_cuts.get_masks(data)
-            data = self._apply_mask(data, node_mask, edge_mask)
 
         out = self.model(data)
 
@@ -271,8 +203,6 @@ class TCNTrainer:
         ec_edge_mask = out.get("ec_edge_mask", torch.full_like(data.y, True)).bool()
 
         dct = {
-            # -------- flags
-            "truth_cuts_applied": apply_truth_cuts,
             # -------- model_outputs
             "w": squeeze_if_defined("W"),
             "x": get_if_defined("H"),
@@ -393,7 +323,7 @@ class TCNTrainer:
                 break
             try:
                 data = data.to(self.device)
-                model_output = self.evaluate_model(data, apply_truth_cuts=True)
+                model_output = self.evaluate_model(data)
                 batch_loss, batch_losses, loss_weights = self.get_batch_losses(
                     model_output
                 )
@@ -443,25 +373,17 @@ class TCNTrainer:
 
     @staticmethod
     def _edge_pt_mask(edge_index: Tensor, pt: Tensor, pt_min=0.0) -> Tensor:
-        """Mask edges where BOTH (!) nodes have pt <= pt_min.
-        Note how the resulting edge mask is different from the pt truth cut mask,
-        which only requires one of the nodes of the edge to have pt <= pt_min to
-        be masked.
-        """
+        """Mask edges where BOTH (!) nodes have pt <= pt_min."""
         pt_a = pt[edge_index[0]]
         pt_b = pt[edge_index[1]]
         return (pt_a > pt_min) | (pt_b > pt_min)
 
     @torch.no_grad()
-    def single_test_step(
-        self, val=True, apply_truth_cuts=False, max_batches: int | None = None
-    ) -> dict[str, float]:
+    def test_step(self, val=True, max_batches: int | None = None) -> dict[str, float]:
         """Test the model on the validation or test set
 
         Args:
             val: Use validation dataset rather than test dataset
-            apply_truth_cuts: Apply truth cuts (e.g., truth level pt cut) during
-                the evaluation
             max_batches: Only process this many batches per epoch (useful for testing)
 
         Returns:
@@ -482,7 +404,8 @@ class TCNTrainer:
                 break
             data = data.to(self.device)
             model_output = self.evaluate_model(
-                data, mask_pids_reco=False, apply_truth_cuts=apply_truth_cuts
+                data,
+                mask_pids_reco=False,
             )
             batch_loss, these_batch_losses, loss_weights = self.get_batch_losses(
                 model_output
@@ -615,28 +538,6 @@ class TCNTrainer:
                 )
             )
         return ret
-
-    def test_step(self, val=True, max_batches: int | None = None) -> dict[str, float]:
-        """Validate the model and test the model on the validation/test set.
-        This method is called during training and makes multiple calls to
-        `single_test_step` corresponding to truth cut or uncut data.
-
-        Args:
-            val: Use validation dataset rather than test dataset
-            max_batches: Use a maximum number of batches for testing
-        """
-        test_results = self.single_test_step(val=val, max_batches=max_batches)
-        if not self.training_truth_cuts.is_trivial():
-            test_results.update(
-                add_key_suffix(
-                    self.single_test_step(
-                        val=val,
-                        apply_truth_cuts=True,
-                    ),
-                    "tc_",
-                ),
-            )
-        return test_results
 
     def step(self, *, max_batches: int | None = None) -> dict[str, float]:
         """Train one epoch and test
