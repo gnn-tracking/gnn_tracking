@@ -14,7 +14,7 @@ from gnn_tracking.models.track_condensation_networks import (
     PreTrainedECGraphTCN,
 )
 from gnn_tracking.postprocessing.dbscanscanner import dbscan_scan
-from gnn_tracking.training.tcn_trainer import TCNTrainer, TrainingTruthCutConfig
+from gnn_tracking.training.tcn_trainer import TCNTrainer
 from gnn_tracking.utils.seeds import fix_seeds
 
 
@@ -116,12 +116,6 @@ def test_train(tmp_path, built_graphs, t: TestTrainCase) -> None:
         cluster_functions={"dbscan": partial(dbscan_scan, n_trials=1)},  # type: ignore
     )
     trainer.checkpoint_dir = tmp_path
-    tcc = TrainingTruthCutConfig(
-        pt_thld=0.01,
-        without_noise=True,
-        without_non_reconstructable=True,
-    )
-    trainer.training_truth_cuts = tcc
 
     trainer.train_step(max_batches=1)
     trainer.test_step(max_batches=1)
