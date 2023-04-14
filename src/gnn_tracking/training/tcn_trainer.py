@@ -25,10 +25,6 @@ from gnn_tracking.metrics.binary_classification import (
 )
 from gnn_tracking.metrics.losses import LossFctType
 from gnn_tracking.postprocessing.clusterscanner import ClusterFctType
-from gnn_tracking.training.dynamiclossweights import (
-    ConstantLossWeights,
-    DynamicLossWeights,
-)
 from gnn_tracking.utils.device import guess_device
 from gnn_tracking.utils.dictionaries import add_key_suffix
 from gnn_tracking.utils.graph_masks import edge_subgraph, get_edge_mask_from_node_mask
@@ -107,7 +103,7 @@ class TCNTrainer:
         lr: Any = 5e-4,
         optimizer: Callable = Adam,
         lr_scheduler: Callable | None = None,
-        loss_weights: dict[str, float] | DynamicLossWeights | None = None,
+        loss_weights: dict[str, float] | None = None,
         cluster_functions: dict[str, ClusterFctType] | None = None,
     ):
         """Main trainer class of the condensation network approach.
@@ -154,12 +150,9 @@ class TCNTrainer:
             cluster_functions = {}
         self.clustering_functions = cluster_functions
 
-        if isinstance(loss_weights, DynamicLossWeights):
-            self._loss_weight_setter = loss_weights
-        elif isinstance(loss_weights, dict) or loss_weights is None:
-            self._loss_weight_setter = ConstantLossWeights(loss_weights=loss_weights)
-        else:
-            raise ValueError("Invalid value for loss_weights.")
+        self._loss_weights = collections.defaultdict(lambda: 1.0)
+        if loss_weights is not None:
+            self._loss_weights.update(loss_weights)
 
         self.optimizer = optimizer(self.model.parameters(), lr=lr)
         self._lr_scheduler = lr_scheduler(self.optimizer) if lr_scheduler else None
@@ -323,8 +316,7 @@ class TCNTrainer:
                 individual_losses[key] = loss
 
         total = sum(
-            self._loss_weight_setter[k] * individual_losses[k]
-            for k in individual_losses
+            self._loss_weights[k] * individual_losses[k] for k in individual_losses
         )
         if torch.isnan(total):
             raise RuntimeError(
@@ -433,9 +425,7 @@ class TCNTrainer:
             if (batch_idx % 10) == 0:
                 _losses_w = {}
                 for key, loss in batch_losses.items():
-                    _losses_w[f"{key}_weighted"] = (
-                        loss.item() * self._loss_weight_setter[key]
-                    )
+                    _losses_w[f"{key}_weighted"] = loss.item() * self._loss_weights[key]
                 self._log_losses(
                     # batch_losses,
                     _losses_w,
@@ -447,12 +437,9 @@ class TCNTrainer:
             _losses["total"].append(batch_loss.item())
             for key, loss in batch_losses.items():
                 _losses[f"{key}"].append(loss.item())
-                _losses[f"{key}_weighted"].append(
-                    loss.item() * self._loss_weight_setter[key]
-                )
+                _losses[f"{key}_weighted"].append(loss.item() * self._loss_weights[key])
 
         losses = {k: np.nanmean(v) for k, v in _losses.items()}
-        self._loss_weight_setter.step(losses)
         self.train_loss.append(pd.DataFrame(losses, index=[self._epoch]))
         for hook in self._train_hooks:
             hook(self, losses)
@@ -507,7 +494,7 @@ class TCNTrainer:
             for key, value in these_batch_losses.items():
                 batch_metrics[key].append(value.item())
                 batch_metrics[f"{key}_weighted"].append(
-                    value.item() * self._loss_weight_setter[key]
+                    value.item() * self._loss_weights[key]
                 )
 
             for key, value in self.evaluate_ec_metrics(
