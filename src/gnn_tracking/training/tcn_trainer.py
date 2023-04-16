@@ -195,32 +195,35 @@ class TCNTrainer:
 
         def get_if_defined(key: str) -> None | Tensor:
             try:
-                return out[key]
+                return out.pop(key)
             except KeyError:
                 return None
 
         ec_hit_mask = out.get("ec_hit_mask", torch.full_like(data.pt, True)).bool()
         ec_edge_mask = out.get("ec_edge_mask", torch.full_like(data.y, True)).bool()
 
-        dct = {
-            # -------- model_outputs
-            "w": squeeze_if_defined("W"),
-            "x": get_if_defined("H"),
-            "beta": squeeze_if_defined("B"),
-            "pred": get_if_defined("P"),
-            "ec_hit_mask": ec_hit_mask,
-            "ec_edge_mask": ec_edge_mask,
-            # -------- from data
-            "y": data.y,
-            "particle_id": pid_field,
-            # fixme: One of these is wrong
-            "track_params": data.pt,
-            "pt": data.pt,
-            "reconstructable": data.reconstructable.long(),
-            "edge_index": data.edge_index,
-            "sector": data.sector,
-            "node_features": data.x,
-        }
+        dct = out
+        dct.update(
+            {
+                # -------- model_outputs
+                "w": squeeze_if_defined("W"),
+                "x": get_if_defined("H"),
+                "beta": squeeze_if_defined("B"),
+                "pred": get_if_defined("P"),
+                "ec_hit_mask": ec_hit_mask,
+                "ec_edge_mask": ec_edge_mask,
+                # -------- from data
+                "y": data.y,
+                "particle_id": pid_field,
+                # fixme: One of these is wrong
+                "track_params": data.pt,
+                "pt": data.pt,
+                "reconstructable": data.reconstructable.long(),
+                "edge_index": data.edge_index,
+                "sector": data.sector,
+                "node_features": data.x,
+            }
+        )
         return dct
 
     def get_batch_losses(

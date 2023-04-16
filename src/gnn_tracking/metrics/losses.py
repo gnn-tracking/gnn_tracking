@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import copy
 import math
 from abc import ABC, abstractmethod
 from typing import Any, Mapping, Protocol, Union
@@ -404,7 +405,7 @@ class LossClones(torch.nn.Module):
 
             losses = {
                 "potential": (PotentialLoss(), 1.),
-                "edge": (ECLossClones(EdgeWeightBCELoss()), [1.0, 2.0, 3.0])
+                "edge": (LossClones(EdgeWeightBCELoss()), [1.0, 2.0, 3.0])
             }
 
         will evaluate three clones of the BCE loss function, one for each EC layer.
@@ -416,7 +417,7 @@ class LossClones(torch.nn.Module):
 
             losses = {
                 "potential": (PotentialLoss(), 1.),
-                "edge": (ECLossClones(EdgeWeightBCELoss()), {}))
+                "edge": (LossClones(EdgeWeightBCELoss()), {}))
             }
 
         this works with a variable number of layers. The weights are all 1.
@@ -436,12 +437,24 @@ class LossClones(torch.nn.Module):
         self._prefix = prefix
 
     def forward(self, **kwargs) -> dict[str, Tensor]:
+        kwargs = copy.copy(kwargs)
+        if self._prefix in kwargs:
+            logger.warning(
+                f"LossClones prefix {self._prefix} is also a model output. Removing "
+                f"this for now, but you probably want to clean up if this is not "
+                f"intended."
+            )
+            kwargs.pop(self._prefix)
         losses = {}
         ec_layer_names = sorted(
-            [k[len(self._prefix) + 1 :] for k in kwargs if k.startswith(self._prefix)]
+            [
+                k[len(self._prefix) + 1 :]
+                for k in kwargs
+                if k.startswith(self._prefix + "_")
+            ]
         )
         for layer_name in ec_layer_names:
-            rename_dct = {f"{self._prefix}_{layer_name}": "w"}
+            rename_dct = {f"{self._prefix}_{layer_name}": self._prefix}
             renamed_kwargs = {rename_dct.get(k, k): v for k, v in kwargs.items()}
             loss = self._loss(**renamed_kwargs)
             losses[layer_name] = loss
