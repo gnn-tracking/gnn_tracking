@@ -184,12 +184,12 @@ class ModularGraphTCN(nn.Module):
         #: Track condensation network (usually made up of interaction networks)
         self.hc_in = hc_in
 
+        node_enc_indim = node_indim
+        edge_enc_indim = edge_indim
         if use_ec_embeddings_for_hc:
-            node_enc_indim = node_indim + h_dim
-            edge_enc_indim = edge_indim + e_dim
-        else:
-            node_enc_indim = node_indim
-            edge_enc_indim = edge_indim + int(feed_edge_weights)
+            node_enc_indim += h_dim
+            edge_enc_indim += e_dim
+        edge_enc_indim += int(feed_edge_weights)
 
         #: Node encoder network for track condenser
         self.hc_node_encoder = MLP(
@@ -246,15 +246,17 @@ class ModularGraphTCN(nn.Module):
             )
 
         # Get the encoded inputs for the track condenser
-        edge_attr = data.edge_attr
-        x = data.x
-        if self._feed_edge_weights:
-            edge_attr = torch.concat([data.edge_attr, data.edge_weights], dim=1)
+        _edge_attrs = [data.edge_attr]
+        _xs = [data.x]
         if self._use_ec_embeddings_for_hc:
-            edge_attr = torch.cat([edge_attr, data.ec_edge_embedding], dim=1)
-            x = torch.cat([x, data.ec_node_embedding], dim=1)
-        h_hc = self.relu(self.hc_node_encoder(x))
-        edge_attr_hc = self.relu(self.hc_edge_encoder(edge_attr))
+            assert data.ec_edge_embedding is not None
+            assert data.ec_node_embedding is not None
+            _edge_attrs.append(data.ec_edge_embedding)
+            _xs.append(data.ec_node_embedding)
+        if self._feed_edge_weights:
+            _edge_attrs.append(data.edge_weights)
+        h_hc = self.relu(self.hc_node_encoder(torch.cat(_xs, dim=1)))
+        edge_attr_hc = self.relu(self.hc_edge_encoder(torch.cat(_edge_attrs, dim=1)))
 
         # Run the track condenser
         h_hc, _, _ = self.hc_in(h_hc, data.edge_index, edge_attr_hc)
