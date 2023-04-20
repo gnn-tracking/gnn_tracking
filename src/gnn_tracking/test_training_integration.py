@@ -157,7 +157,6 @@ def test_train(tmp_path, built_graphs, t: TestTrainCase) -> None:
     )
     trainer.checkpoint_dir = tmp_path
 
-    trainer.train_step(max_batches=1)
-    trainer.test_step(max_batches=1)
+    trainer.step(max_batches=1)
     trainer.save_checkpoint("model.pt")
     trainer.load_checkpoint("model.pt")

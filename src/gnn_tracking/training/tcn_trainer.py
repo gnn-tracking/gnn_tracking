@@ -30,7 +30,7 @@ from gnn_tracking.postprocessing.clusterscanner import ClusterFctType
 from gnn_tracking.utils.device import guess_device
 from gnn_tracking.utils.log import get_logger
 from gnn_tracking.utils.nomenclature import denote_pt
-from gnn_tracking.utils.timing import timing
+from gnn_tracking.utils.timing import Timer
 
 #: Function type that can be used as hook for the training/test step in the
 #: `TCNTrainer` class. The function takes the trainer instance as first argument and
@@ -549,17 +549,22 @@ class TCNTrainer:
             max_batches: See train_step
         """
         self._epoch += 1
-        with timing(f"Training for epoch {self._epoch}", self.logger):
-            train_losses = self.train_step(max_batches=max_batches)
+        timer = Timer()
+        train_losses = self.train_step(max_batches=max_batches)
+        train_time = timer()
         if not self.skip_test_during_training:
-            with timing(f"Test step for epoch {self._epoch}", self.logger):
-                test_results = self.test_step(max_batches=max_batches)
+            test_results = self.test_step(max_batches=max_batches)
         else:
             test_results = {}
-        results = {
-            **{f"{k}_train": v for k, v in train_losses.items()},
-            **test_results,
-        }
+        test_time = timer()
+        results = (
+            {
+                "_time_train": train_time,
+                "_time_test": test_time,
+            }
+            | {f"{k}_train": v for k, v in train_losses.items()}
+            | test_results
+        )
         self._log_losses(
             results,
             header=f"Results {self._epoch}: ",
