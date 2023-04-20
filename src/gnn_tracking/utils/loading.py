@@ -30,8 +30,8 @@ class TrackingDataset(Dataset):
             in_dir, start=start, stop=stop, sector=sector
         )
 
+    @staticmethod
     def _get_paths(
-        self,
         in_dir: str | os.PathLike | list[str] | list[os.PathLike],
         *,
         start=0,
