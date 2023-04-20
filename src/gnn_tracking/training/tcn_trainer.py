@@ -251,44 +251,53 @@ class TCNTrainer:
             )
         return total, losses, weights
 
-    def _log_losses(
+    def _log_results(
         self,
-        batch_losses: dict[str, Tensor | float],
+        results: dict[str, Tensor | float],
         *,
-        style="table",
         header: str = "",
     ) -> None:
         """Log the losses
 
         Args:
-            batch_losses:
-            style: "table" or "inline"
+            results:
             header: Header to prepend to the log message
 
         Returns:
             None
         """
-        report_str = header if header else ""
-        if style == "table":
-            report_str += "\n"
-            non_error_keys: list[str] = sorted(
-                [k for k in batch_losses if not k.endswith("_std")]
-            )
-            values = [batch_losses[k] for k in non_error_keys]
-            errors = [batch_losses.get(f"{k}_std", "") for k in non_error_keys]
-            markers = [
-                "-->" if self.highlight_metric(key) else "" for key in non_error_keys
-            ]
-            annotated_table_items = zip(markers, non_error_keys, values, errors)
-            report_str += tabulate.tabulate(
-                annotated_table_items,
-                tablefmt="outline",
-                floatfmt=".5f",
-                headers=["", "Metric", "Value", "Std"],
-            )
-        else:
-            report_str += ", ".join(f"{k}={v:>10.5f}" for k, v in batch_losses.items())
+        report_str = header
+        report_str += "\n"
+        non_error_keys: list[str] = sorted(
+            [k for k in results if not k.endswith("_std")]
+        )
+        values = [results[k] for k in non_error_keys]
+        errors = [results.get(f"{k}_std", "") for k in non_error_keys]
+        markers = [
+            "-->" if self.highlight_metric(key) else "" for key in non_error_keys
+        ]
+        annotated_table_items = zip(markers, non_error_keys, values, errors)
+        report_str += tabulate.tabulate(
+            annotated_table_items,
+            tablefmt="outline",
+            floatfmt=".5f",
+            headers=["", "Metric", "Value", "Std"],
+        )
         self.logger.info(report_str)
+
+    def _log_losses(
+        self,
+        batch_idx: int,
+        batch_loss,
+        batch_losses: dict[str, Tensor | float],
+        weights,
+    ) -> None:
+        ret = f"Epoch {self._epoch:>1} ({batch_idx:>5}/{len(self.train_loader)}): "
+        losses = {"Total": batch_loss.item()}
+        losses.update({k: batch_losses[k] * weights[k] for k in batch_losses})
+        ret += ", ".join(f"{k}={v:>10.5f}" for k, v in losses.items())
+        ret += " (weighted)"
+        self.logger.info(ret)
 
     def highlight_metric(self, metric: str) -> bool:
         """Should a metric be highlighted in the log output?"""
@@ -352,16 +361,7 @@ class TCNTrainer:
                 hook(self, self._epoch, batch_idx, model_output, data)
 
             if (batch_idx % 10) == 0:
-                _losses_w = {}
-                for key, loss in batch_losses.items():
-                    _losses_w[f"{key}_weighted"] = loss.item() * loss_weights[key]
-                self._log_losses(
-                    # batch_losses,
-                    _losses_w,
-                    header=f"Epoch {self._epoch:>2} "
-                    f"({batch_idx:>5}/{len(self.train_loader)}): ",
-                    style="inline",
-                )
+                self._log_losses(batch_idx, batch_loss, batch_losses, loss_weights)
 
             _losses["total"].append(batch_loss.item())
             for key, loss in batch_losses.items():
@@ -565,7 +565,7 @@ class TCNTrainer:
             | {f"{k}_train": v for k, v in train_losses.items()}
             | test_results
         )
-        self._log_losses(
+        self._log_results(
             results,
             header=f"Results {self._epoch}: ",
         )
