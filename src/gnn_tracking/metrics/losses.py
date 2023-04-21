@@ -90,7 +90,9 @@ def binary_focal_loss(
     )
 
 
-def falsify_low_pt_edges(*, y: T, edge_index: T, pt: T, pt_thld: float = 0.0) -> T:
+def falsify_low_pt_edges(
+    *, y: T, edge_index: T | None = None, pt: T | None = None, pt_thld: float = 0.0
+) -> T:
     """Modify the ground truth to-be-predicted by the edge classification
     to consider edges that include a hit with pt < pt_thld as false.
 
@@ -105,6 +107,8 @@ def falsify_low_pt_edges(*, y: T, edge_index: T, pt: T, pt_thld: float = 0.0) ->
     """
     if math.isclose(pt_thld, 0.0):
         return y
+    assert edge_index is not None
+    assert pt is not None
     # Because false edges are already falsified, we can
     # it's enough to check the first hit of the edge for its pt
     return (y.bool() & (pt[edge_index[0, :]] > pt_thld)).long()
@@ -117,7 +121,9 @@ class FalsifyLowPtEdgeWeightLoss(torch.nn.Module, ABC):
         self.pt_thld = pt_thld
 
     # noinspection PyUnusedLocal
-    def forward(self, *, w: T, y: T, edge_index: T, pt: T, **kwargs) -> T:
+    def forward(
+        self, *, w: T, y: T, edge_index: T | None = None, pt: T | None = None, **kwargs
+    ) -> T:
         y = falsify_low_pt_edges(
             y=y, edge_index=edge_index, pt=pt, pt_thld=self.pt_thld
         )
