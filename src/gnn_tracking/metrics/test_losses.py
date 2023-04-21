@@ -114,15 +114,16 @@ def test_unpack_loss_returns():
     assert unpack_loss_returns("a", []) == {}
 
 
-def test_ec_loss_clones():
+def test_loss_clones():
     loss = EdgeWeightBCELoss()
-    eclc = LossClones(loss, prefix="w")
+    eclc = LossClones(
+        loss,
+    )
     evaluated = eclc(
         w_0=torch.rand(10),
         w_suffix=torch.rand(10),
-        y=(torch.rand(10) > 0.5).float(),
-        pt=torch.rand(5),
-        edge_index=torch.randint(0, 5, size=(2, 10)),
+        y_0=(torch.rand(10) > 0.5).float(),
+        y_suffix=(torch.rand(10) > 0.5).float(),
     )
     assert len(evaluated) == 2
     assert "0" in evaluated

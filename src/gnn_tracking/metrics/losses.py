@@ -400,7 +400,7 @@ def unpack_loss_returns(key, returns) -> dict[str, float | Tensor]:
 
 
 class LossClones(torch.nn.Module):
-    def __init__(self, loss: torch.nn.Module, prefix="w") -> None:
+    def __init__(self, loss: torch.nn.Module, prefixes=("w", "y")) -> None:
         """Wrapper for a loss function that evaluates it on multiple inputs.
         The forward method will look for all model outputs that start with `w_`
         (or another specified prefix) and evaluate the loss function for each of them,
@@ -435,33 +435,34 @@ class LossClones(torch.nn.Module):
 
         Args:
             loss: Loss function to be evaluated on multiple inputs
-            prefix: Prefix of the model outputs that should be evaluated.
+            prefixes: Prefixes of the model outputs that should be evaluated.
                 An underscore is assumed (set prefix to `w` for `w_0`, `w_1`, etc.)
 
         """
         super().__init__()
         self._loss = loss
-        self._prefix = prefix
+        self._prefixes = prefixes
 
     def forward(self, **kwargs) -> dict[str, Tensor]:
         kwargs = copy.copy(kwargs)
-        if self._prefix in kwargs:
-            logger.warning(
-                f"LossClones prefix {self._prefix} is also a model output. Removing "
-                f"this for now, but you probably want to clean up if this is not "
-                f"intended."
-            )
-            kwargs.pop(self._prefix)
+        for prefix in self._prefixes:
+            if prefix in kwargs:
+                logger.warning(
+                    f"LossClones prefix {prefix} is also a model output. Removing "
+                    f"this for now, but you probably want to clean up if this is not "
+                    f"intended."
+                )
+                kwargs.pop(prefix)
         losses = {}
         ec_layer_names = sorted(
             [
-                k[len(self._prefix) + 1 :]
+                k[len(self._prefixes[0]) + 1 :]
                 for k in kwargs
-                if k.startswith(self._prefix + "_")
+                if k.startswith(self._prefixes[0] + "_")
             ]
         )
         for layer_name in ec_layer_names:
-            rename_dct = {f"{self._prefix}_{layer_name}": self._prefix}
+            rename_dct = {f"{prefix}_{layer_name}": prefix for prefix in self._prefixes}
             renamed_kwargs = {rename_dct.get(k, k): v for k, v in kwargs.items()}
             loss = self._loss(**renamed_kwargs)
             losses[layer_name] = loss
