@@ -110,7 +110,7 @@ class PointCloudTCN(nn.Module):
         beta = beta + torch.ones_like(beta) * 10e-12
 
         h_out = self.X(h)
-        return {"W": None, "H": h_out, "B": beta, "P": None}
+        return {"W": None, "H": h_out, "B": beta.squeeze(), "P": None}
 
 
 def mask_nodes_with_few_edges(
@@ -233,7 +233,7 @@ class ModularGraphTCN(nn.Module):
         data.ec_node_embedding = ec_result.get("node_embedding", None)
         data.ec_edge_embedding = ec_result.get("edge_embedding", None)
         edge_weights_unmasked = data.edge_weights.clone().detach()
-        edge_mask = (data.edge_weights > self.threshold).squeeze()
+        edge_mask = data.edge_weights > self.threshold
         data = edge_subgraph(data, edge_mask)
 
         if self._mask_orphan_nodes:
@@ -271,7 +271,7 @@ class ModularGraphTCN(nn.Module):
         return {
             "W": edge_weights_unmasked,
             "H": h,
-            "B": beta,
+            "B": beta.squeeze(),
             "ec_hit_mask": hit_mask,
             "ec_edge_mask": edge_mask,
         }
