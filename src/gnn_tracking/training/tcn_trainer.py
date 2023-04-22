@@ -269,7 +269,12 @@ class TCNTrainer:
         report_str = header
         report_str += "\n"
         non_error_keys: list[str] = sorted(
-            [k for k in results if not k.endswith("_std")]
+            [
+                k
+                for k in results
+                if not k.endswith("_std")
+                if self.printed_results_filter(k)
+            ]
         )
         values = [results[k] for k in non_error_keys]
         errors = [results.get(f"{k}_std", "") for k in non_error_keys]
@@ -299,6 +304,17 @@ class TCNTrainer:
         ret += " (weighted)"
         self.logger.info(ret)
 
+    # noinspection PyMethodMayBeStatic
+    def printed_results_filter(self, key: str) -> bool:
+        """Should a metric be printed in the log output?
+
+        This is meant to be overridden by your personal trainer.
+        """
+        if "_loc_" in key:
+            return False
+        return True
+
+    # noinspection PyMethodMayBeStatic
     def highlight_metric(self, metric: str) -> bool:
         """Should a metric be highlighted in the log output?"""
         metric = metric.casefold()
