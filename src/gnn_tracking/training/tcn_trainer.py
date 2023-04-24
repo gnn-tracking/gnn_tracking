@@ -187,12 +187,6 @@ class TCNTrainer:
         else:
             pid_field = data.particle_id
 
-        def squeeze_if_defined(key: str) -> None | Tensor:
-            try:
-                return out[key].squeeze()
-            except KeyError:
-                return None
-
         def get_if_defined(key: str) -> None | Tensor:
             try:
                 return out.pop(key)
@@ -206,9 +200,9 @@ class TCNTrainer:
         dct.update(
             {
                 # -------- model_outputs
-                "w": squeeze_if_defined("W"),
+                "w": get_if_defined("W"),
                 "x": get_if_defined("H"),
-                "beta": squeeze_if_defined("B"),
+                "beta": get_if_defined("B"),
                 "pred": get_if_defined("P"),
                 "ec_hit_mask": ec_hit_mask,
                 "ec_edge_mask": ec_edge_mask,
