@@ -85,7 +85,7 @@ class TCNTrainer:
                 during testing and report additional figures of merits (e.g.,
                 clustering)
         """
-        self.logger = get_logger("TCNTrainer", level=logging.INFO)
+        self.logger = get_logger("TCNTrainer", level=logging.DEBUG)
         self.device = guess_device(device)
         del device
         self.logger.info("Using device %s", self.device)
@@ -302,7 +302,7 @@ class TCNTrainer:
         losses.update({k: batch_losses[k] * weights[k] for k in batch_losses})
         ret += ", ".join(f"{k}={v:>10.5f}" for k, v in losses.items())
         ret += " (weighted)"
-        self.logger.info(ret)
+        self.logger.debug(ret)
 
     # noinspection PyMethodMayBeStatic
     def printed_results_filter(self, key: str) -> bool:
