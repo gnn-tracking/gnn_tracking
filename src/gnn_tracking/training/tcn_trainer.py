@@ -271,7 +271,7 @@ class TCNTrainer:
             ]
         )
         values = [results[k] for k in non_error_keys]
-        errors = [results.get(f"{k}_std", "") for k in non_error_keys]
+        errors = [float(results.get(f"{k}_std", float("nan"))) for k in non_error_keys]
         markers = [
             "-->" if self.highlight_metric(key) else "" for key in non_error_keys
         ]
