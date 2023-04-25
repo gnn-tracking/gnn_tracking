@@ -21,7 +21,7 @@ def _convex_combination(
     residue: T,
     alpha_residue: float,
 ) -> T:
-    """Helper function for JIT compilation"""
+    """Helper function for JIT compilation. Use `convext_combination` instead."""
     assert 0 <= alpha_residue <= 1
     return alpha_residue * residue + (1 - alpha_residue) * delta
 
@@ -48,6 +48,7 @@ class ResidualNetwork(ABC, nn.Module):
         layers: list[nn.Module],
         *,
         alpha: float = 0.5,
+        collect_hidden_edge_embeds: bool = False,
     ):
         """Apply a list of layers in sequence with residual connections for the nodes.
         This is an abstract base class that does not contain code for the type of
@@ -59,10 +60,13 @@ class ResidualNetwork(ABC, nn.Module):
         Args:
             layers: List of layers
             alpha: Strength of the node embedding residual connection
+            collect_hidden_edge_embeds: Whether to collect the edge embeddings from all
+                layers (can be set to false to save memory)
         """
         super().__init__()
         self.layers = nn.ModuleList(layers)
         self._alpha = alpha
+        self._collect_hidden_edge_embeds = collect_hidden_edge_embeds
 
     def forward(self, x, edge_index, edge_attr) -> tuple[T, T, list[T]]:
         """Forward pass
@@ -74,12 +78,12 @@ class ResidualNetwork(ABC, nn.Module):
 
         Returns:
             node embedding, edge_embedding, concatenated edge embeddings from all
-            levels (including ``edge_attr``)
+            levels (including ``edge_attr``, unless collect_hidden_edges is False)
         """
         return self._forward(x, edge_index, edge_attr)
 
     @abstractmethod
-    def _forward(self, x, edge_index, edge_attr) -> tuple[T, T, list[T]]:
+    def _forward(self, x, edge_index, edge_attr) -> tuple[T, T, list[T] | None]:
         pass
 
 
@@ -90,8 +94,8 @@ class Skip1ResidualNetwork(ResidualNetwork):
         """
         super().__init__(*args, **kwargs)
 
-    def _forward(self, x, edge_index, edge_attr) -> tuple[T, T, list[T]]:
-        edge_attrs = [edge_attr]
+    def _forward(self, x, edge_index, edge_attr) -> tuple[T, T, list[T] | None]:
+        edge_attrs = [edge_attr] if self._collect_hidden_edge_embeds else None
         for layer in self.layers:
             delta_x, edge_attr = layer(x, edge_index, edge_attr)
             x = convex_combination(
@@ -99,7 +103,8 @@ class Skip1ResidualNetwork(ResidualNetwork):
                 residue=x,
                 alpha_residue=self._alpha,
             )
-            edge_attrs.append(edge_attr)
+            if self._collect_hidden_edge_embeds:
+                edge_attrs.append(edge_attr)
         return x, edge_attr, edge_attrs
 
 
@@ -123,8 +128,9 @@ class Skip2ResidualNetwork(ResidualNetwork):
             add_bn: Add batch norms
             **kwargs: Arguments to `ResidualNetwork`
         """
-        if not len(layers) % 2 == 0:
-            raise ValueError("Only even number of layers allowed at the moment")
+        if len(layers) % 2 != 0:
+            msg = "Only even number of layers allowed at the moment"
+            raise ValueError(msg)
         super().__init__(layers=layers, **kwargs)
         _node_batch_norms = []
         _edge_batch_norms = []
@@ -138,8 +144,8 @@ class Skip2ResidualNetwork(ResidualNetwork):
         self._node_batch_norms = nn.ModuleList(_node_batch_norms)
         self._edge_batch_norms = nn.ModuleList(_edge_batch_norms)
 
-    def _forward(self, x, edge_index, edge_attr) -> tuple[T, T, list[T]]:
-        edge_attrs = [edge_attr]
+    def _forward(self, x, edge_index, edge_attr) -> tuple[T, T, list[T] | None]:
+        edge_attrs = [edge_attr] if self._collect_hidden_edge_embeds else None
         for i_layer_pair in range(len(self.layers) // 2):
             i0 = 2 * i_layer_pair
             hidden_x, hidden_edge_attr = self.layers[i0](
@@ -154,7 +160,8 @@ class Skip2ResidualNetwork(ResidualNetwork):
                 relu(self._edge_batch_norms[i1](hidden_edge_attr)),
             )
             x = convex_combination(delta=delta_x, residue=x, alpha_residue=self._alpha)
-            edge_attrs.append(edge_attr)
+            if self._collect_hidden_edge_embeds:
+                edge_attrs.append(edge_attr)
         return x, edge_attr, edge_attrs
 
 
@@ -178,7 +185,7 @@ class SkipTopResidualNetwork(ResidualNetwork):
         self._residual_layer = connect_to
 
     def _forward(self, x, edge_index, edge_attr) -> tuple[T, T, list[T]]:
-        edge_attrs = [edge_attr]
+        edge_attrs = [edge_attr] if self._collect_hidden_edge_embeds else None
         x_residue = None
         for i_layer in range(len(self.layers)):
             if i_layer == self._residual_layer:
@@ -187,7 +194,8 @@ class SkipTopResidualNetwork(ResidualNetwork):
             x = convex_combination(
                 delta=relu(delta_x), residue=x_residue, alpha_residue=self._alpha
             )
-            edge_attrs.append(edge_attr)
+            if self._collect_hidden_edge_embeds:
+                edge_attrs.append(edge_attr)
         return x, edge_attr, edge_attrs
 
 
@@ -263,5 +271,5 @@ class ResIN(nn.Module):
             return self.edge_dim * (len(self.network.layers) // 2 + 1)
         return self.edge_dim * (len(self.network.layers) + 1)
 
-    def forward(self, x, edge_index, edge_attr) -> tuple[T, T, list[T], list[T]]:
+    def forward(self, x, edge_index, edge_attr) -> tuple[T, T, list[T], list[T] | None]:
         return self.network.forward(x, edge_index, edge_attr)
