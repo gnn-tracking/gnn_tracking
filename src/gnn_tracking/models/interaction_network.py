@@ -58,7 +58,10 @@ class InteractionNetwork(MessagePassing):
         """
         x_tilde = self.propagate(edge_index, x=x, edge_attr=edge_attr, size=None)
         assert self._e_tilde is not None  # mypy
-        return x_tilde, self._e_tilde
+        # Make sure that memory is released after the forward pass
+        e_tilde = self._e_tilde
+        self._e_tilde = None
+        return x_tilde, e_tilde
 
     # noinspection PyMethodOverriding
     def message(self, x_i: T, x_j: T, edge_attr: T) -> T:
