@@ -92,6 +92,7 @@ class ECForGraphTCN(nn.Module):
         super().__init__()
         if residual_kwargs is None:
             residual_kwargs = {}
+        residual_kwargs["collect_hidden_edge_embeds"] = use_intermediate_edge_embeddings
         self.relu = nn.ReLU()
 
         self.ec_node_encoder = MLP(
