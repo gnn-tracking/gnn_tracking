@@ -357,7 +357,7 @@ class TCNTrainer:
                     n_oom_errors_in_a_row += 1
                     self.logger.warning(
                         "WARNING: ran out of memory (OOM), skipping batch. "
-                        "If this happens frequently, decrease the batch size."
+                        "If this happens frequently, decrease the batch size. "
                         "Will abort if we get 10 consecutive OOM errors."
                     )
                     if n_oom_errors_in_a_row > 10:
