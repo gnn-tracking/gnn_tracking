@@ -47,7 +47,7 @@ if __name__ == "__main__":
     pc_builder = PointCloudBuilder(
         indir=args.indir,
         outdir=args.outdir,
-        n_sectors=32,
+        n_sectors=1,
         pixel_only=True,
         redo=True,
         measurement_mode=False,
