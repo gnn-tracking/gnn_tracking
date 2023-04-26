@@ -31,10 +31,11 @@ if __name__ == "__main__":
     }
     logger.debug(results)
     for _ in range(N_EXPERIMENTS):
+        x = random.random()
         params = dict(
-            phi_slope_max=random.uniform(0.002, 0.008),
-            z0_max=random.uniform(150, 400),
-            dR_max=random.uniform(1, 5.0),
+            phi_slope_max=random.uniform(0.0005, 0.003),
+            z0_max=random.uniform(130, 200),
+            dR_max=random.uniform(0.6, 7.0),
         )
         logger.debug(params)
         graph_builder = GraphBuilder(

@@ -32,7 +32,7 @@ echo "Part: ${PART}"
 
 python build_graphs.py \
   --indir /scratch/gpfs/IOJALVO/gnn-tracking/object_condensation/point_clouds_v2/part_${PART} \
-  --outdir /scratch/gpfs/IOJALVO/gnn-tracking/object_condensation/graphs_v2/part_${PART} \
+  --outdir /scratch/gpfs/IOJALVO/gnn-tracking/object_condensation/graphs_v3/part_${PART} \
   --batch-size 45
 
 echo "Finished"

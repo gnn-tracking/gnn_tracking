@@ -42,9 +42,9 @@ if __name__ == "__main__":
         outdir=args.outdir,
         redo=True,
         measurement_mode=False,
-        phi_slope_max=0.004,
-        z0_max=225,
-        dR_max=2.5,
+        phi_slope_max=0.001825,
+        z0_max=197.4,
+        dR_max=1.797,
         log_level=0,
         collect_data=False,
     )
