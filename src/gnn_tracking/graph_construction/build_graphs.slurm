@@ -3,7 +3,7 @@
 # To submit jobs for every stream:
 # for i in {1..9}; do export PART=$i; sbatch build_graphs.slurm; done
 
-#SBATCH --job-name=build-point-clouds  # create a short name for your job
+#SBATCH --job-name=build-graphs        # create a short name for your job
 #SBATCH --nodes=1                      # node count
 #SBATCH --ntasks=1                     # total number of tasks across all nodes
 #SBATCH --cpus-per-task=1              # cpu-cores per task (>1 if multi-threaded tasks)
