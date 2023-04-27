@@ -55,10 +55,10 @@ class ECForGraphTCN(nn.Module):
         *,
         node_indim: int,
         edge_indim: int,
-        interaction_node_dim=5,
-        interaction_edge_dim=4,
-        hidden_dim=40,
-        L_ec=3,
+        interaction_node_dim: int = 5,
+        interaction_edge_dim: int = 4,
+        hidden_dim: int | float = None,
+        L_ec: int = 3,
         alpha: float = 0.5,
         residual_type="skip1",
         use_intermediate_edge_embeddings: bool = True,
@@ -78,7 +78,8 @@ class ECForGraphTCN(nn.Module):
                 Defaults to 4 for backward compatibility, but this is probably
                 not reasonable.
             hidden_dim: width of hidden layers in all perceptrons (edge and node
-                encoders, hidden dims for MLPs in object and relation networks)
+                encoders, hidden dims for MLPs in object and relation networks). If
+                None: choose as maximum of input/output dims for each MLP separately
             L_ec: message passing depth for edge classifier
             alpha: strength of residual connection for EC
             residual_type: type of residual connection for EC

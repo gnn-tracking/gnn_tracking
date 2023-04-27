@@ -6,9 +6,9 @@ import torch.nn as nn
 class MLP(nn.Module):
     def __init__(
         self,
-        input_size,
-        output_size,
-        hidden_dim,
+        input_size: int,
+        output_size: int,
+        hidden_dim: int | None,
         L=3,
         *,
         bias=True,
@@ -19,13 +19,16 @@ class MLP(nn.Module):
         Args:
             input_size: Input feature dimension
             output_size:  Output feature dimension
-            hidden_dim: Feature dimension of the hidden layers
+            hidden_dim: Feature dimension of the hidden layers. If None: Choose maximum
+                of input/output size
             L: Total number of layers (1 initial layer, L-2 hidden layers, 1 output
                 layer)
             bias: Include bias in linear layer?
             include_last_activation: Include activation function for the last layer?
         """
         super().__init__()
+        if hidden_dim is None:
+            hidden_dim = max(input_size, output_size)
         layers = [nn.Linear(input_size, hidden_dim, bias=bias)]
         for _l in range(1, L - 1):
             layers.append(nn.ReLU())
