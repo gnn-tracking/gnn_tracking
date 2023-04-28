@@ -232,7 +232,7 @@ class ModularGraphTCN(nn.Module):
         data.edge_weights = ec_result["W"]
         data.ec_node_embedding = ec_result.get("node_embedding", None)
         data.ec_edge_embedding = ec_result.get("edge_embedding", None)
-        edge_weights_unmasked = data.edge_weights.clone().detach()
+        edge_weights_unmasked = data.edge_weights
         edge_mask = data.edge_weights > self.threshold
         data = edge_subgraph(data, edge_mask)
 
