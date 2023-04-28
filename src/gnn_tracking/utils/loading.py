@@ -112,9 +112,10 @@ def get_loaders(
     def get_params(key: str) -> dict[str, Any]:
         sampler = None
         if key == "train" and len(ds_dct[key]):
+            replacement = max_sample_size > len(ds_dct[key])
             sampler = RandomSampler(
                 ds_dct[key],
-                replacement=True,
+                replacement=replacement,
                 num_samples=max_sample_size,
             )
         return {
