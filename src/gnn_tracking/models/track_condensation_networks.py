@@ -229,11 +229,11 @@ class ModularGraphTCN(nn.Module):
         ec_result = self.ec(data)
         # Assign all EC  output to the data object, so that the cuts
         # will be applied automatically when we call `data.subgraph(...)` etc.
-        data.edge_weights = ec_result["W"]
+        data.edge_weights = ec_result["W"].reshape((-1, 1))
         data.ec_node_embedding = ec_result.get("node_embedding", None)
         data.ec_edge_embedding = ec_result.get("edge_embedding", None)
-        edge_weights_unmasked = data.edge_weights
-        edge_mask = data.edge_weights > self.threshold
+        edge_weights_unmasked = data.edge_weights.squeeze()
+        edge_mask = (data.edge_weights > self.threshold).squeeze()
         data = edge_subgraph(data, edge_mask)
 
         if self._mask_orphan_nodes:
