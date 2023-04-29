@@ -53,9 +53,7 @@ class EventPlotter:
     def get_hits(self, evtid=None):
         if evtid is None:
             evtid = 21000 + np.random.randint(999, size=1)[0]
-        else:
-            evtid = str(evtid)
-        prefix = f"event0000{evtid}"
+        prefix = f"event{evtid:09}"
         path = self.indir / prefix
         hits, particles, truth = load_event(path, parts=["hits", "particles", "truth"])
         hits = self.append_coordinates(hits, truth, particles)
@@ -78,6 +76,7 @@ class EventPlotter:
         if savefig:
             plt.savefig(filename, dpi=1200, format="pdf")
         plt.show()
+        return fig, axs
 
 
 class PointCloudPlotter:
