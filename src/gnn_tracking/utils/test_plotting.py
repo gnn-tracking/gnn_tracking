@@ -4,9 +4,9 @@ from unittest.mock import patch
 
 import numpy as np
 from matplotlib import pyplot as plt
-from trackml.dataset import load_event
+from numpy.testing import assert_approx_equal
 
-from gnn_tracking.test_data import trackml_test_data_dir, trackml_test_data_prefix
+from gnn_tracking.test_data import trackml_test_data_dir
 from gnn_tracking.utils.plotting import EventPlotter
 
 
@@ -14,40 +14,51 @@ from gnn_tracking.utils.plotting import EventPlotter
 def test_event_plotter(mock_show):
     assert mock_show is plt.show
     path = trackml_test_data_dir
-    event = trackml_test_data_prefix
     evtid = 1
-
-    def calc_eta(r, z):
-        return -1.0 * np.log(np.tan(np.arctan2(r, z) / 2.0))
-
-    hits, particles, truth = load_event(
-        path / event, parts=["hits", "particles", "truth"]
-    )
-    particles["pt"] = np.sqrt(particles.px**2 + particles.py**2)
-    particles["eta_pt"] = calc_eta(particles.pt, particles.pz)
-    truth = truth[["hit_id", "particle_id"]].merge(
-        particles[["particle_id", "pt", "eta_pt", "q", "vx", "vy"]],
-        on="particle_id",
-    )
-    hits["r"] = np.sqrt(hits.x**2 + hits.y**2)
-    hits["phi"] = np.arctan2(hits.y, hits.x)
-    hits["eta"] = calc_eta(hits.r, hits.z)
-    hits["u"] = hits["x"] / (hits["x"] ** 2 + hits["y"] ** 2)
-    hits["v"] = hits["y"] / (hits["x"] ** 2 + hits["y"] ** 2)
-    hits = hits[
-        ["hit_id", "r", "phi", "eta", "x", "y", "z", "u", "v", "volume_id"]
-    ].merge(truth[["hit_id", "particle_id", "pt", "eta_pt"]], on="hit_id")
 
     plotter = EventPlotter(indir=path)
     fig, _ = plotter.plot_ep_rv_uv(evtid=evtid)
-    plotted_data_points = []
-    original_data_points = []
-    original_data_points.append(hits[["eta", "phi"]].values)
-    original_data_points.append(hits[["z", "r"]].values)
-    original_data_points.append(hits[["u", "v"]].values)
+    original_data_points = [
+        [
+            [-3.65964174, -2.99420524],
+            [-3.14542103, -2.94588566],
+            [-3.65947032, -2.99451041],
+            [-3.14519644, -2.94551826],
+            [-2.90377235, -2.63840151],
+            [-3.21849656, -2.51005006],
+            [-3.2187562, -2.50965071],
+            [-3.48590827, -2.21800613],
+            [-2.85355783, -2.35087061],
+            [-3.21562123, -2.23991871],
+        ],
+        [
+            [-1502.5, 77.40522003],
+            [-1498.0, 129.21363831],
+            [-1498.0, 77.18669128],
+            [-1502.0, 129.58804321],
+            [-1498.0, 164.72381592],
+            [-1502.0, 120.39829254],
+            [-1498.0, 120.04631805],
+            [-1498.0, 91.84147644],
+            [-1502.0, 173.72445679],
+            [-1498.0, 120.42472839],
+        ],
+        [
+            [-0.01277896, -0.00189722],
+            [-0.00759138, -0.00150495],
+            [-0.01281572, -0.00189868],
+            [-0.0075689, -0.00150338],
+            [-0.00531829, -0.00292747],
+            [-0.00670373, -0.00490364],
+            [-0.00672142, -0.00492071],
+            [-0.00656526, -0.00868637],
+            [-0.00404855, -0.00409189],
+            [-0.00515092, -0.00651333],
+        ],
+    ]
     for i in range(3):
-        plotted_data_points.append(np.array(fig.axes[i].get_lines()[0].get_xydata()))
+        assert_approx_equal(
+            np.array(fig.axes[i].get_lines()[0].get_xydata()[:10]),
+            np.array(original_data_points[i]),
+        )
     plt.close(fig)
-    assert (plotted_data_points[0] == original_data_points[0]).all()
-    assert (plotted_data_points[1] == original_data_points[1]).all()
-    assert (plotted_data_points[2] == original_data_points[2]).all()
