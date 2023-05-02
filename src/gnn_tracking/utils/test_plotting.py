@@ -4,7 +4,7 @@ from unittest.mock import patch
 
 import numpy as np
 from matplotlib import pyplot as plt
-from numpy.testing import assert_approx_equal
+from numpy.testing import assert_almost_equal
 
 from gnn_tracking.test_data import trackml_test_data_dir
 from gnn_tracking.utils.plotting import EventPlotter
@@ -57,8 +57,8 @@ def test_event_plotter(mock_show):
         ],
     ]
     for i in range(3):
-        assert_approx_equal(
-            np.array(fig.axes[i].get_lines()[0].get_xydata()[:10]),
+        assert_almost_equal(
+            fig.axes[i].get_lines()[0].get_xydata()[:10],
             np.array(original_data_points[i]),
         )
     plt.close(fig)
