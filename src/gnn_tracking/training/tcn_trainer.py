@@ -106,6 +106,8 @@ class TCNTrainer:
 
         self.optimizer = optimizer(self.model.parameters(), lr=lr)
         self._lr_scheduler = lr_scheduler(self.optimizer) if lr_scheduler else None
+        #: Where to step the scheduler: Either epoch or batch
+        self.lr_scheduler_step = "epoch"
 
         # Current epoch
         self._epoch = 0
@@ -352,6 +354,8 @@ class TCNTrainer:
                 self.optimizer.zero_grad(set_to_none=True)
                 batch_loss.backward()
                 self.optimizer.step()
+                if self._lr_scheduler is not None and self.lr_scheduler_step == "batch":
+                    self._lr_scheduler.step()
             except RuntimeError as e:
                 if "out of memory" in str(e).casefold():
                     n_oom_errors_in_a_row += 1
@@ -378,6 +382,8 @@ class TCNTrainer:
                 _losses[f"{key}"].append(loss.item())
                 _losses[f"{key}_weighted"].append(loss.item() * loss_weights[key])
 
+        if self._lr_scheduler and self.lr_scheduler_step == "epoch":
+            self._lr_scheduler.step()
         losses = {k: np.nanmean(v) for k, v in _losses.items()}
         self.train_loss.append(pd.DataFrame(losses, index=[self._epoch]))
         for hook in self._train_hooks:
@@ -579,8 +585,6 @@ class TCNTrainer:
             results,
             header=f"Results {self._epoch}: ",
         )
-        if self._lr_scheduler:
-            self._lr_scheduler.step()
         return results
 
     def train(self, epochs=1000, max_batches: int | None = None):
