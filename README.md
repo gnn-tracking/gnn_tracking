@@ -40,6 +40,48 @@ to trigger a fixup commit from `pre-commit`.
 
 A good place to start are the [issues marked with 'good first issue'][gfi]. It is always best to have the issue assigned to you before starting to work on it. You can also [reach us per mail][ml].
 
+Core developers ([emoji key](https://allcontributors.org/docs/en/emoji-key)):
+
+<!-- prettier-ignore-start -->
+<!-- markdownlint-disable -->
+<table>
+  <tbody>
+    <tr>
+      <td align="center" valign="top" width="14.28%"><a href="https://github.com/GageDeZoort"><img src="https://avatars.githubusercontent.com/u/19605692?v=4?s=100" width="100px;" alt="Gage DeZoort"/><br /><sub><b>Gage DeZoort</b></sub></a><br /><a href="https://github.com/gnn-tracking/gnn_tracking/commits?author=GageDeZoort" title="Code">💻</a> <a href="#ideas-GageDeZoort" title="Ideas, Planning, & Feedback">🤔</a></td>
+      <td align="center" valign="top" width="14.28%"><a href="https://www.lieret.net/"><img src="https://avatars.githubusercontent.com/u/13602468?v=4?s=100" width="100px;" alt="Kilian Lieret"/><br /><sub><b>Kilian Lieret</b></sub></a><br /><a href="https://github.com/gnn-tracking/gnn_tracking/commits?author=klieret" title="Code">💻</a> <a href="https://github.com/gnn-tracking/gnn_tracking/commits?author=klieret" title="Tests">⚠️</a></td>
+    </tr>
+  </tbody>
+</table>
+
+Thanks also goes to these wonderful people:
+
+<!-- ALL-CONTRIBUTORS-LIST:START - Do not remove or modify this section -->
+<!-- prettier-ignore-start -->
+<!-- markdownlint-disable -->
+<table>
+  <tbody>
+    <tr>
+      <td align="center" valign="top" width="14.28%"><a href="https://github.com/shubhanshu02"><img src="https://avatars.githubusercontent.com/u/54344426?v=4?s=100" width="100px;" alt="Shubhanshu Saxena"/><br /><sub><b>Shubhanshu Saxena</b></sub></a><br /><a href="https://github.com/gnn-tracking/gnn_tracking/commits?author=shubhanshu02" title="Code">💻</a></td>
+    </tr>
+  </tbody>
+  <tfoot>
+    <tr>
+      <td align="center" size="13px" colspan="7">
+        <img src="https://raw.githubusercontent.com/all-contributors/all-contributors-cli/1b8533af435da9854653492b1327a23a4dbd0a10/assets/logo-small.svg">
+          <a href="https://all-contributors.js.org/docs/en/bot/usage">Add your contributions</a>
+        </img>
+      </td>
+    </tr>
+  </tfoot>
+</table>
+
+<!-- markdownlint-restore -->
+<!-- prettier-ignore-end -->
+
+<!-- ALL-CONTRIBUTORS-LIST:END -->
+
+This project follows the [all-contributors](https://github.com/all-contributors/all-contributors) specification. Contributions of any kind welcome!
+
 ## 🖋️ Contact
 
 [Write to our mailing list.][ml]

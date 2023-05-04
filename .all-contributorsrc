@@ -1,0 +1,25 @@
+{
+  "projectName": "gnn_tracking",
+  "projectOwner": "gnn-tracking",
+  "repoType": "github",
+  "repoHost": "https://github.com",
+  "files": [
+    "README.md"
+  ],
+  "imageSize": 100,
+  "commit": false,
+  "commitConvention": "gitmoji",
+  "contributors": [
+    {
+      "login": "shubhanshu02",
+      "name": "Shubhanshu Saxena",
+      "avatar_url": "https://avatars.githubusercontent.com/u/54344426?v=4",
+      "profile": "https://github.com/shubhanshu02",
+      "contributions": [
+        "code"
+      ]
+    }
+  ],
+  "contributorsPerLine": 7,
+  "linkToUsage": true
+}
