@@ -18,6 +18,15 @@
       "contributions": [
         "code"
       ]
+    },
+    {
+      "login": "kingjuno",
+      "name": "Geo Jolly",
+      "avatar_url": "https://avatars.githubusercontent.com/u/69108486?v=4",
+      "profile": "https://kingjuno.github.io/",
+      "contributions": [
+        "test"
+      ]
     }
   ],
   "contributorsPerLine": 7,
