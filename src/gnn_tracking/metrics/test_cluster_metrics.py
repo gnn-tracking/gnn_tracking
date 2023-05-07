@@ -240,6 +240,7 @@ test_cases = [
     # masking some particles
     ClusterMetricTestCase(
         # fmt: off
+        # particles: 0 (pt masked), 1 (reco masked), 2, 3, 4 (pt masked), 5 ==> Total 3
         truth=[
             0, 0, 0, 0, 0, 0,  # lhc, dm  (pt-masked)
             1, 1, 1, 1, 1, 5,  # lhc, dm (reco-masked)
@@ -262,25 +263,25 @@ test_cases = [
             True, True, True, True, True, True,
             False, False, False, False, False, True,
             True, False, False, True,
-            True, False, True, True,
+            True, False, False, True,
             True, True,
             True,
         ],
         predicted=[
             0, 0, 0, 0, 0, 0,  # (pt-masked)
-            1, 1, 1, 1, 1, 1,
-            2, 2, 2, 2,
-            3, 3, 3, 3,
+            1, 1, 1, 1, 1, 1,  # (reco-masked)
+            2, 2, 2, 2,  # (reco-masked)
+            3, 3, 3, 3,  # (reco-masked)
             4, 4,  # (pt-masked)
             5,
         ],
         # fmt: on
         pt_thld=0.5,
-        n_particles=4,
-        n_cleaned_clusters=4,
-        perfect=0 / 3,
-        lhc=1 / 4,
-        double_majority=0 / 3,
+        n_particles=3,
+        n_cleaned_clusters=1,
+        perfect=0 / 2,
+        lhc=1 / 1,
+        double_majority=0 / 1,
     ),
 ]
 

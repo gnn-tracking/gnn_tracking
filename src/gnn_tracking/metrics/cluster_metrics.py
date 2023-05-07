@@ -135,6 +135,8 @@ def tracking_metrics(
     # Assume that negative cluster labels mean that the cluster was labeled as
     # invalid
     unique_predicted, predicted_counts = np.unique(predicted, return_counts=True)
+    # Cluster mask: all clusters that are not labeled as noise and have minimum number
+    # of hits.
     c_valid_cluster = (unique_predicted >= 0) & (
         predicted_counts >= predicted_count_thld
     )
@@ -177,14 +179,14 @@ def tracking_metrics(
 
         h_pt_mask = pts >= pt
         c_pt_mask = c_maj_pts >= pt
-        n_particles = len(np.unique(truth[h_pt_mask]))
-        n_clusters = len(unique_predicted[c_pt_mask & c_valid_cluster])
+        n_particles = len(np.unique(truth[h_pt_mask & reconstructable.astype(bool)]))
+        n_clusters = len(
+            unique_predicted[c_pt_mask & c_valid_cluster & c_maj_reconstructable]
+        )
 
         fake_pm = n_clusters - perfect_match
         fake_dm = n_clusters - double_majority
         fake_lhc = n_clusters - lhc_match
-
-        # breakpoint()
 
         r: TrackingMetrics = {
             "n_particles": n_particles,
