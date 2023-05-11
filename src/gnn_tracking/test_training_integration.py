@@ -42,40 +42,41 @@ _test_train_test_cases = [
     ),
     TestTrainCase(
         "graphtcn",
-        tc_params=dict(mask_orphan_nodes=True),
+        tc_params={"mask_orphan_nodes": True},
     ),
     TestTrainCase(
         "graphtcn",
-        tc_params=dict(mask_orphan_nodes=True, use_ec_embeddings_for_hc=True),
+        tc_params={"mask_orphan_nodes": True, "use_ec_embeddings_for_hc": True},
     ),
     TestTrainCase(
         "pretrainedec",
     ),
     TestTrainCase(
         "pretrainedec",
-        ec_params=dict(residual_type="skip2"),
+        ec_params={"residual_type": "skip2"},
     ),
     TestTrainCase(
         "pretrainedec",
-        ec_params=dict(residual_type="skip_top"),
+        ec_params={"residual_type": "skip_top"},
     ),
     TestTrainCase(
         "pretrainedec",
-        ec_params=dict(use_intermediate_edge_embeddings=False),
+        ec_params={"use_intermediate_edge_embeddings": False},
     ),
     TestTrainCase(
         "pretrainedec",
-        ec_params=dict(
-            use_intermediate_edge_embeddings=False, use_node_embedding=False
-        ),
+        ec_params={
+            "use_intermediate_edge_embeddings": False,
+            "use_node_embedding": False,
+        },
     ),
     TestTrainCase(
         "pretrainedec",
-        ec_params=dict(use_node_embedding=False),
+        ec_params={"use_node_embedding": False},
     ),
     TestTrainCase(
         "pretrainedec",
-        tc_params=dict(use_ec_embeddings_for_hc=True),
+        tc_params={"use_ec_embeddings_for_hc": True},
     ),
     TestTrainCase(
         "perfectec",
@@ -104,7 +105,10 @@ def test_train(tmp_path, built_graphs, t: TestTrainCase) -> None:
     q_min, sb = 0.01, 0.1
     loss_functions = {
         "edge": (EdgeWeightBCELoss(), 1.0),
-        "potential": (PotentialLoss(q_min=q_min), dict(attractive=1.0, repulsive=1.0)),
+        "potential": (
+            PotentialLoss(q_min=q_min),
+            {"attractive": 1.0, "repulsive": 1.0},
+        ),
         "background": (BackgroundLoss(sb=sb), 1.0),
     }
 
