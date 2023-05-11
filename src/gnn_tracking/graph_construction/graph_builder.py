@@ -204,8 +204,8 @@ class GraphBuilder:
 
         # group hits by particle id, get layer indices
         hits_by_particle = hits.groupby("particle_id")
-        layers_1 = hits.layer.loc[edges.index_1].values
-        layers_2 = hits.layer.loc[edges.index_2].values
+        layers_1 = hits.layer.loc[edges.index_1].to_numpy()
+        layers_2 = hits.layer.loc[edges.index_2].to_numpy()
 
         # loop over particle_id, particle_hits,
         # count extra transition edges as n_incorrect
@@ -292,26 +292,26 @@ class GraphBuilder:
         edges = pd.concat(edges)
         edge_attr = np.stack(
             (
-                edges.dr.values / self.feature_scale[0],
-                edges.dphi.values / self.feature_scale[1],
-                edges.dz.values / self.feature_scale[2],
-                edges.dR.values,
+                edges.dr.to_numpy() / self.feature_scale[0],
+                edges.dphi.to_numpy() / self.feature_scale[1],
+                edges.dz.to_numpy() / self.feature_scale[2],
+                edges.dR.to_numpy(),
             )
         )
         node_idx = np.arange(len(hits["r"]))
         node_idx = pd.Series(node_idx, index=node_idx)
-        edge_start = node_idx.loc[edges.index_1].values
-        edge_end = node_idx.loc[edges.index_2].values
+        edge_start = node_idx.loc[edges.index_1].to_numpy()
+        edge_end = node_idx.loc[edges.index_2].to_numpy()
         edge_index = np.stack((edge_start, edge_end))
 
-        pid1 = hits.particle_id.loc[edges.index_1].values
-        pid2 = hits.particle_id.loc[edges.index_2].values
+        pid1 = hits.particle_id.loc[edges.index_1].to_numpy()
+        pid2 = hits.particle_id.loc[edges.index_2].to_numpy()
         y = np.zeros(len(pid1))
         y[:] = (pid1 == pid2) & (pid1 > 0) & (pid2 > 0)
         y, n_corrected = self.correct_truth_labels(
             hits, edges[["index_1", "index_2"]], y, pid1
         )
-        edge_pt = hits.pt.loc[edges.index_1].values
+        edge_pt = hits.pt.loc[edges.index_1].to_numpy()
         return edge_index, edge_attr, y, edge_pt
 
     def to_pyg_data(self, graph, edge_index, edge_attr, y, evtid=-1, s=-1):
@@ -369,11 +369,11 @@ class GraphBuilder:
         for pid, group in grouped:
             if pid == 0:
                 continue
-            layer = group.layer.values
+            layer = group.layer.to_numpy()
             unique, counts = np.unique(layer, return_counts=True)
             n_segs = sum(counts[1:] * counts[:-1])
             for pt_thld in n_truth_edges:
-                if group.pt.values[0] > pt_thld:
+                if group.pt.to_numpy()[0] > pt_thld:
                     n_truth_edges[pt_thld] += n_segs
         return n_truth_edges
 

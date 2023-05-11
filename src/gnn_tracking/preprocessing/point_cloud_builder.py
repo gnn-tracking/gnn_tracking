@@ -209,7 +209,7 @@ class PointCloudBuilder:
 
         # assign when the majority of the particle's hits are in a sector
         particle_id_sectors = collections.defaultdict(lambda: -1)
-        for pid in np.unique(sector.particle_id.values):
+        for pid in np.unique(sector.particle_id.to_numpy()):
             if pid == 0:
                 continue
             hits_in_sector = len(sector[sector.particle_id == pid])
@@ -236,11 +236,11 @@ class PointCloudBuilder:
                 measurements["n_hits_ratio"] = 0
 
             measurements["n_unique_pids"] = len(
-                np.unique(extended_sector.particle_id.values)
+                np.unique(extended_sector.particle_id.to_numpy())
             )
 
             majority_contained = []
-            for pid in np.unique(extended_sector.particle_id.values):
+            for pid in np.unique(extended_sector.particle_id.to_numpy()):
                 if pid == 0:
                     continue
                 group = hits[hits.particle_id == pid]
@@ -273,15 +273,15 @@ class PointCloudBuilder:
         """Build the output data structure"""
         data = Data(
             x=torch.from_numpy(
-                hits[self.feature_names].values / self.feature_scale
+                hits[self.feature_names].to_numpy() / self.feature_scale
             ).float(),
             edge_index=torch.zeros((2, 0)).long(),
             y=torch.zeros(0).float(),
-            layer=torch.from_numpy(hits.layer.values).long(),
-            particle_id=torch.from_numpy(hits["particle_id"].values).long(),
-            pt=torch.from_numpy(hits["pt"].values).float(),
-            reconstructable=torch.from_numpy(hits["reconstructable"].values).long(),
-            sector=torch.from_numpy(hits["sector"].values).long(),
+            layer=torch.from_numpy(hits.layer.to_numpy()).long(),
+            particle_id=torch.from_numpy(hits["particle_id"].to_numpy()).long(),
+            pt=torch.from_numpy(hits["pt"].to_numpy()).float(),
+            reconstructable=torch.from_numpy(hits["reconstructable"].to_numpy()).long(),
+            sector=torch.from_numpy(hits["sector"].to_numpy()).long(),
         )
         return data
 
@@ -342,7 +342,7 @@ class PointCloudBuilder:
             }
             hits["reconstructable"] = hits.particle_id.map(self.reconstructable)
 
-            n_particles = len(np.unique(hits.particle_id.values))
+            n_particles = len(np.unique(hits.particle_id.to_numpy()))
             n_hits = len(hits)
             n_noise = len(hits[hits.particle_id == 0])
             n_sector_hits = 0  # total quantities appearing in sectored graph
@@ -360,7 +360,7 @@ class PointCloudBuilder:
                         hits, s, particle_id_counts=particle_id_counts
                     )
                     n_sector_hits += len(sector)
-                    n_sector_particles += len(np.unique(sector.particle_id.values))
+                    n_sector_particles += len(np.unique(sector.particle_id.to_numpy()))
                     sector = self.to_pyg_data(sector)
                     outfile = self.outdir / name
                     if self.write_output:
