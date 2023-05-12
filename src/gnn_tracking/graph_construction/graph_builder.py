@@ -15,6 +15,19 @@ from tqdm import tqdm
 from gnn_tracking.utils.log import get_logger, logger
 
 
+def get_two_hop_tuples(tuples: list[tuple[int, int]]) -> set[tuple[int, int]]:
+    """Given a list of tuples `(a, b)`, returns the set of tuples `(x, y)`
+    where `(x, t)` and `(t, y)` are in the input list.
+    """
+    additions = set()
+    for a, b in tuples:
+        for c, d in tuples:
+            if b != c:
+                continue
+            additions.add((a, d))
+    return additions
+
+
 # todo: This class needs refactoring: Loading should be done separately; many of the
 #   methods are actually static and might better be extracted; some of the __init__
 #   arguments are better for the process method; internal methods should be marked
@@ -37,6 +50,7 @@ class GraphBuilder:
         write_output=True,
         log_level=0,
         collect_data=True,
+        edge_augmentation: str | None = None,
     ):
         """Build graphs out of the input data.
 
@@ -57,6 +71,8 @@ class GraphBuilder:
             write_output: Save graphs?
             log_level:
             collect_data: Deprecated: Directly load the data into memory
+            edge_augmentation: Add more edges (e.g., adding next-neighbor connections).
+                Needs ``remove_intersecting`` to be false
         """
         self.indir = Path(indir)
         self.outdir = Path(outdir)
@@ -86,6 +102,10 @@ class GraphBuilder:
                 "instead."
             )
         self._remove_intersecting = remove_intersecting
+        self._edge_augmentation = edge_augmentation
+        if edge_augmentation and remove_intersecting:
+            _ = "Edge autmentation currently requires remove_intersecting==False"
+            raise ValueError(_)
 
     @property
     def data_list(self):
@@ -207,7 +227,7 @@ class GraphBuilder:
         """Corrects for extra edges surviving the barrel intersection
         cut, i.e. for each particle counts the number of extra
         "transition edges" crossing from a barrel layer to an
-        innermost endcap slayer; the sum is n_incorrect
+        innermost endcap layer; the sum is n_incorrect
         - [edges] = n_edges x 2
         - [y] = n_edges
         - [particle_ids] = n_edges
@@ -319,6 +339,13 @@ class GraphBuilder:
             ]
         else:
             layer_pairs = []
+        if self._edge_augmentation is None:
+            pass
+        elif self._edge_augmentation == "add_two_hop":
+            layer_pairs.extend(list(get_two_hop_tuples(layer_pairs)))
+        else:
+            _ = f"Invalid augmentation mode: {self._edge_augmentation}"
+            raise ValueError(_)
         groups = hits.groupby("layer")
         edges = []
         for layer1, layer2 in layer_pairs:
