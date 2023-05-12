@@ -31,6 +31,7 @@ class GraphBuilder:
         phi_slope_max=0.005,
         z0_max=200,
         dR_max=1.7,
+        remove_intersecting=True,
         directed=False,
         measurement_mode=False,
         write_output=True,
@@ -47,9 +48,13 @@ class GraphBuilder:
             phi_slope_max:
             z0_max:
             dR_max:
-            directed:
+            remove_intersecting: Remove "ambiguous" edges, see Fig. 3 in
+                "Charged particle tracking via edge-classifying interaction networks"
+                http://arxiv.org/abs/2103.16701 and mark the remaining ones as
+                incorrect edges
+            directed: Build directed edges
             measurement_mode:
-            write_output:
+            write_output: Save graphs?
             log_level:
             collect_data: Deprecated: Directly load the data into memory
         """
@@ -80,6 +85,7 @@ class GraphBuilder:
                 "Collecting data is deprecated. Please use graph_builder.load_data "
                 "instead."
             )
+        self._remove_intersecting = remove_intersecting
 
     @property
     def data_list(self):
@@ -132,7 +138,7 @@ class GraphBuilder:
         return pd.DataFrame(to_df)
 
     def select_edges(self, hits1: DF, hits2: DF, layer1: int, layer2: int) -> DF:
-        """Apply geometric cuts to the edges that were built.
+        """Build edges between two layers
 
         Args:
             hits1: Information about hit 1
@@ -177,8 +183,9 @@ class GraphBuilder:
             (phi_slope.abs() < self.phi_slope_max)
             & (z0.abs() < self.z0_max)  # geometric
             & (dR < self.dR_max)
-            & (~intersected_layer)
         )
+        if self._remove_intersecting:
+            good_edge_mask &= ~intersected_layer
 
         # store edges (in COO format) and geometric edge features
         selected_edges = pd.DataFrame(
@@ -204,6 +211,9 @@ class GraphBuilder:
         - [edges] = n_edges x 2
         - [y] = n_edges
         - [particle_ids] = n_edges
+
+        Returns:
+            corrected truth labels, number of incorrect edges
         """
         # layer indices for barrel-to-endcap edges
         barrel_to_endcaps = {
@@ -344,7 +354,10 @@ class GraphBuilder:
         pid2 = hits.particle_id.loc[edges.index_2].to_numpy()
         y = np.zeros(len(pid1))
         y[:] = (pid1 == pid2) & (pid1 > 0) & (pid2 > 0)
-        y, _ = self.correct_truth_labels(hits, edges[["index_1", "index_2"]], y, pid1)
+        if self._remove_intersecting:
+            y, _ = self.correct_truth_labels(
+                hits, edges[["index_1", "index_2"]], y, pid1
+            )
         edge_pt = hits.pt.loc[edges.index_1].to_numpy()
         return edge_index, edge_attr, y, edge_pt
 
