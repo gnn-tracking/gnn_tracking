@@ -163,15 +163,16 @@ class GraphBuilder:
         z0 = hit_pairs.z_1 - hit_pairs.r_1 * dz / dr
 
         # apply the intersecting line cut
-        intersected_layer = dr.abs() < -1
-        # 0th barrel layer to left EC or right EC
-        if (layer1 == 0) and (layer2 == 11 or layer2 == 4):
+        if (layer1 == 0) and (layer2 in [4, 11]):
+            # 0th barrel layer to left EC or right EC
             z_coord = 71.56298065185547 * dz / dr + z0
             intersected_layer = np.logical_and(z_coord > -490.975, z_coord < 490.975)
-        # 1st barrel layer to the left EC or right EC
-        if (layer1 == 1) and (layer2 == 11 or layer2 == 4):
+        elif (layer1 == 1) and (layer2 in [4, 11]):
+            # 1st barrel layer to the left EC or right EC
             z_coord = 115.37811279296875 * dz / dr + z0
             intersected_layer = np.logical_and(z_coord > -490.975, z_coord < 490.975)
+        else:
+            intersected_layer = dr.abs() < -1
 
         # filter edges according to selection criteria
         good_edge_mask = (
