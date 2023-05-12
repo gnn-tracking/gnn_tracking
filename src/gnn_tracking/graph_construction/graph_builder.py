@@ -7,6 +7,8 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 import torch
+from numpy import ndarray as A
+from pandas import DataFrame as DF
 from torch_geometric.data import Data
 from tqdm import tqdm
 
@@ -111,7 +113,16 @@ class GraphBuilder:
         theta = np.arctan2(r, z)
         return -1.0 * np.log(np.tan(theta / 2.0))
 
-    def get_dataframe(self, evt, evtid):
+    def get_dataframe(self, evt: Data, evtid: int) -> DF:
+        """Converts pytorch geometric data object to pandas dataframe
+
+        Args:
+            evt: pytorch geometric data object
+            evtid: event id
+
+        Returns:
+            pandas dataframe
+        """
         to_df = {"evtid": evtid}
         for i, n in enumerate(self.feature_names):
             to_df[n] = evt.x[:, i]
@@ -120,7 +131,20 @@ class GraphBuilder:
         to_df["particle_id"] = evt.particle_id
         return pd.DataFrame(to_df)
 
-    def select_edges(self, hits1, hits2, layer1, layer2):
+    def select_edges(
+        self, hits1: DF, hits2: DF, layer1: int, layer2: int
+    ) -> dict[str, pd.Series]:
+        """Select edges
+
+        Args:
+            hits1: Information about hit 1
+            hits2: Information about hit 2
+            layer1: Layer number for hit 1
+            layer2: Layer number for hit 2
+
+        Returns:
+            Dictionary containing edge indices and extra information
+        """
         hit_pairs = hits1.reset_index().merge(
             hits2.reset_index(), on="evtid", suffixes=("_1", "_2")
         )
@@ -171,7 +195,9 @@ class GraphBuilder:
 
         return selected_edges
 
-    def correct_truth_labels(self, hits, edges, y, particle_ids):
+    def correct_truth_labels(
+        self, hits: DF, edges: A, y: A, particle_ids: A
+    ) -> tuple[A, int]:
         """Corrects for extra edges surviving the barrel intersection
         cut, i.e. for each particle counts the number of extra
         "transition edges" crossing from a barrel layer to an
@@ -244,7 +270,16 @@ class GraphBuilder:
             self.logger.debug(f"Updated y has {int(np.sum(y))}/{len(y)} true edges.")
         return y, n_corrected
 
-    def build_edges(self, hits):
+    def build_edges(self, hits: DF) -> tuple[A, A, A, A]:
+        """Build edges between hits
+
+        Args:
+            hits: Point cloud dataframe
+
+        Returns:
+            edge_index (2 x num edges), edge_attr (edge features x num edges),
+            y (truth label, shape = num edges), edge_pt (pt of track)
+        """
         if self.pixel_only:
             layer_pairs = [
                 (0, 1),
@@ -314,28 +349,36 @@ class GraphBuilder:
         edge_pt = hits.pt.loc[edges.index_1].to_numpy()
         return edge_index, edge_attr, y, edge_pt
 
-    def to_pyg_data(self, graph, edge_index, edge_attr, y, evtid=-1, s=-1):
-        """
+    def to_pyg_data(
+        self,
+        point_cloud: DF,
+        edge_index: A,
+        edge_attr: A,
+        y: A,
+        evtid: int = -1,
+        s: int = -1,
+    ) -> Data:
+        """Convert hit dataframe and edges to pytorch geometric data object
 
         Args:
-            graph:
-            edge_index:
-            edge_attr:
-            y:
-            evtid:
+            point_cloud: Hit dataframe, see `get_dataframe`
+            edge_index: See `build_edges`
+            edge_attr: See `build_edges`
+            y: See `build_edges`
+            evtid: Event ID
             s: Sector
 
         Returns:
-
+            Pytorch geometric data object
         """
-        x = (graph.x.clone() / self.feature_scale).float()
+        x = (point_cloud.x.clone() / self.feature_scale).float()
         edge_index = torch.tensor(edge_index).long()
         edge_attr = torch.from_numpy(edge_attr).float()
-        pt = graph.pt.clone().float()
-        particle_id = graph.particle_id.clone().long()
+        pt = point_cloud.pt.clone().float()
+        particle_id = point_cloud.particle_id.clone().long()
         y = torch.tensor(y).float()
-        reconstructable = graph.reconstructable.clone().long()
-        sector = graph.sector.clone().long()
+        reconstructable = point_cloud.reconstructable.clone().long()
+        sector = point_cloud.sector.clone().long()
         evtid = torch.tensor([evtid]).long()  # event label
         s = torch.tensor([s]).long()  # sector label
 
@@ -363,7 +406,7 @@ class GraphBuilder:
         data.edge_attr = data.edge_attr.T
         return data
 
-    def get_n_truth_edges(self, df):
+    def get_n_truth_edges(self, df: DF) -> dict[float, int]:
         grouped = df[["particle_id", "layer", "pt"]].groupby("particle_id")
         n_truth_edges = {0: 0, 0.1: 0, 0.5: 0, 0.9: 0, 1.0: 0}
         for pid, group in grouped:
@@ -379,7 +422,11 @@ class GraphBuilder:
 
     @staticmethod
     def get_event_id_sector_from_str(name: str) -> tuple[int, int]:
-        """
+        """Parses input file names.
+
+        Args:
+            name: Input file name
+
         Returns:
             Event id, sector Id
         """
@@ -390,7 +437,7 @@ class GraphBuilder:
         return evtid, sectorid
 
     def process(self, start=0, stop=1, *, only_sector: int = -1, progressbar=False):
-        """
+        """Main processing loop
 
         Args:
             start:
@@ -405,7 +452,7 @@ class GraphBuilder:
         outfiles = [child.name for child in self.outdir.iterdir()]
         considered_files = available_files[start:stop]
         logger.info(
-            "Loading %d graphs (out of %d available).",
+            "Processing %d graphs (out of %d available).",
             len(considered_files),
             len(available_files),
         )
@@ -428,8 +475,8 @@ class GraphBuilder:
                     self._data_list.append(graph)
                 continue
             self.logger.debug(f"Processing {f.name}")
-            graph = torch.load(f)
-            df = self.get_dataframe(graph, evtid)
+            point_cloud = torch.load(f)
+            df = self.get_dataframe(point_cloud, evtid)
             edge_index, edge_attr, y, edge_pt = self.build_edges(df)
 
             if self.measurement_mode:
@@ -453,7 +500,7 @@ class GraphBuilder:
                 self.measurements.append(measurements)
 
             graph = self.to_pyg_data(
-                graph, edge_index, edge_attr, y, evtid=evtid, s=sector
+                point_cloud, edge_index, edge_attr, y, evtid=evtid, s=sector
             )
             outfile = self.outdir / f.name
             self.logger.debug(f"Writing {outfile}")
