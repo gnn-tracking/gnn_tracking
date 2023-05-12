@@ -131,10 +131,8 @@ class GraphBuilder:
         to_df["particle_id"] = evt.particle_id
         return pd.DataFrame(to_df)
 
-    def select_edges(
-        self, hits1: DF, hits2: DF, layer1: int, layer2: int
-    ) -> dict[str, pd.Series]:
-        """Select edges
+    def select_edges(self, hits1: DF, hits2: DF, layer1: int, layer2: int) -> DF:
+        """Apply geometric cuts to the edges that were built.
 
         Args:
             hits1: Information about hit 1
@@ -197,7 +195,7 @@ class GraphBuilder:
         return selected_edges
 
     def correct_truth_labels(
-        self, hits: DF, edges: A, y: A, particle_ids: A
+        self, hits: DF, edges: DF, y: A, particle_ids: A
     ) -> tuple[A, int]:
         """Corrects for extra edges surviving the barrel intersection
         cut, i.e. for each particle counts the number of extra
@@ -237,12 +235,13 @@ class GraphBuilder:
         # loop over particle_id, particle_hits,
         # count extra transition edges as n_incorrect
         n_corrected = 0
-        for p, _ in hits_by_particle:
-            if p == 0:
+        for particle_id, _ in hits_by_particle:
+            if particle_id == 0:
+                # noise
                 continue
 
-            # grab true segment indices for particle p
-            relevant_indices = (particle_ids == p) & (y == 1)
+            # grab true segment indices for particle
+            relevant_indices = (particle_ids == particle_id) & (y == 1)
 
             # get layers connected by particle's edges
             particle_l1 = layers_1[relevant_indices]
@@ -266,9 +265,9 @@ class GraphBuilder:
 
         if n_corrected > 0:
             self.logger.debug(
-                f"Relabeled {n_corrected} edges crossing from barrel to endcaps."
+                "Relabeled %d edges crossing from barrel to endcaps.", n_corrected
             )
-            self.logger.debug(f"Updated y has {int(np.sum(y))}/{len(y)} true edges.")
+            self.logger.debug("Updated y has %d/%d true edges.", int(np.sum(y)), len(y))
         return y, n_corrected
 
     def build_edges(self, hits: DF) -> tuple[A, A, A, A]:
@@ -279,7 +278,8 @@ class GraphBuilder:
 
         Returns:
             edge_index (2 x num edges), edge_attr (edge features x num edges),
-            y (truth label, shape = num edges), edge_pt (pt of track)
+            y (truth label, shape = num edges), edge_pt (pt of track belong to first
+            hit)
         """
         if self.pixel_only:
             layer_pairs = [
@@ -344,9 +344,7 @@ class GraphBuilder:
         pid2 = hits.particle_id.loc[edges.index_2].to_numpy()
         y = np.zeros(len(pid1))
         y[:] = (pid1 == pid2) & (pid1 > 0) & (pid2 > 0)
-        y, n_corrected = self.correct_truth_labels(
-            hits, edges[["index_1", "index_2"]], y, pid1
-        )
+        y, _ = self.correct_truth_labels(hits, edges[["index_1", "index_2"]], y, pid1)
         edge_pt = hits.pt.loc[edges.index_1].to_numpy()
         return edge_index, edge_attr, y, edge_pt
 
