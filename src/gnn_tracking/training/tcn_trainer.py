@@ -346,7 +346,7 @@ class TCNTrainer:
             if max_batches and batch_idx > max_batches:
                 break
             try:
-                data = data.to(self.device)
+                data = data.to(self.device)  # noqa: PLW2901
                 model_output = self.evaluate_model(data)
                 batch_loss, batch_losses, loss_weights = self.get_batch_losses(
                     model_output
@@ -421,7 +421,7 @@ class TCNTrainer:
         for _batch_idx, data in enumerate(loader):
             if max_batches and _batch_idx > max_batches:
                 break
-            data = data.to(self.device)
+            data = data.to(self.device)  # noqa: PLW2901
             model_output = self.evaluate_model(
                 data,
                 mask_pids_reco=False,
