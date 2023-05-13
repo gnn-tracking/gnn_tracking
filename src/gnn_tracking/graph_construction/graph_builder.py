@@ -505,7 +505,7 @@ class GraphBuilder:
                 evtid, sector = self.get_event_id_sector_from_str(f.name)
             except (ValueError, KeyError) as e:
                 raise ValueError(f"{f.name} is not a valid file name") from e
-            if only_sector >= 0 and sector != only_sector:
+            if 0 <= only_sector != sector:
                 continue
             if f.name in outfiles and not self.redo:
                 if self._collect_data:
