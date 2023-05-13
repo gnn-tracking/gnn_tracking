@@ -1,5 +1,3 @@
-#!/usr/bin/env python3
-
 """ To install this package, change to the directory of this file and run
 
     pip3 install --user .
