@@ -31,7 +31,7 @@ A good place to get started are the [demo notebooks][demo].
 
 [mamba install]: https://mamba.readthedocs.io/en/latest/installation.html
 [demo]: https://github.com/gnn-tracking/tutorials
-[pre-commit]: pre-commit.com
+[pre-commit]: https://pre-commit.com
 
 ## 🧰 Development guidelines
 
