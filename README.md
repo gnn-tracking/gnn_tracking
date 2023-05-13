@@ -18,7 +18,7 @@ See the [readme of the organization][organization-readme] for an overview of the
 
 ## 🔥 Installation
 
-1. Install mamba or micromamba ([installation instructions][mamba install]). 
+1. Install mamba or micromamba ([installation instructions][mamba install]).
    Conda works as well, but will be slow to solve the environment, so it's not
    recommended.
 2. Set up your environment with one of the `environment/*.yml` files (see the
