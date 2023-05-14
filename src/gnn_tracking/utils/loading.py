@@ -111,6 +111,7 @@ def get_loaders(
 
     def get_params(key: str) -> dict[str, Any]:
         sampler = None
+        shuffle = key == "train"
         if key == "train" and len(ds_dct[key]):
             replacement = max_sample_size > len(ds_dct[key])
             sampler = RandomSampler(
@@ -118,11 +119,13 @@ def get_loaders(
                 replacement=replacement,
                 num_samples=max_sample_size,
             )
+            shuffle = None
         return {
             "batch_size": batch_size if key == "train" else other_batch_size,
             "num_workers": max(1, min(len(ds_dct[key]), cpus)),
             "sampler": sampler,
             "pin_memory": True,
+            "shuffle": shuffle,
         }
 
     loaders = {}
