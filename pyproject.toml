@@ -41,7 +41,6 @@ extend-ignore = [
   "PGH003"  # mypy blanket ignore
 ]
 target-version = "py37"
-typing-modules = ["{{ cookiecutter.project_slug }}._compat.typing"]
 src = ["src"]
 unfixable = [
   "T20",  # Removes print statements
