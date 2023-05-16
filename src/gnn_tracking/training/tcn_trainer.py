@@ -280,7 +280,7 @@ class TCNTrainer:
         annotated_table_items = zip(markers, non_error_keys, values, errors)
         report_str += tabulate.tabulate(
             annotated_table_items,
-            tablefmt="outline",
+            tablefmt="simple_outline",
             floatfmt=".5f",
             headers=["", "Metric", "Value", "Std"],
         )
