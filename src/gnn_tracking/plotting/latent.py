@@ -47,7 +47,7 @@ def plot_coordinates_3d(
 
     Args:
         x: Any coordinates of dimension > 3 are ignored
-        pid:
+        pid: particle IDs (used
         ax
     """
     if not x.shape[1] >= 3:
@@ -64,61 +64,6 @@ def plot_coordinates_3d(
     return ax
 
 
-def _draw_circles(ax: plt.Axes, xs: np.ndarray, ys: np.ndarray, colors, eps=1) -> None:
-    assert xs.shape == ys.shape
-    for x, y, c in zip(xs, ys, colors):
-        circle = plt.Circle(
-            (x, y), eps, facecolor=lighten_color(c, 0.2), linestyle="none"
-        )
-        ax.add_patch(circle)
-
-
-def plot_selected_pids(
-    x: np.ndarray,
-    pid: np.ndarray,
-    selected_pids: Sequence[int] | None = None,
-    *,
-    ax: plt.Axes | None = None,
-) -> plt.Axes:
-    """Draw latent space, highlighting 10 randomly selected PIDs. In addition, shaded
-    circles of radius 1 are drawn around each hit for the selected PIDs.
-
-    Args:
-        x: Coordinates in latent space. Only the first two coordinates are considered.
-        pid:
-        selected_pids: PIDs to highlight. If None, random PIDs are used
-        ax:
-
-    Returns:
-
-    """
-    colors = plt.rcParams["axes.prop_cycle"].by_key()["color"]
-    color_mapper = np.vectorize(colors.__getitem__)
-    # todo: mark condensation point
-    if selected_pids is None:
-        selected_pids = np.random.choice(pid[pid > 0], 10).astype("int64")
-    else:
-        if len(selected_pids) > 10:
-            raise ValueError("Only up to 10 PIDs can be specified.")
-    # map PIDs to number 0 to #PIDs - 1
-    pid_mapper = np.vectorize({p.item(): i for i, p in enumerate(selected_pids)}.get)
-    mask = np.isin(pid, selected_pids)
-
-    if ax is None:
-        fig, ax = plt.subplots()
-    else:
-        fig = ax.get_figure()
-
-    c = color_mapper(pid_mapper(pid[mask]))
-    _draw_circles(ax, x[mask][:, 0], x[mask][:, 1], c)
-    ax.scatter(
-        x[~mask][:, 0], x[~mask][:, 1], c="silver", alpha=1, label="Other hits", s=2
-    )
-    ax.scatter(x[mask][:, 0], x[mask][:, 1], c=c, label="Hits of selected PIDs", s=2)
-    fig.legend()
-    return ax
-
-
 def get_color_mapper(
     selected_values: Sequence, colors: Sequence | None = None
 ) -> Callable[[np.ndarray], np.ndarray]:
@@ -127,7 +72,11 @@ def get_color_mapper(
         colors = plt.rcParams["axes.prop_cycle"].by_key()["color"]
 
     if len(selected_values) > len(colors):
-        raise ValueError(f"Only up to {len(colors)} values can be selected.")
+        _ = (
+            f"Only up to {len(colors)} values can be selected because we only have "
+            f"that many colors configured."
+        )
+        raise ValueError(_)
 
     # cm = np.vectorize(colors.__getitem__)
     # vm = np.vectorize({p.item(): i for i, p in enumerate(selected_values)}.get)
@@ -150,6 +99,20 @@ class SelectedPidsPlot:
         data: np.ndarray | None = None,
         ec_hit_mask: np.ndarray | None = None,
     ):
+        """Plot the latent space with selected PIDs highlighted.
+        Two kinds of plots are supported: Latent space coordinates and phi/eta.
+        For each of these, separate methods plot hits of the selected PIDs,
+        all other hits, and collateral hits (hits in the same cluster as the
+        selected PIDs).
+
+        Args:
+            x_latent:
+            pid:
+            labels:
+            selected_pids:
+            data:
+            ec_hit_mask:
+        """
         self.data = data
         if ec_hit_mask is None:
             ec_hit_mask = np.ones_like(pid, dtype=bool)
@@ -209,7 +172,7 @@ class SelectedPidsPlot:
             s=12,
         )
 
-    def plot_collateral_latent(self, ax):
+    def plot_collateral_latent(self, ax: plt.Axes) -> None:
         for pid in self.selected_pids:
             mask = self.get_collateral_mask(pid)
             ax.scatter(
@@ -222,7 +185,7 @@ class SelectedPidsPlot:
                 marker="x",
             )
 
-    def plot_other_hit_latent(self, ax):
+    def plot_other_hit_latent(self, ax: plt.Axes) -> None:
         mask = self._selected_pid_mask
         ax.scatter(
             self.x[~mask][:, 0],
@@ -233,7 +196,7 @@ class SelectedPidsPlot:
             s=2,
         )
 
-    def plot_selected_pid_ep(self, ax):
+    def plot_selected_pid_ep(self, ax: plt.Axes) -> None:
         mask = self._selected_pid_mask
         ax.scatter(
             self._phi[mask],
@@ -243,7 +206,7 @@ class SelectedPidsPlot:
             label="Selected PIDs",
         )
 
-    def plot_other_hit_ep(self, ax):
+    def plot_other_hit_ep(self, ax: plt.Axes) -> None:
         mask = ~self._selected_pid_mask
         ax.scatter(
             self._phi[mask],
@@ -253,7 +216,7 @@ class SelectedPidsPlot:
             label="Other hits",
         )
 
-    def plot_collateral_ep(self, ax):
+    def plot_collateral_ep(self, ax: plt.Axes) -> None:
         for pid in self.selected_pids:
             mask = self.get_collateral_mask(pid)
             ax.scatter(
