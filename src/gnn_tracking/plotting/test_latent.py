@@ -12,7 +12,7 @@ def selected_pids_test_data() -> dict[str, np.ndarray]:
     kwargs = {}
     for key in ["condensation_space", "input_node_features"]:
         kwargs[key] = np.random.uniform(size=(100, 5))
-    for key in ["pid", "labels"]:
+    for key in ["particle_id", "labels"]:
         kwargs[key] = np.random.randint(0, 10, size=100)
     kwargs["ec_hit_mask"] = np.ones(100, dtype=bool)
     print({k: v.shape for k, v in kwargs.items()})
