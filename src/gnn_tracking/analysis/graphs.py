@@ -70,13 +70,21 @@ def get_track_graph_info(
     graph: nx.Graph, particle_ids: Sequence[int], pid: int
 ) -> TrackGraphInfo:
     hits_for_pid = np.where(particle_ids == pid)[0]
+    assert len(hits_for_pid) > 0
     sg = graph.subgraph(hits_for_pid).to_undirected()
     segments: list[Sequence[int]] = sorted(  # type: ignore
         nx.connected_components(sg), key=len, reverse=True
     )
-    biggest_component = 1 + max(
-        get_n_reachable(graph, hit, hits_for_pid) for hit in hits_for_pid
-    )
+    if len(segments) == 1:
+        biggest_component = len(hits_for_pid)
+    else:
+        # We could also iterate over all PIDs, but that would be slower.
+        # we already know that the segments are connected, so it's enough to
+        # use one of the nodes from each one.
+        biggest_component = 1 + max(
+            get_n_reachable(graph, next(iter(segment)), hits_for_pid)
+            for segment in segments
+        )
     distance_largest_segments = 0
     if len(segments) > 1:
         distance_largest_segments = shortest_path_length_multi(
