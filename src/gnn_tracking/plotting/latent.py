@@ -11,59 +11,6 @@ from gnn_tracking.utils.colors import lighten_color
 from gnn_tracking.utils.log import logger
 
 
-def plot_coordinates_flat(x: np.ndarray, ax: plt.Axes | None = None) -> plt.Axes:
-    """Plot all hits in the latent space in two dimensions.
-    If ``x`` has three dimensions, the third dimension is plotted as color.
-
-    Args:
-        x: Any coordinates of dimension > 3 are ignored
-        ax:
-
-    Returns:
-
-    """
-    if ax is None:
-        fig, ax = plt.subplots()
-    else:
-        fig = ax.get_figure()
-    c = None
-    if x.shape[1] == 3:
-        c = x[:, 2]
-    cax = ax.scatter(x[:, 0], x[:, 1], c=c, s=2)
-    fig.colorbar(cax)
-    if x.shape[1] == 3:
-        ax.set_title("Color is third dimension")
-    return ax
-
-
-def plot_coordinates_3d(
-    x: np.ndarray, pid: np.ndarray, ax: plt.Axes | None = None
-) -> plt.Axes:
-    """Plot all hits in the latent space in three dimensions.
-    If the latent space dimension is larger than three, reduce the dimensionality
-    of x.
-
-    The color of the points is the particle ID, noise is plotted red.
-
-    Args:
-        x: Any coordinates of dimension > 3 are ignored
-        pid: particle IDs (used
-        ax
-    """
-    if not x.shape[1] >= 3:
-        raise ValueError(
-            "This plot function only works for latent space dimension >= 3"
-        )
-    if ax is None:
-        ax = plt.figure().add_subplot(projection="3d")
-    noise_mask = pid <= 0
-    nnx = x[~noise_mask]
-    ax.scatter3D(nnx[:, 0], nnx[:, 1], nnx[:, 2], s=2, c=pid[~noise_mask])
-    nx = x[noise_mask]
-    ax.scatter3D(nx[:, 0], nx[:, 1], nx[:, 2], s=2, c="red")
-    return ax
-
-
 def get_color_mapper(
     selected_values: Sequence, colors: Sequence | None = None
 ) -> Callable[[np.ndarray], np.ndarray]:
