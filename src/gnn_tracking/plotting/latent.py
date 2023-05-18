@@ -41,7 +41,7 @@ class SelectedPidsPlot:
         self,
         *,
         condensation_space: np.ndarray,
-        pid: np.ndarray,
+        particle_id: np.ndarray,
         labels: np.ndarray | None = None,
         selected_pids: Sequence[int] | None = None,
         ec_hit_mask: np.ndarray | None = None,
@@ -55,7 +55,7 @@ class SelectedPidsPlot:
 
         Args:
             condensation_space:
-            pid:
+            particle_id:
             labels:
             selected_pids:
             ec_hit_mask: If we do orphan node prediction, we need to know which hits
@@ -63,20 +63,22 @@ class SelectedPidsPlot:
             input_node_features
         """
         if ec_hit_mask is None:
-            ec_hit_mask = np.ones_like(pid, dtype=bool)
+            ec_hit_mask = np.ones_like(particle_id, dtype=bool)
         self._ec_hit_mask = ec_hit_mask
-        self.x = condensation_space
-        self.pid = pid[self._ec_hit_mask]
-        self.labels = labels
+        self._x = condensation_space
+        self._pids = particle_id[self._ec_hit_mask]
+        self._labels = labels
         if selected_pids is None:
             logger.warning(
                 "No PIDs selected, using random PIDs (no pt threshold applied). "
             )
-            selected_pids = np.random.choice(self.pid[self.pid > 0], 10).astype("int64")
-        self.selected_pids = selected_pids
+            selected_pids = np.random.choice(self._pids[self._pids > 0], 10).astype(
+                "int64"
+            )
+        self._selected_pids = selected_pids
 
         self._color_mapper = get_color_mapper(selected_pids)
-        self._selected_pid_mask = np.isin(self.pid, self.selected_pids)
+        self._selected_pid_mask = np.isin(self._pids, self._selected_pids)
 
         self._phi = input_node_features[self._ec_hit_mask, 3]
         self._eta = input_node_features[self._ec_hit_mask, 1]
@@ -85,10 +87,10 @@ class SelectedPidsPlot:
         """Mask for hits that are in the same cluster(s) as the hits belonging to this
         particle ID.
         """
-        assert self.labels is not None
-        pid_mask = self.pid == pid
-        assoc_labels = np.unique(self.labels[pid_mask])
-        label_mask = np.isin(self.labels, assoc_labels)
+        assert self._labels is not None
+        pid_mask = self._pids == pid
+        assoc_labels = np.unique(self._labels[pid_mask])
+        label_mask = np.isin(self._labels, assoc_labels)
         col_mask = label_mask & (~pid_mask)
         return col_mask
 
@@ -109,23 +111,23 @@ class SelectedPidsPlot:
     def plot_selected_pid_latent(self, ax: plt.Axes, plot_circles=False) -> None:
         # todo: mark condensation point
         mask = self._selected_pid_mask
-        c = self.get_colors(self.pid[mask])
+        c = self.get_colors(self._pids[mask])
         if plot_circles:
-            self.plot_circles(ax, self.x[mask][:, 0], self.x[mask][:, 1], c)
+            self.plot_circles(ax, self._x[mask][:, 0], self._x[mask][:, 1], c)
         ax.scatter(
-            self.x[mask][:, 0],
-            self.x[mask][:, 1],
+            self._x[mask][:, 0],
+            self._x[mask][:, 1],
             c=c,
             label="Hits of selected PIDs",
             s=12,
         )
 
     def plot_collateral_latent(self, ax: plt.Axes) -> None:
-        for pid in self.selected_pids:
+        for pid in self._selected_pids:
             mask = self.get_collateral_mask(pid)
             ax.scatter(
-                self.x[mask][:, 0],
-                self.x[mask][:, 1],
+                self._x[mask][:, 0],
+                self._x[mask][:, 1],
                 c=self.get_colors([pid]),
                 alpha=1,
                 label="Collateral",
@@ -136,8 +138,8 @@ class SelectedPidsPlot:
     def plot_other_hit_latent(self, ax: plt.Axes) -> None:
         mask = self._selected_pid_mask
         ax.scatter(
-            self.x[~mask][:, 0],
-            self.x[~mask][:, 1],
+            self._x[~mask][:, 0],
+            self._x[~mask][:, 1],
             c="silver",
             alpha=1,
             label="Other hits",
@@ -149,7 +151,7 @@ class SelectedPidsPlot:
         ax.scatter(
             self._phi[mask],
             self._eta[mask],
-            c=self.get_colors(self.pid[mask]),
+            c=self.get_colors(self._pids[mask]),
             s=12,
             label="Selected PIDs",
         )
@@ -165,7 +167,7 @@ class SelectedPidsPlot:
         )
 
     def plot_collateral_ep(self, ax: plt.Axes) -> None:
-        for pid in self.selected_pids:
+        for pid in self._selected_pids:
             mask = self.get_collateral_mask(pid)
             ax.scatter(
                 self._phi[mask],
