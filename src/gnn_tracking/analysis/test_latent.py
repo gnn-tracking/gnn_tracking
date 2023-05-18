@@ -4,7 +4,7 @@ import numpy as np
 import pytest
 from matplotlib import pyplot as plt
 
-from gnn_tracking.plotting.latent import SelectedPidsPlot
+from gnn_tracking.analysis.latent import SelectedPidsPlot
 
 
 @pytest.fixture()
