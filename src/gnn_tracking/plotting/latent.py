@@ -39,32 +39,33 @@ def get_color_mapper(
 class SelectedPidsPlot:
     def __init__(
         self,
-        x_latent: np.ndarray,
+        *,
+        condensation_space: np.ndarray,
         pid: np.ndarray,
         labels: np.ndarray | None = None,
         selected_pids: Sequence[int] | None = None,
-        data: np.ndarray | None = None,
         ec_hit_mask: np.ndarray | None = None,
+        input_node_features: np.ndarray | None = None,
     ):
-        """Plot the latent space with selected PIDs highlighted.
+        """Plot the condensation space with selected PIDs highlighted.
         Two kinds of plots are supported: Latent space coordinates and phi/eta.
         For each of these, separate methods plot hits of the selected PIDs,
         all other hits, and collateral hits (hits in the same cluster as the
         selected PIDs).
 
         Args:
-            x_latent:
+            condensation_space:
             pid:
             labels:
             selected_pids:
-            data:
-            ec_hit_mask:
+            ec_hit_mask: If we do orphan node prediction, we need to know which hits
+                make it to the condensation space
+            input_node_features
         """
-        self.data = data
         if ec_hit_mask is None:
             ec_hit_mask = np.ones_like(pid, dtype=bool)
         self._ec_hit_mask = ec_hit_mask
-        self.x = x_latent
+        self.x = condensation_space
         self.pid = pid[self._ec_hit_mask]
         self.labels = labels
         if selected_pids is None:
@@ -77,15 +78,15 @@ class SelectedPidsPlot:
         self._color_mapper = get_color_mapper(selected_pids)
         self._selected_pid_mask = np.isin(self.pid, self.selected_pids)
 
-        self._phi = self.data.x[self._ec_hit_mask, 3]
-        self._eta = self.data.x[self._ec_hit_mask, 1]
+        self._phi = input_node_features[self._ec_hit_mask, 3]
+        self._eta = input_node_features[self._ec_hit_mask, 1]
 
     def get_collateral_mask(self, pid: int) -> np.ndarray:
         """Mask for hits that are in the same cluster(s) as the hits belonging to this
         particle ID.
         """
         assert self.labels is not None
-        pid_mask = (self.pid == pid).numpy()
+        pid_mask = self.pid == pid
         assoc_labels = np.unique(self.labels[pid_mask])
         label_mask = np.isin(self.labels, assoc_labels)
         col_mask = label_mask & (~pid_mask)
