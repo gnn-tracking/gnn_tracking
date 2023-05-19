@@ -5,6 +5,12 @@ from typing import Iterable, NamedTuple, Sequence
 
 import networkx as nx
 import numpy as np
+import pandas as pd
+import torch_geometric
+from torch import Tensor
+from torch_geometric.data import Data
+
+from gnn_tracking.utils.graph_masks import edge_subgraph
 
 
 def shortest_path_length_catch_no_path(graph: nx.Graph, source, target) -> int | float:
@@ -54,8 +60,8 @@ class TrackGraphInfo(NamedTuple):
         n_hits_largest_segment: The number of hits in the largest segment of the track.
         distance_largest_segments: The shortest path length between the two largest
             segments
-        biggest_component: The number of hits of the track of the biggest component of
-            the track.
+        n_hits_largest_component: The number of hits of the track of the biggest
+            component of the track.
     """
 
     pid: int
@@ -63,7 +69,7 @@ class TrackGraphInfo(NamedTuple):
     n_segments: int
     n_hits_largest_segment: int
     distance_largest_segments: int
-    biggest_component: int
+    n_hits_largest_component: int
 
 
 def get_track_graph_info(
@@ -76,12 +82,12 @@ def get_track_graph_info(
         nx.connected_components(sg), key=len, reverse=True
     )
     if len(segments) == 1:
-        biggest_component = len(hits_for_pid)
+        n_hits_largest_component = len(hits_for_pid)
     else:
         # We could also iterate over all PIDs, but that would be slower.
         # we already know that the segments are connected, so it's enough to
         # use one of the nodes from each one.
-        biggest_component = 1 + max(
+        n_hits_largest_component = 1 + max(
             get_n_reachable(graph, next(iter(segment)), hits_for_pid)
             for segment in segments
         )
@@ -96,5 +102,57 @@ def get_track_graph_info(
         n_segments=len(segments),
         n_hits_largest_segment=len(segments[0]),
         distance_largest_segments=distance_largest_segments,
-        biggest_component=biggest_component,
+        n_hits_largest_component=n_hits_largest_component,
+    )
+
+
+def get_track_graph_info_from_data(
+    data: Data, w: Tensor, pt_thld=0.9, threshold: float | None = None
+) -> pd.DataFrame:
+    """Get DataFrame of track graph information for every particle ID in the data.
+
+    Args:
+        data:
+        model: Edge classifier model
+        pt_thld: pt threshold for particle IDs to consider
+        threshold: Edge classification cutoff
+
+    Returns:
+        DataFrame with columns as in `TrackGraphInfo`
+    """
+    edge_mask = (w > threshold).squeeze()
+    gx = torch_geometric.utils.convert.to_networkx(edge_subgraph(data, edge_mask))
+    particle_ids = data.particle_id[
+        (data.particle_id > 0) & (data.pt > pt_thld)
+    ].unique()
+    results = []
+    for pid in particle_ids:
+        results.append(get_track_graph_info(gx, data.particle_id, pid.item()))
+    return pd.DataFrame(
+        results,
+        columns=[
+            "pid",
+            "n_hits",
+            "n_segments",
+            "n_hits_largest_segment",
+            "distance_largest_segments",
+            "n_hits_largest_component",
+        ],
+    )
+
+
+def summarize_track_graph_info(tgi: pd.DataFrame) -> dict[str, float]:
+    return dict(
+        frac_perfect=sum((tgi.n_hits_largest_segment / tgi.n_hits) == 1) / len(tgi),
+        frac_segment50=sum((tgi.n_hits_largest_segment / tgi.n_hits) >= 0.50)
+        / len(tgi),
+        frac_component50=sum((tgi.n_hits_largest_component / tgi.n_hits) >= 0.50)
+        / len(tgi),
+        frac_segment75=sum((tgi.n_hits_largest_segment / tgi.n_hits) >= 0.75)
+        / len(tgi),
+        frac_component75=sum((tgi.n_hits_largest_component / tgi.n_hits) >= 0.75)
+        / len(tgi),
+        n_segments=tgi.n_segments.mean(),
+        frac_hits_largest_segment=(tgi.n_hits_largest_segment / tgi.n_hits).mean(),
+        frac_hits_largest_component=(tgi.n_hits_largest_component / tgi.n_hits).mean(),
     )
