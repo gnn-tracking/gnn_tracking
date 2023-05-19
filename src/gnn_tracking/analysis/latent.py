@@ -6,6 +6,8 @@ from typing import Callable, Sequence
 
 import matplotlib.pyplot as plt
 import numpy as np
+import torch
+from torch import Tensor as T
 
 from gnn_tracking.utils.colors import lighten_color
 from gnn_tracking.utils.log import logger
@@ -40,12 +42,12 @@ class SelectedPidsPlot:
     def __init__(
         self,
         *,
-        condensation_space: np.ndarray,
-        particle_id: np.ndarray,
-        labels: np.ndarray | None = None,
+        condensation_space: T,
+        particle_id: T,
+        labels: T,
         selected_pids: Sequence[int] | None = None,
-        ec_hit_mask: np.ndarray | None = None,
-        input_node_features: np.ndarray | None = None,
+        ec_hit_mask: T,
+        input_node_features: T,
     ):
         """Plot the condensation space with selected PIDs highlighted.
         Two kinds of plots are supported: Latent space coordinates and phi/eta.
@@ -63,7 +65,7 @@ class SelectedPidsPlot:
             input_node_features
         """
         if ec_hit_mask is None:
-            ec_hit_mask = np.ones_like(particle_id, dtype=bool)
+            ec_hit_mask = torch.ones_like(particle_id).bool()
         self._ec_hit_mask = ec_hit_mask
         self._x = condensation_space
         self._pids = particle_id[self._ec_hit_mask]
@@ -72,32 +74,30 @@ class SelectedPidsPlot:
             logger.warning(
                 "No PIDs selected, using random PIDs (no pt threshold applied). "
             )
-            selected_pids = np.random.choice(self._pids[self._pids > 0], 10).astype(
-                "int64"
+            selected_pids = torch.Tensor(
+                np.random.choice(self._pids[self._pids > 0], 10).astype("int64")
             )
         self._selected_pids = selected_pids
 
         self._color_mapper = get_color_mapper(selected_pids)
-        self._selected_pid_mask = np.isin(self._pids, self._selected_pids)
+        self._selected_pid_mask = torch.isin(self._pids, self._selected_pids)
 
         self._phi = input_node_features[self._ec_hit_mask, 3]
         self._eta = input_node_features[self._ec_hit_mask, 1]
 
-    def get_collateral_mask(self, pid: int) -> np.ndarray:
+    def get_collateral_mask(self, pid: int) -> T:
         """Mask for hits that are in the same cluster(s) as the hits belonging to this
         particle ID.
         """
         assert self._labels is not None
         pid_mask = self._pids == pid
-        assoc_labels = np.unique(self._labels[pid_mask])
-        label_mask = np.isin(self._labels, assoc_labels)
+        assoc_labels = torch.unique(self._labels[pid_mask])
+        label_mask = torch.isin(self._labels, assoc_labels)
         col_mask = label_mask & (~pid_mask)
         return col_mask
 
     @staticmethod
-    def plot_circles(
-        ax: plt.Axes, xs: np.ndarray, ys: np.ndarray, colors, eps=1
-    ) -> None:
+    def plot_circles(ax: plt.Axes, xs: T, ys: T, colors, eps=1) -> None:
         assert xs.shape == ys.shape
         for x, y, c in zip(xs, ys, colors):
             circle = plt.Circle(
@@ -105,7 +105,7 @@ class SelectedPidsPlot:
             )
             ax.add_patch(circle)
 
-    def get_colors(self, pids: np.ndarray | Sequence) -> np.ndarray:
+    def get_colors(self, pids: T | Sequence) -> Sequence:
         return self._color_mapper(pids)
 
     def plot_selected_pid_latent(self, ax: plt.Axes, plot_circles=False) -> None:
