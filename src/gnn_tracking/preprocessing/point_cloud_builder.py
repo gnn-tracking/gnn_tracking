@@ -83,7 +83,8 @@ class PointCloudBuilder:
         #: Does an output file for a given key exist?
         self.exists: dict[str, bool] = {}
         outfiles = [child.name for child in self.outdir.iterdir()]
-        for p in self.indir.iterdir():
+        # Sort the files to keep unit tests fixed on different platforms
+        for p in sorted(self.indir.iterdir()):
             if p.name.endswith(suffix):
                 prefix = p.name.replace(suffix, "")
                 evtid = int(prefix[-9:])

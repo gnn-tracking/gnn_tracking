@@ -11,7 +11,19 @@ def test_fixed_graph_construction(built_graphs):
         for graph, value in zip(graphs, values):
             assert fct(graph) == pytest.approx(value)
 
-    _test_for_all(lambda g: len(g.x), [750, 843])
-    _test_for_all(lambda g: g.x.sum().long(), [-9555, 12274])
-    _test_for_all(lambda g: len(g.y), [5796, 6752])
-    _test_for_all(lambda g: sum(g.y), [1526, 1860])
+    _test_for_all(lambda g: len(g.x), [843, 750])
+    _test_for_all(lambda g: g.x.sum().long(), [12274, -9555])
+    _test_for_all(
+        lambda g: len(g.y),
+        [
+            6752,
+            5796,
+        ],
+    )
+    _test_for_all(
+        lambda g: sum(g.y),
+        [
+            1860,
+            1526,
+        ],
+    )

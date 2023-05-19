@@ -487,8 +487,8 @@ class GraphBuilder:
         Returns:
 
         """
-        available_files = list(self.indir.iterdir())
-        outfiles = [child.name for child in self.outdir.iterdir()]
+        available_files = sorted(self.indir.iterdir())
+        outfiles = sorted([child.name for child in self.outdir.iterdir()])
         considered_files = available_files[start:stop]
         logger.info(
             "Processing %d graphs (out of %d available).",
