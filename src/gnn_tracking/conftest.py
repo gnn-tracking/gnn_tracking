@@ -7,12 +7,10 @@ import pytest
 from gnn_tracking.graph_construction.graph_builder import GraphBuilder
 from gnn_tracking.preprocessing.point_cloud_builder import PointCloudBuilder
 from gnn_tracking.test_data import trackml_test_data_dir
-from gnn_tracking.utils.log import logger
 
 
 @pytest.fixture(scope="session")
 def point_clouds_path(tmp_path_factory) -> Path:
-    logger.debug(list(trackml_test_data_dir.iterdir()))
     out_path = Path(tmp_path_factory.mktemp("point_clouds"))
     pc_builder = PointCloudBuilder(
         indir=trackml_test_data_dir,
@@ -29,7 +27,6 @@ def point_clouds_path(tmp_path_factory) -> Path:
 
 @pytest.fixture(scope="session")
 def built_graphs(point_clouds_path, tmp_path_factory) -> tuple[Path, GraphBuilder]:
-    logger.debug(list(point_clouds_path.iterdir()))
     out_path = Path(tmp_path_factory.mktemp("graphs"))
     graph_builder = GraphBuilder(
         str(point_clouds_path),
