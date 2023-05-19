@@ -461,6 +461,7 @@ class TCNTrainer:
                 for k, v in batch_metrics.items()
             }
             | self._evaluate_cluster_metrics(cluster_eval_input)
+            | {f"lw_{key}": f[1] for key, f in self.loss_functions.items()}
         )
 
         self.test_loss.append(pd.DataFrame(metrics, index=[self._epoch]))
