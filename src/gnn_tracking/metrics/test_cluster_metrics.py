@@ -294,3 +294,58 @@ def test_custom_metrics(test_case):
 def test_count_cluster_hits():
     r = count_hits_per_cluster(np.array([0, 0, 0, 1, 1, 2, 3, 3, 3]))
     assert (r == np.array([1, 1, 2])).all()
+
+
+def test_fix_cluster_metrics():
+    rng = np.random.default_rng(0)
+    n_samples = 50
+    n_particles = 20
+    truth = rng.integers(0, n_particles, size=n_samples)
+    predicted = truth + rng.integers(0, 4, size=n_samples)
+    pt_thlds = [
+        0,
+        0.5,
+        0.9,
+    ]
+    r = tracking_metrics(
+        truth=truth,
+        predicted=predicted,
+        pts=rng.uniform(0, 3, size=n_samples)[truth],
+        reconstructable=rng.choice([True, False], size=n_particles)[truth],
+        pt_thlds=pt_thlds,
+        predicted_count_thld=3,
+    )
+    expected = {
+        0: {
+            "n_particles": 10,
+            "n_cleaned_clusters": 4,
+            "perfect": 0.0,
+            "double_majority": 0.1,
+            "lhc": 0.0,
+            "fake_perfect": 0.4,
+            "fake_double_majority": 0.3,
+            "fake_lhc": 1.0,
+        },
+        0.5: {
+            "n_particles": 8,
+            "n_cleaned_clusters": 4,
+            "perfect": 0.0,
+            "double_majority": 0.125,
+            "lhc": 0.0,
+            "fake_perfect": 0.5,
+            "fake_double_majority": 0.375,
+            "fake_lhc": 1.0,
+        },
+        0.9: {
+            "n_particles": 6,
+            "n_cleaned_clusters": 3,
+            "perfect": 0.0,
+            "double_majority": 0.16666666666666666,
+            "lhc": 0.0,
+            "fake_perfect": 0.5,
+            "fake_double_majority": 0.3333333333333333,
+            "fake_lhc": 1.0,
+        },
+    }
+    for thld in pt_thlds:
+        assert r[thld] == approx(expected[thld])
