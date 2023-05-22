@@ -157,43 +157,38 @@ def tracking_metrics(
     # that PID (in any cluster)
     maj_hits = c_maj_pids.map(pid_to_count)
 
+    # For each cluster: Fraction of hits that have the most popular PID
+    c_maj_frac = (c_maj_hits / c_sizes).fillna(0)
+    # For each cluster: Take the most popular PID of that cluster. What fraction of
+    # the corresponding hits is in this cluster?
+    maj_frac = (c_maj_hits / maj_hits).fillna(0)
+
+    perfect_match = (maj_hits == c_maj_hits) & (c_maj_frac > 0.99) & c_valid_cluster
+    double_majority = (maj_frac > 0.5) & (c_maj_frac > 0.5) & c_valid_cluster
+    lhc_match = (c_maj_frac > 0.75) & c_valid_cluster
+
     result = dict[float, ClusterMetricType]()
     for pt in pt_thlds:
         c_mask = (c_maj_pts >= pt) & c_maj_reconstructable
         h_mask = (pts >= pt) & reconstructable.astype(bool)
 
-        # For each cluster: Fraction of hits that have the most popular PID
-        c_maj_frac = (c_maj_hits[c_mask] / c_sizes[c_mask]).fillna(0)
-        # For each cluster: Take the most popular PID of that cluster. What fraction of
-        # the corresponding hits is in this cluster?
-        maj_frac = (c_maj_hits[c_mask] / maj_hits[c_mask]).fillna(0)
-
-        perfect_match = np.sum(
-            (maj_hits[c_mask] == c_maj_hits[c_mask])
-            & (c_maj_frac > 0.99)
-            & c_valid_cluster[c_mask]
-        ).item()
-        double_majority = np.sum(
-            (maj_frac > 0.5) & (c_maj_frac > 0.5) & c_valid_cluster[c_mask]
-        ).item()
-        lhc_match = np.sum((c_maj_frac > 0.75) & c_valid_cluster[c_mask]).item()
-
-        c_pt_mask = c_maj_pts >= pt
         n_particles = len(np.unique(truth[h_mask]))
-        n_clusters = len(
-            unique_predicted[c_pt_mask & c_valid_cluster & c_maj_reconstructable]
-        )
+        n_clusters = len(unique_predicted[c_mask & c_valid_cluster])
 
-        fake_pm = n_clusters - perfect_match
-        fake_dm = n_clusters - double_majority
-        fake_lhc = n_clusters - lhc_match
+        n_perfect_match = sum(perfect_match[c_mask])
+        n_double_majority = sum(double_majority[c_mask])
+        n_lhc_match = sum(lhc_match[c_mask])
+
+        fake_pm = n_clusters - n_perfect_match
+        fake_dm = n_clusters - n_double_majority
+        fake_lhc = n_clusters - n_lhc_match
 
         r: TrackingMetrics = {
             "n_particles": n_particles,
             "n_cleaned_clusters": n_clusters,
-            "perfect": zero_division_gives_nan(perfect_match, n_particles),
-            "double_majority": zero_division_gives_nan(double_majority, n_particles),
-            "lhc": zero_division_gives_nan(lhc_match, n_clusters),
+            "perfect": zero_division_gives_nan(n_perfect_match, n_particles),
+            "double_majority": zero_division_gives_nan(n_double_majority, n_particles),
+            "lhc": zero_division_gives_nan(n_lhc_match, n_clusters),
             "fake_perfect": zero_division_gives_nan(fake_pm, n_particles),
             "fake_double_majority": zero_division_gives_nan(fake_dm, n_particles),
             "fake_lhc": zero_division_gives_nan(fake_lhc, n_clusters),
