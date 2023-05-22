@@ -160,6 +160,7 @@ def tracking_metrics(
     result = dict[float, ClusterMetricType]()
     for pt in pt_thlds:
         c_mask = (c_maj_pts >= pt) & c_maj_reconstructable
+        h_mask = (pts >= pt) & reconstructable.astype(bool)
 
         # For each cluster: Fraction of hits that have the most popular PID
         c_maj_frac = (c_maj_hits[c_mask] / c_sizes[c_mask]).fillna(0)
@@ -177,9 +178,8 @@ def tracking_metrics(
         ).item()
         lhc_match = np.sum((c_maj_frac > 0.75) & c_valid_cluster[c_mask]).item()
 
-        h_pt_mask = pts >= pt
         c_pt_mask = c_maj_pts >= pt
-        n_particles = len(np.unique(truth[h_pt_mask & reconstructable.astype(bool)]))
+        n_particles = len(np.unique(truth[h_mask]))
         n_clusters = len(
             unique_predicted[c_pt_mask & c_valid_cluster & c_maj_reconstructable]
         )
