@@ -169,11 +169,11 @@ def tracking_metrics(
 
     result = dict[float, ClusterMetricType]()
     for pt in pt_thlds:
-        c_mask = (c_maj_pts >= pt) & c_maj_reconstructable
+        c_mask = (c_maj_pts >= pt) & c_maj_reconstructable & c_valid_cluster
         h_mask = (pts >= pt) & reconstructable.astype(bool)
 
         n_particles = len(np.unique(truth[h_mask]))
-        n_clusters = len(unique_predicted[c_mask & c_valid_cluster])
+        n_clusters = len(unique_predicted[c_mask])
 
         n_perfect_match = sum(perfect_match[c_mask])
         n_double_majority = sum(double_majority[c_mask])
