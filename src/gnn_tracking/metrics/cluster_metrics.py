@@ -110,14 +110,16 @@ def tracking_metric_dfs(h_df: pd.DataFrame, predicted_count_thld=3) -> pd.DataFr
 
     # Properties associated to PID. This is pretty trivial, but since everything is
     # passed by hit, rather than by PID, we need to get rid of "duplicates"
+    particle_properties = list(
+        {"pt", "reconstructable", "eta"}.intersection(h_df.columns)
+    )
+    # Could to .first() for pt/reconstructable, but we want to average over eta
     pid_to_props = (
-        h_df[["id", "pt", "reconstructable"]]
-        .groupby("id")[["pt", "reconstructable"]]
-        .first()
+        h_df[["id"] + particle_properties].groupby("id")[particle_properties].mean()
     )
     c_df = c_df.merge(
         pid_to_props, left_on="maj_pid", right_index=True, copy=False
-    ).rename(columns={"reconstructable": "maj_reconstructable", "pt": "maj_pt"})
+    ).rename(columns={key: f"maj_{key}" for key in particle_properties})
 
     # For each PID: Number of hits (in any cluster)
     pid_to_count = Counter(h_df["id"])
