@@ -74,6 +74,113 @@ _tracking_metrics_nan_results: TrackingMetrics = {
 }
 
 
+def tracking_metric_dfs(h_df: pd.DataFrame, predicted_count_thld=3) -> pd.DataFrame:
+    """Label clusters as double majority/perfect/LHC.
+
+    Args:
+        h_df: Hit information dataframe
+        predicted_count_thld: Number of hits a cluster must have to be considered a
+            valid cluster
+
+    Returns:
+        cluster dataframe with columns such as "double_majority" etc.
+    """
+    # For each cluster, we determine the true PID that is associated with the most
+    # hits in that cluster.
+    # Here we make use of the fact that `df.value_counts` sorts by the count.
+    # That means that if we group by the cluster and take the first line
+    # for each of the counts, we have the most popular PID for each cluster.
+    # The resulting dataframe now has both the most popular PID ("id" column) and the
+    # number of times it appears ("0" column).
+    # This strategy is a significantly (!) faster version than doing
+    # c_id.groupby("c").agg(lambda x: x.mode()[0]) etc.
+    pid_counts = h_df[["c", "id"]].value_counts().reset_index()
+    pid_counts_grouped = pid_counts.groupby("c")
+    c_df = pid_counts_grouped.first().rename({"id": "maj_pid", 0: "maj_hits"}, axis=1)
+    # Number of hits per cluster
+    c_df["cluster_size"] = pid_counts_grouped[0].sum()
+    # Assume that negative cluster labels mean that the cluster was labeled as
+    # invalid
+    unique_predicted, predicted_counts = np.unique(h_df["c"], return_counts=True)
+    # Cluster mask: all clusters that are not labeled as noise and have minimum number
+    # of hits.
+    c_df["valid_cluster"] = (unique_predicted >= 0) & (
+        predicted_counts >= predicted_count_thld
+    )
+
+    # Properties associated to PID. This is pretty trivial, but since everything is
+    # passed by hit, rather than by PID, we need to get rid of "duplicates"
+    pid_to_props = (
+        h_df[["id", "pt", "reconstructable"]]
+        .groupby("id")[["pt", "reconstructable"]]
+        .first()
+    )
+    c_df = c_df.merge(
+        pid_to_props, left_on="maj_pid", right_index=True, copy=False
+    ).rename(columns={"reconstructable": "maj_reconstructable", "pt": "maj_pt"})
+
+    # For each PID: Number of hits (in any cluster)
+    pid_to_count = Counter(h_df["id"])
+    # For each cluster: Take most popular PID of that cluster and get number of hits of
+    # that PID (in any cluster)
+    c_df["maj_pid_hits"] = c_df["maj_pid"].map(pid_to_count)
+
+    # For each cluster: Fraction of hits that have the most popular PID
+    c_df["maj_frac"] = (c_df["maj_hits"] / c_df["cluster_size"]).fillna(0)
+    # For each cluster: Take the most popular PID of that cluster. What fraction of
+    # the corresponding hits is in this cluster?
+    c_df["maj_pid_frac"] = (c_df["maj_hits"] / c_df["maj_pid_hits"]).fillna(0)
+
+    c_df["perfect_match"] = (
+        (c_df["maj_pid_hits"] == c_df["maj_hits"])
+        & (c_df["maj_frac"] > 0.99)
+        & c_df["valid_cluster"]
+    )
+    c_df["double_majority"] = (
+        (c_df["maj_pid_frac"] > 0.5) & (c_df["maj_frac"] > 0.5) & c_df["valid_cluster"]
+    )
+    c_df["lhc_match"] = (c_df["maj_frac"] > 0.75) & c_df["valid_cluster"]
+    return c_df
+
+
+def count_tracking_metrics(
+    c_df: pd.DataFrame, h_df: pd.DataFrame, c_mask: np.ndarray, h_mask: np.ndarray
+) -> TrackingMetrics:
+    """Calculate TrackingMetrics from cluster and hit information.
+
+    Args:
+        c_df: Output dataframe from `tracking_metric_dfs`
+        h_df: Hit information dataframe
+        c_mask: Cluster mask
+        h_mask: Hit mask
+
+    Returns:
+        TrackingMetrics namedtuple.
+    """
+    n_particles = len(np.unique(h_df["id"][h_mask]))
+    n_clusters = c_mask.sum()
+
+    n_perfect_match = sum(c_df["perfect_match"][c_mask])
+    n_double_majority = sum(c_df["double_majority"][c_mask])
+    n_lhc_match = sum(c_df["lhc_match"][c_mask])
+
+    fake_pm = n_clusters - n_perfect_match
+    fake_dm = n_clusters - n_double_majority
+    fake_lhc = n_clusters - n_lhc_match
+
+    r: TrackingMetrics = {
+        "n_particles": n_particles,
+        "n_cleaned_clusters": n_clusters,
+        "perfect": zero_division_gives_nan(n_perfect_match, n_particles),
+        "double_majority": zero_division_gives_nan(n_double_majority, n_particles),
+        "lhc": zero_division_gives_nan(n_lhc_match, n_clusters),
+        "fake_perfect": zero_division_gives_nan(fake_pm, n_particles),
+        "fake_double_majority": zero_division_gives_nan(fake_dm, n_particles),
+        "fake_lhc": zero_division_gives_nan(fake_lhc, n_clusters),
+    }
+    return r
+
+
 def tracking_metrics(
     *,
     truth: np.ndarray,
@@ -112,88 +219,19 @@ def tracking_metrics(
     )
     if len(truth) == 0:
         return {pt: _tracking_metrics_nan_results for pt in pt_thlds}
-    h_df = pd.DataFrame({"c": predicted, "id": truth, "pt": pts, "r": reconstructable})
-
-    # For each cluster, we determine the true PID that is associated with the most
-    # hits in that cluster.
-    # Here we make use of the fact that `df.value_counts` sorts by the count.
-    # That means that if we group by the cluster and take the first line
-    # for each of the counts, we have the most popular PID for each cluster.
-    # The resulting dataframe now has both the most popular PID ("id" column) and the
-    # number of times it appears ("0" column).
-    # This strategy is a significantly (!) faster version than doing
-    # c_id.groupby("c").agg(lambda x: x.mode()[0]) etc.
-    pid_counts = h_df[["c", "id"]].value_counts().reset_index()
-    pid_counts_grouped = pid_counts.groupby("c")
-    c_df = pid_counts_grouped.first().rename({"id": "maj_pid", 0: "maj_hits"}, axis=1)
-    # Number of hits per cluster
-    c_df["cluster_size"] = pid_counts_grouped[0].sum()
-    # Assume that negative cluster labels mean that the cluster was labeled as
-    # invalid
-    unique_predicted, predicted_counts = np.unique(predicted, return_counts=True)
-    # Cluster mask: all clusters that are not labeled as noise and have minimum number
-    # of hits.
-    c_df["valid_cluster"] = (unique_predicted >= 0) & (
-        predicted_counts >= predicted_count_thld
+    h_df = pd.DataFrame(
+        {"c": predicted, "id": truth, "pt": pts, "reconstructable": reconstructable}
     )
-
-    # Properties associated to PID. This is pretty trivial, but since everything is
-    # passed by hit, rather than by PID, we need to get rid of "duplicates"
-    pid_to_props = h_df[["id", "pt", "r"]].groupby("id")[["pt", "r"]].first()
-    c_df = c_df.merge(
-        pid_to_props, left_on="maj_pid", right_index=True, copy=False
-    ).rename(columns={"r": "maj_reconstructable", "pt": "maj_pt"})
-
-    # For each PID: Number of hits (in any cluster)
-    pid_to_count = Counter(truth)
-    # For each cluster: Take most popular PID of that cluster and get number of hits of
-    # that PID (in any cluster)
-    c_df["maj_pid_hits"] = c_df["maj_pid"].map(pid_to_count)
-
-    # For each cluster: Fraction of hits that have the most popular PID
-    c_df["maj_frac"] = (c_df["maj_hits"] / c_df["cluster_size"]).fillna(0)
-    # For each cluster: Take the most popular PID of that cluster. What fraction of
-    # the corresponding hits is in this cluster?
-    c_df["maj_pid_frac"] = (c_df["maj_hits"] / c_df["maj_pid_hits"]).fillna(0)
-
-    c_df["perfect_match"] = (
-        (c_df["maj_pid_hits"] == c_df["maj_hits"])
-        & (c_df["maj_frac"] > 0.99)
-        & c_df["valid_cluster"]
-    )
-    c_df["double_majority"] = (
-        (c_df["maj_pid_frac"] > 0.5) & (c_df["maj_frac"] > 0.5) & c_df["valid_cluster"]
-    )
-    c_df["lhc_match"] = (c_df["maj_frac"] > 0.75) & c_df["valid_cluster"]
+    c_df = tracking_metric_dfs(h_df, predicted_count_thld=predicted_count_thld)
 
     result = dict[float, ClusterMetricType]()
     for pt in pt_thlds:
         c_mask = (
             (c_df["maj_pt"] >= pt) & c_df["maj_reconstructable"] & c_df["valid_cluster"]
         )
-        h_mask = (h_df["pt"] >= pt) & h_df["r"].astype(bool)
+        h_mask = (h_df["pt"] >= pt) & h_df["reconstructable"].astype(bool)
 
-        n_particles = len(np.unique(h_df["id"][h_mask]))
-        n_clusters = c_mask.sum()
-
-        n_perfect_match = sum(c_df["perfect_match"][c_mask])
-        n_double_majority = sum(c_df["double_majority"][c_mask])
-        n_lhc_match = sum(c_df["lhc_match"][c_mask])
-
-        fake_pm = n_clusters - n_perfect_match
-        fake_dm = n_clusters - n_double_majority
-        fake_lhc = n_clusters - n_lhc_match
-
-        r: TrackingMetrics = {
-            "n_particles": n_particles,
-            "n_cleaned_clusters": n_clusters,
-            "perfect": zero_division_gives_nan(n_perfect_match, n_particles),
-            "double_majority": zero_division_gives_nan(n_double_majority, n_particles),
-            "lhc": zero_division_gives_nan(n_lhc_match, n_clusters),
-            "fake_perfect": zero_division_gives_nan(fake_pm, n_particles),
-            "fake_double_majority": zero_division_gives_nan(fake_dm, n_particles),
-            "fake_lhc": zero_division_gives_nan(fake_lhc, n_clusters),
-        }
+        r = count_tracking_metrics(c_df, h_df, c_mask, h_mask)
         result[pt] = r  # type: ignore
     return result  # type: ignore
 
