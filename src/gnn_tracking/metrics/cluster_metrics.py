@@ -95,10 +95,16 @@ def tracking_metric_dfs(h_df: pd.DataFrame, predicted_count_thld=3) -> pd.DataFr
     # This strategy is a significantly (!) faster version than doing
     # c_id.groupby("c").agg(lambda x: x.mode()[0]) etc.
     pid_counts = h_df[["c", "id"]].value_counts().reset_index()
+
+    # Compatibility issue with pandas 2.0 (2.0 uses 'count')
+    _count_key = 0 if 0 in pid_counts.columns else "count"
+
     pid_counts_grouped = pid_counts.groupby("c")
-    c_df = pid_counts_grouped.first().rename({"id": "maj_pid", 0: "maj_hits"}, axis=1)
+    c_df = pid_counts_grouped.first().rename(
+        {"id": "maj_pid", _count_key: "maj_hits"}, axis=1
+    )
     # Number of hits per cluster
-    c_df["cluster_size"] = pid_counts_grouped[0].sum()
+    c_df["cluster_size"] = pid_counts_grouped[_count_key].sum()
     # Assume that negative cluster labels mean that the cluster was labeled as
     # invalid
     unique_predicted, predicted_counts = np.unique(h_df["c"], return_counts=True)
