@@ -3,6 +3,7 @@ from __future__ import annotations
 from functools import partial
 from typing import Sequence
 
+import numpy as np
 import pandas as pd
 import torch
 from matplotlib import pyplot as plt
@@ -86,47 +87,121 @@ def collect_all_ec_stats(
     r_averaged = []
     n_batches = len(r) // len(thresholds)
     for i in range(len(thresholds)):
+        batched = {
+            k: np.array([x[k] for x in r[i :: len(thresholds)]]) for k in r[0].keys()
+        }
         r_averaged.append(
-            {
-                k: sum([x[k] for x in r[i :: len(thresholds)]]) / n_batches
-                for k in r[0].keys()
+            {k: np.mean(batch) for k, batch in batched.items()}
+            | {
+                f"{k}_err": np.std(batch) / np.sqrt(n_batches)
+                for k, batch in batched.items()
             }
         )
     return pd.DataFrame.from_records(r_averaged)
 
 
-def plot_threshold_vs_track_info(df: pd.DataFrame) -> plt.Axes:
-    """Plots the output of `collect_all_ec_stats`."""
-    fig, ax = plt.subplots()
-    markup = dict(marker=".")
-    ax.plot(df.threshold, df.frac_perfect, **markup, label="Single segment", c="C0")
-    ax.plot(df.threshold, df.frac_segment50, **markup, label="50% segment", c="C2")
-    ax.plot(
-        df.threshold,
-        df.frac_component50,
-        **markup,
-        label="50% component",
-        ls="--",
-        c="C2",
-        markerfacecolor="none",
-    )
-    ax.plot(df.threshold, df.frac_segment75, **markup, label="75% segment", c="C1")
-    ax.plot(
-        df.threshold,
-        df.frac_component75,
-        **markup,
-        label="75% component",
-        ls="--",
-        c="C1",
-        markerfacecolor="none",
-    )
-    ax.plot(df.threshold, df.TPR_thld, c="C3", label="TPR ($p_T > 0.9$ GeV)", **markup)
-    ax.plot(df.threshold, df.FPR, c="C3", label="FPR", ls="--", **markup)
-    ax.set_ylabel("Fraction")
-    ax.set_xlabel("EC threshold")
-    ax.axhline(0.9, c="gray", alpha=0.3, lw=1)
-    ax.axhline(0.95, c="gray", alpha=0.3, lw=1)
-    ax.axhline(0.85, c="gray", alpha=0.3, lw=1)
+class ThresholdTrackInfoPlot:
+    def __init__(self, df: pd.DataFrame):
+        """Plot track info as a function of EC threshold.
 
-    ax.legend()
-    return ax
+        To get the plot in one go, simply call the `plot` method. Alternatively,
+        use the individual methods to plot the different components separately.
+
+        Args:
+            df: DataFrame with columns as in `get_all_ec_stats`
+        """
+        self.df = df
+        self.ax = None
+
+    def plot(self):
+        """Plot all the things."""
+        self.setup_axes()
+        self.plot_single_segment()
+        self.plot_50()
+        self.plot_75()
+        self.plot_tpr_fpr()
+        self.plot_hlines()
+        self.plot_mcc()
+        self.add_legend()
+
+    def setup_axes(self):
+        _, ax = plt.subplots()
+        ax.set_xlabel("EC threshold")
+        self.ax = ax
+
+    def plot_single_segment(self):
+        self.ax.errorbar(
+            self.df.threshold,
+            self.df.frac_perfect,
+            yerr=self.df.frac_perfect_err,
+            label="Single segment",
+            c="C0",
+        )
+
+    def plot_50(self):
+        self.ax.errorbar(
+            self.df.threshold,
+            self.df.frac_segment50,
+            yerr=self.df.frac_segment50_err,
+            label="50% segment",
+            c="C2",
+        )
+        self.ax.plot(
+            self.df.threshold,
+            self.df.frac_component50,
+            label="50% component",
+            ls="--",
+            c="C2",
+            markerfacecolor="none",
+        )
+
+    def plot_75(self):
+        self.ax.errorbar(
+            self.df.threshold,
+            self.df.frac_segment75,
+            yerr=self.df.frac_segment75_err,
+            label="75% segment",
+            c="C1",
+        )
+        self.ax.plot(
+            self.df.threshold,
+            self.df.frac_component75,
+            label="75% component",
+            ls="--",
+            c="C1",
+            markerfacecolor="none",
+        )
+
+    def plot_tpr_fpr(self):
+        self.ax.errorbar(
+            self.df.threshold,
+            self.df.TPR_thld,
+            yerr=self.df.TPR_thld_err,
+            c="C3",
+            label="TPR ($p_T > 0.9$ GeV)",
+        )
+        self.ax.errorbar(
+            self.df.threshold,
+            self.df.FPR,
+            yerr=self.df.FPR_err,
+            c="C3",
+            label="FPR",
+            ls="--",
+        )
+
+    def plot_mcc(self):
+        self.ax.errorbar(
+            self.df.threshold,
+            self.df.MCC_thld,
+            self.df.MCC_thld_err,
+            c="C4",
+            label="MCC ($p_T > 0.9$ GeV)",
+        )
+
+    def plot_hlines(self):
+        self.ax.axhline(0.9, c="gray", alpha=0.3, lw=1)
+        self.ax.axhline(0.95, c="gray", alpha=0.3, lw=1)
+        self.ax.axhline(0.85, c="gray", alpha=0.3, lw=1)
+
+    def add_legend(self):
+        self.ax.legend()
