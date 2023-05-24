@@ -111,7 +111,7 @@ class ThresholdTrackInfoPlot:
             df: DataFrame with columns as in `get_all_ec_stats`
         """
         self.df = df
-        self.ax = None
+        self.ax: plt.Axes | None = None
 
     def plot(self):
         """Plot all the things."""
@@ -135,56 +135,52 @@ class ThresholdTrackInfoPlot:
             self.df.frac_perfect,
             yerr=self.df.frac_perfect_err,
             label="Single segment",
-            c="C0",
         )
 
     def plot_50(self):
-        self.ax.errorbar(
+        line, *_ = self.ax.errorbar(
             self.df.threshold,
             self.df.frac_segment50,
             yerr=self.df.frac_segment50_err,
             label="50% segment",
-            c="C2",
         )
         self.ax.plot(
             self.df.threshold,
             self.df.frac_component50,
             label="50% component",
             ls="--",
-            c="C2",
+            c=line.get_color(),
             markerfacecolor="none",
         )
 
     def plot_75(self):
-        self.ax.errorbar(
+        line, *_ = self.ax.errorbar(
             self.df.threshold,
             self.df.frac_segment75,
             yerr=self.df.frac_segment75_err,
             label="75% segment",
-            c="C1",
         )
         self.ax.plot(
             self.df.threshold,
             self.df.frac_component75,
             label="75% component",
             ls="--",
-            c="C1",
+            c=line.get_color(),
             markerfacecolor="none",
         )
 
     def plot_tpr_fpr(self):
-        self.ax.errorbar(
+        line, *_ = self.ax.errorbar(
             self.df.threshold,
             self.df.TPR_thld,
             yerr=self.df.TPR_thld_err,
-            c="C3",
             label="TPR ($p_T > 0.9$ GeV)",
         )
         self.ax.errorbar(
             self.df.threshold,
             self.df.FPR,
             yerr=self.df.FPR_err,
-            c="C3",
+            c=line.get_color(),
             label="FPR",
             ls="--",
         )
@@ -194,7 +190,6 @@ class ThresholdTrackInfoPlot:
             self.df.threshold,
             self.df.MCC_thld,
             self.df.MCC_thld_err,
-            c="C4",
             label="MCC ($p_T > 0.9$ GeV)",
         )
 
