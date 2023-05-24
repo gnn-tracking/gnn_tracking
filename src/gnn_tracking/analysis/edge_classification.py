@@ -13,33 +13,37 @@ from gnn_tracking.analysis.graphs import (
     get_track_graph_info_from_data,
     summarize_track_graph_info,
 )
+from gnn_tracking.metrics.binary_classification import BinaryClassificationStats
+from gnn_tracking.utils.dictionaries import add_key_suffix
+from gnn_tracking.utils.graph_masks import get_edge_mask_from_node_mask
 
 
-def get_tpr_fpr(
-    threshold: float,
-    w: torch.Tensor,
-    y: torch.Tensor,
+def get_all_ec_stats(
+    threshold: float, w: torch.Tensor, data: Data, pt_thld=0.9
 ) -> dict[str, float]:
-    """Get true positive rate and false positive rate"""
-    passes = w >= threshold
-    true = y == 1
-    tp = (passes & true).sum()
-    fp = (passes & (~true)).sum()
-    tpr = tp.sum().item() / sum(true)
-    fpr = fp.sum().item() / sum(~true)
-    return {"tpr": tpr.item(), "fpr": fpr.item()}
-
-
-def get_all_ec_stats(threshold: float, w: torch.Tensor, data: Data) -> dict[str, float]:
     """Evaluate edge classification performance for a single threshold and a single
     batch.
+
+    Args:
+        threshold: Edge classification threshold
+        w: Edge classification output
+        data: Data
+        pt_thld: pt threshold for particle IDs to consider. For edge classification
+            stats (TPR, etc.), two versions are calculated: The stats ending with
+            `_thld` are calculated for all edges with pt > pt_thld
 
     Returns:
         Dictionary of metrics
     """
+    pt_edge_mask = get_edge_mask_from_node_mask(data.pt > pt_thld, data.edge_index)
+    bcs_thld = BinaryClassificationStats(
+        output=w[pt_edge_mask], y=data.y[pt_edge_mask].long(), thld=threshold
+    )
+    bcs = BinaryClassificationStats(output=w, y=data.y.long(), thld=threshold)
     return (
         {"threshold": threshold}
-        | get_tpr_fpr(threshold, w, data.y)
+        | bcs.get_all()
+        | add_key_suffix(bcs_thld.get_all(), "_thld")
         | summarize_track_graph_info(
             get_track_graph_info_from_data(data, w, threshold=threshold)
         )
@@ -55,6 +59,13 @@ def collect_all_ec_stats(
 ) -> pd.DataFrame:
     """Collect edge classification statistics for a model and a data loader, basically
     mapping `get_all_ec_stats` over the data loader with multiprocessing.
+
+    Args:
+        model: Edge classifier model
+        data_loader: Data loader
+        thresholds: List of EC thresholds to evaluate
+        n_batches: Number of batches to evaluate
+        max_workers: Number of workers for multiprocessing
 
     Returns:
         DataFrame with columns as in `get_all_ec_stats`
@@ -109,8 +120,8 @@ def plot_threshold_vs_track_info(df: pd.DataFrame) -> plt.Axes:
         c="C1",
         markerfacecolor="none",
     )
-    ax.plot(df.threshold, df.tpr, c="C3", label="TPR", **markup)
-    ax.plot(df.threshold, df.fpr, c="C3", label="FPR", ls="--", **markup)
+    ax.plot(df.threshold, df.TPR_thld, c="C3", label="TPR ($p_T > 0.9$ GeV)", **markup)
+    ax.plot(df.threshold, df.FPR, c="C3", label="FPR", ls="--", **markup)
     ax.set_ylabel("Fraction")
     ax.set_xlabel("EC threshold")
     ax.axhline(0.9, c="gray", alpha=0.3, lw=1)
