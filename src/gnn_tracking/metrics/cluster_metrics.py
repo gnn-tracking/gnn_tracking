@@ -74,7 +74,7 @@ _tracking_metrics_nan_results: TrackingMetrics = {
 }
 
 
-def tracking_metric_dfs(h_df: pd.DataFrame, predicted_count_thld=3) -> pd.DataFrame:
+def tracking_metric_df(h_df: pd.DataFrame, predicted_count_thld=3) -> pd.DataFrame:
     """Label clusters as double majority/perfect/LHC.
 
     Args:
@@ -230,7 +230,7 @@ def tracking_metrics(
     h_df = pd.DataFrame(
         {"c": predicted, "id": truth, "pt": pts, "reconstructable": reconstructable}
     )
-    c_df = tracking_metric_dfs(h_df, predicted_count_thld=predicted_count_thld)
+    c_df = tracking_metric_df(h_df, predicted_count_thld=predicted_count_thld)
 
     result = dict[float, ClusterMetricType]()
     for pt in pt_thlds:
