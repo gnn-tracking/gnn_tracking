@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import numpy as np
 import pytest
+import torch
 from matplotlib import pyplot as plt
 
 from gnn_tracking.analysis.latent import SelectedPidsPlot
@@ -11,11 +12,10 @@ from gnn_tracking.analysis.latent import SelectedPidsPlot
 def selected_pids_test_data() -> dict[str, np.ndarray]:
     kwargs = {}
     for key in ["condensation_space", "input_node_features"]:
-        kwargs[key] = np.random.uniform(size=(100, 5))
+        kwargs[key] = torch.rand(size=(100, 5))
     for key in ["particle_id", "labels"]:
-        kwargs[key] = np.random.randint(0, 10, size=100)
-    kwargs["ec_hit_mask"] = np.ones(100, dtype=bool)
-    print({k: v.shape for k, v in kwargs.items()})
+        kwargs[key] = torch.randint(10, size=(100,))
+    kwargs["ec_hit_mask"] = torch.ones(100).bool()
     return kwargs
 
 
