@@ -73,8 +73,19 @@ class TrackGraphInfo(NamedTuple):
 
 
 def get_track_graph_info(
-    graph: nx.Graph, particle_ids: Sequence[int], pid: int
+    graph: nx.Graph, particle_ids: np.ndarray, pid: int
 ) -> TrackGraphInfo:
+    """Get information about how well connected the hits of a single particle are in the
+    graph.
+
+    Args:
+        graph: networkx graph of the data
+        particle_ids: The particle IDs of the hits.
+        pid: Particle ID of the true track
+
+    Returns:
+        `TrackGraphInfo`
+    """
     hits_for_pid = np.where(particle_ids == pid)[0]
     assert len(hits_for_pid) > 0
     sg = graph.subgraph(hits_for_pid).to_undirected()
@@ -110,6 +121,7 @@ def get_track_graph_info_from_data(
     data: Data, w: Tensor, pt_thld=0.9, threshold: float | None = None
 ) -> pd.DataFrame:
     """Get DataFrame of track graph information for every particle ID in the data.
+    This function basically applies `get_track_graph_info` to every particle ID.
 
     Args:
         data:
@@ -142,6 +154,9 @@ def get_track_graph_info_from_data(
 
 
 def summarize_track_graph_info(tgi: pd.DataFrame) -> dict[str, float]:
+    """Summarize track graph information returned by
+    `get_track_graph_info_from_data`.
+    """
     return dict(
         frac_perfect=sum((tgi.n_hits_largest_segment / tgi.n_hits) == 1) / len(tgi),
         frac_segment50=sum((tgi.n_hits_largest_segment / tgi.n_hits) >= 0.50)

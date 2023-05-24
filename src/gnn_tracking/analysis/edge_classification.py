@@ -20,6 +20,7 @@ def get_tpr_fpr(
     w: torch.Tensor,
     y: torch.Tensor,
 ) -> dict[str, float]:
+    """Get true positive rate and false positive rate"""
     passes = w >= threshold
     true = y == 1
     tp = (passes & true).sum()
@@ -30,7 +31,12 @@ def get_tpr_fpr(
 
 
 def get_all_ec_stats(threshold: float, w: torch.Tensor, data: Data) -> dict[str, float]:
-    """See `collect_ec_stats`"""
+    """Evaluate edge classification performance for a single threshold and a single
+    batch.
+
+    Returns:
+        Dictionary of metrics
+    """
     return (
         {"threshold": threshold}
         | get_tpr_fpr(threshold, w, data.y)
@@ -45,14 +51,23 @@ def collect_all_ec_stats(
     data_loader: DataLoader,
     thresholds: Sequence[float],
     n_batches: int | None = None,
+    max_workers=6,
 ) -> pd.DataFrame:
+    """Collect edge classification statistics for a model and a data loader, basically
+    mapping `get_all_ec_stats` over the data loader with multiprocessing.
+
+    Returns:
+        DataFrame with columns as in `get_all_ec_stats`
+    """
     model.eval()
     r = []
     with torch.no_grad():
         for idx, data in enumerate(data_loader):
             w = model(data)["W"]
             r += process_map(
-                partial(get_all_ec_stats, w=w, data=data), thresholds, max_workers=6
+                partial(get_all_ec_stats, w=w, data=data),
+                thresholds,
+                max_workers=max_workers,
             )
             if n_batches is not None and idx >= n_batches - 1:
                 break
@@ -70,7 +85,7 @@ def collect_all_ec_stats(
 
 
 def plot_threshold_vs_track_info(df: pd.DataFrame) -> plt.Axes:
-    """Plots the output of `collect_ec_stats`."""
+    """Plots the output of `collect_all_ec_stats`."""
     fig, ax = plt.subplots()
     markup = dict(marker=".")
     ax.plot(df.threshold, df.frac_perfect, **markup, label="Single segment", c="C0")
