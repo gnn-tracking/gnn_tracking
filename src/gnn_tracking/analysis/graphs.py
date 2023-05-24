@@ -87,10 +87,11 @@ def get_track_graph_info(
         `TrackGraphInfo`
     """
     hits_for_pid = np.where(particle_ids == pid)[0]
-    assert len(hits_for_pid) > 0
-    sg = graph.subgraph(hits_for_pid).to_undirected()
+    n_hits = len(hits_for_pid)
+    assert n_hits > 0
+    segment_subgraph = graph.subgraph(hits_for_pid)
     segments: list[Sequence[int]] = sorted(  # type: ignore
-        nx.connected_components(sg), key=len, reverse=True
+        nx.connected_components(segment_subgraph), key=len, reverse=True
     )
     if len(segments) == 1:
         n_hits_largest_component = len(hits_for_pid)
@@ -98,20 +99,29 @@ def get_track_graph_info(
         # We could also iterate over all PIDs, but that would be slower.
         # we already know that the segments are connected, so it's enough to
         # use one of the nodes from each one.
-        n_hits_largest_component = 1 + max(
-            get_n_reachable(graph, next(iter(segment)), hits_for_pid)
+        component_sizes = [
+            1 + get_n_reachable(graph, next(iter(segment)), hits_for_pid)
             for segment in segments
-        )
+        ]
+        n_hits_largest_component = max(component_sizes)
     distance_largest_segments = 0
     if len(segments) > 1:
         distance_largest_segments = shortest_path_length_multi(
             graph, sources=segments[0], targets=segments[1]
         )
+        assert distance_largest_segments > 0
+    n_hits_largest_segment = len(segments[0])
+    assert sum(map(len, segments)) == n_hits
+    assert n_hits >= n_hits_largest_component >= n_hits_largest_segment > 0, (
+        n_hits,
+        n_hits_largest_component,
+        n_hits_largest_segment,
+    )
     return TrackGraphInfo(
         pid=pid,
-        n_hits=len(hits_for_pid),
+        n_hits=n_hits,
         n_segments=len(segments),
-        n_hits_largest_segment=len(segments[0]),
+        n_hits_largest_segment=n_hits_largest_segment,
         distance_largest_segments=distance_largest_segments,
         n_hits_largest_component=n_hits_largest_component,
     )
@@ -133,7 +143,9 @@ def get_track_graph_info_from_data(
         DataFrame with columns as in `TrackGraphInfo`
     """
     edge_mask = (w > threshold).squeeze()
-    gx = torch_geometric.utils.convert.to_networkx(edge_subgraph(data, edge_mask))
+    gx = torch_geometric.utils.convert.to_networkx(
+        edge_subgraph(data, edge_mask)
+    ).to_undirected()
     particle_ids = data.particle_id[
         (data.particle_id > 0) & (data.pt > pt_thld)
     ].unique()
