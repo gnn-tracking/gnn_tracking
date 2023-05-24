@@ -116,9 +116,9 @@ class ThresholdTrackInfoPlot:
     def plot(self):
         """Plot all the things."""
         self.setup_axes()
-        self.plot_single_segment()
-        self.plot_50()
+        self.plot_100()
         self.plot_75()
+        self.plot_50()
         self.plot_tpr_fpr()
         self.plot_hlines()
         self.plot_mcc()
@@ -148,10 +148,16 @@ class ThresholdTrackInfoPlot:
         )
         return color
 
-    def plot_single_segment(self):
-        self.plot_errorline(
-            "frac_perfect",
+    def plot_100(self):
+        color = self.plot_errorline(
+            "frac_segment100",
             label="Single segment",
+        )
+        self.plot_line(
+            "frac_component100",
+            label="Single component",
+            ls="--",
+            c=color,
         )
 
     def plot_50(self):
