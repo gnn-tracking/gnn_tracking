@@ -129,67 +129,71 @@ class ThresholdTrackInfoPlot:
         ax.set_xlabel("EC threshold")
         self.ax = ax
 
-    def plot_single_segment(self):
-        self.ax.errorbar(
+    def plot_line(self, key, **kwargs):
+        return self.ax.plot(self.df.threshold, self.df[key], **kwargs)
+
+    def plot_errorline(self, key, **kwargs):
+        line, *_ = self.ax.plot(
             self.df.threshold,
-            self.df.frac_perfect,
-            yerr=self.df.frac_perfect_err,
+            self.df[key],
+            **kwargs,
+        )
+        color = line.get_color()
+        self.ax.fill_between(
+            self.df.threshold,
+            self.df[key] - self.df[f"{key}_err"],
+            self.df[key] + self.df[f"{key}_err"],
+            color=color,
+            alpha=0.3,
+        )
+        return color
+
+    def plot_single_segment(self):
+        self.plot_errorline(
+            "frac_perfect",
             label="Single segment",
         )
 
     def plot_50(self):
-        line, *_ = self.ax.errorbar(
-            self.df.threshold,
-            self.df.frac_segment50,
-            yerr=self.df.frac_segment50_err,
+        color = self.plot_errorline(
+            "frac_segment50",
             label="50% segment",
         )
-        self.ax.plot(
-            self.df.threshold,
-            self.df.frac_component50,
+        self.plot_line(
+            "frac_component50",
             label="50% component",
             ls="--",
-            c=line.get_color(),
-            markerfacecolor="none",
+            c=color,
         )
 
     def plot_75(self):
-        line, *_ = self.ax.errorbar(
-            self.df.threshold,
-            self.df.frac_segment75,
-            yerr=self.df.frac_segment75_err,
+        color = self.plot_errorline(
+            "frac_segment75",
             label="75% segment",
         )
-        self.ax.plot(
-            self.df.threshold,
-            self.df.frac_component75,
+        self.plot_line(
+            "frac_component75",
             label="75% component",
             ls="--",
-            c=line.get_color(),
+            c=color,
             markerfacecolor="none",
         )
 
     def plot_tpr_fpr(self):
-        line, *_ = self.ax.errorbar(
-            self.df.threshold,
-            self.df.TPR_thld,
-            yerr=self.df.TPR_thld_err,
+        color = self.plot_errorline(
+            "TPR_thld",
             label="TPR ($p_T > 0.9$ GeV)",
         )
-        self.ax.errorbar(
-            self.df.threshold,
-            self.df.FPR,
-            yerr=self.df.FPR_err,
-            c=line.get_color(),
+        self.plot_errorline(
+            "FPR",
+            c=color,
             label="FPR",
             ls="--",
         )
 
     def plot_mcc(self):
-        self.ax.errorbar(
-            self.df.threshold,
-            self.df.MCC_thld,
-            self.df.MCC_thld_err,
+        self.plot_errorline(
+            "MCC_thld",
             label="MCC ($p_T > 0.9$ GeV)",
         )
 
