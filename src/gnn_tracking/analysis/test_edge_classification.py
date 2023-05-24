@@ -18,5 +18,5 @@ def test_ec_plot_integration(built_graphs):
         hidden_dim=2,
         L_ec=2,
     )
-    df = collect_all_ec_stats(ec, [g], thresholds=[0, 0.5, 1.0])
+    df = collect_all_ec_stats(ec, [g], thresholds=[0, 0.5, 1.0])  # type: ignore
     ThresholdTrackInfoPlot(df).plot()
