@@ -158,7 +158,9 @@ def summarize_track_graph_info(tgi: pd.DataFrame) -> dict[str, float]:
     `get_track_graph_info_from_data`.
     """
     return dict(
-        frac_perfect=sum((tgi.n_hits_largest_segment / tgi.n_hits) == 1) / len(tgi),
+        frac_segment100=sum((tgi.n_hits_largest_segment / tgi.n_hits) == 1) / len(tgi),
+        frac_component100=sum((tgi.n_hits_largest_component / tgi.n_hits) == 1)
+        / len(tgi),
         frac_segment50=sum((tgi.n_hits_largest_segment / tgi.n_hits) >= 0.50)
         / len(tgi),
         frac_component50=sum((tgi.n_hits_largest_component / tgi.n_hits) >= 0.50)
