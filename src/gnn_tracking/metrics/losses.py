@@ -208,6 +208,7 @@ def _condensation_loss(
     radius_threshold: float,
 ) -> dict[str, T]:
     """Extracted function for JIT-compilation. See `PotentialLoss` for details."""
+    # x: n_nodes x n_outdim
     pids = torch.unique(particle_id[particle_id > 0])
     assert len(pids) > 0, "No particles found, cannot evaluate loss"
     # n_nodes x n_pids
@@ -216,21 +217,20 @@ def _condensation_loss(
     q = torch.arctanh(beta) ** 2 + q_min
     assert not torch.isnan(q).any(), "q contains NaNs"
     alphas = torch.argmax(q[:, None] * pid_masks, dim=0)
-    x_alphas = x[alphas].transpose(0, 1)
+    # n_pids x n_outdim
+    x_alphas = x[alphas]
+    # 1 x 1 x n_pids
     q_alphas = q[alphas][None, None, :]
 
-    diff = x[:, :, None] - x_alphas[None, :, :]
-    norm_sq = torch.sum(diff**2, dim=1)
+    dist = torch.cdist(x[None, :, :], x_alphas[None, :, :])
 
-    # Attractive potential
-    va = q[:, None] * pid_masks * (norm_sq * q_alphas).squeeze(dim=0)
-    # Repulsive potential
+    # Attractive potential (n_nodes x n_pids)
+    va = q[:, None] * pid_masks * (torch.square(dist) * q_alphas).squeeze(dim=0)
+    # Repulsive potential (n_nodes x n_pids)
     vr = (
         q[:, None]
         * (~pid_masks)
-        * (relu(radius_threshold - torch.sqrt(norm_sq + 1e-8)) * q_alphas).squeeze(
-            dim=0
-        )
+        * (relu(radius_threshold - dist) * q_alphas).squeeze(dim=0)
     )
 
     return {
