@@ -160,18 +160,8 @@ def get_track_graph_info_from_data(
     ].unique()
     results = []
     for pid in particle_ids:
-        results.append(get_track_graph_info(gx, data.particle_id, pid.item()))
-    return pd.DataFrame(
-        results,
-        columns=[
-            "pid",
-            "n_hits",
-            "n_segments",
-            "n_hits_largest_segment",
-            "distance_largest_segments",
-            "n_hits_largest_component",
-        ],
-    )
+        results.append(get_track_graph_info(gx, data.particle_id, pid.item())._asdict())
+    return pd.DataFrame.from_records(results)
 
 
 def summarize_track_graph_info(tgi: pd.DataFrame) -> dict[str, float]:
