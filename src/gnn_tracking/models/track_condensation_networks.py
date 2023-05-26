@@ -113,33 +113,6 @@ class PointCloudTCN(nn.Module):
         return {"W": None, "H": h_out, "B": beta.squeeze(), "P": None}
 
 
-def mask_nodes_with_few_edges(
-    *, n_nodes: int, edge_index: torch.Tensor, min_connections=1
-) -> torch.Tensor:
-    """Returns a mask where all nodes that do not have at least
-    `min_connections` edges are masked.
-
-    Args:
-        n_nodes: Total number of hits
-        edge_index: Edge index tensor (``2 x n_edges``)
-        min_connections: Minimal number of edges that a node should have
-
-    Returns:
-        Mask for hits
-    """
-    if min_connections <= 0:
-        return torch.full((n_nodes,), True, dtype=torch.bool, device=edge_index.device)
-    node_count_indices, node_counts = torch.unique(
-        edge_index.flatten(), return_counts=True
-    )
-    node_mask = node_counts >= min_connections
-    allowed_node_indices = node_count_indices[node_mask]
-    node_indices = torch.arange(n_nodes, device=edge_index.device)
-    assert len(node_indices) == n_nodes > len(node_count_indices)
-    assert n_nodes > node_count_indices.max()
-    return torch.isin(node_indices, allowed_node_indices)
-
-
 class ModularGraphTCN(nn.Module):
     def __init__(
         self,
