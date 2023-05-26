@@ -209,7 +209,7 @@ class OrphanCount(NamedTuple):
 def get_orphan_counts(data: Data, pt_thld=0.9) -> OrphanCount:
     """Count unmber of orphan nodes in a graph. See `OrphanCount` for details."""
     connected_nodes = data.edge_index.flatten().unique()
-    orphan_mask = torch.zeros(data.num_nodes, dtype=torch.bool)
+    orphan_mask = torch.zeros_like(data.particle_id, dtype=torch.bool)
     orphan_mask[connected_nodes] = False
     good_nodes_mask = (data.particle_id) > 0 & (data.pt > pt_thld)
     return OrphanCount(
