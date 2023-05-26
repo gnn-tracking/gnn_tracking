@@ -11,7 +11,9 @@ import torch_geometric
 from torch import Tensor
 from torch_geometric.data import Data
 
-from gnn_tracking.utils.graph_masks import edge_subgraph
+from gnn_tracking.metrics.binary_classification import BinaryClassificationStats
+from gnn_tracking.utils.dictionaries import add_key_suffix
+from gnn_tracking.utils.graph_masks import edge_subgraph, get_edge_mask_from_node_mask
 
 
 def shortest_path_length_catch_no_path(graph: nx.Graph, source, target) -> int | float:
@@ -219,8 +221,20 @@ def get_orphan_counts(data: Data, pt_thld=0.9) -> OrphanCount:
 
 def get_all_graph_construction_stats(data: Data, pt_thld=0.9) -> dict[str, float]:
     """Evaluate graph construction performance for a single batch."""
-    return get_orphan_counts(
-        data, pt_thld=pt_thld
-    )._asdict() | summarize_track_graph_info(
-        get_track_graph_info_from_data(data, pt_thld=pt_thld)
+    bcs = BinaryClassificationStats(
+        output=torch.ones_like(data.y).long(), y=data.y.long(), thld=0.0
+    )
+    pt_edge_mask = get_edge_mask_from_node_mask(data.pt > pt_thld, data.edge_index)
+    bcs_thld = BinaryClassificationStats(
+        output=torch.ones_like(data.y[pt_edge_mask]).long(),
+        y=data.y[pt_edge_mask].long(),
+        thld=0.0,
+    )
+    return (
+        get_orphan_counts(data, pt_thld=pt_thld)._asdict()
+        | summarize_track_graph_info(
+            get_track_graph_info_from_data(data, pt_thld=pt_thld)
+        )
+        | bcs.get_all()
+        | add_key_suffix(bcs_thld.get_all(), "_thld")
     )
