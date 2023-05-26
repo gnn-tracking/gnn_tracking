@@ -6,7 +6,11 @@ import networkx as nx
 import numpy as np
 import pytest
 
-from gnn_tracking.analysis.graphs import TrackGraphInfo, get_track_graph_info
+from gnn_tracking.analysis.graphs import (
+    TrackGraphInfo,
+    get_all_graph_construction_stats,
+    get_track_graph_info,
+)
 
 
 class _TestCase(NamedTuple):
@@ -56,8 +60,14 @@ _test_cases = [
 
 
 @pytest.mark.parametrize("test_case", _test_cases)
-def test_get_track_graph_info(test_case: _TestCase):
+def test_get_all_track_graph_info(test_case: _TestCase):
     assert (
         get_track_graph_info(test_case.graph, np.array(test_case.pids), 0)
         == test_case.tgi
     )
+
+
+def test_ec_plot_integration(built_graphs):
+    _, graph_builder = built_graphs
+    g = graph_builder.data_list[0]
+    get_all_graph_construction_stats(g)
