@@ -129,26 +129,29 @@ def get_track_graph_info(
 
 
 def get_track_graph_info_from_data(
-    data: Data, w: Tensor, pt_thld=0.9, threshold: float | None = None
+    data: Data, *, w: Tensor | None = None, pt_thld=0.9, threshold: float | None = None
 ) -> pd.DataFrame:
     """Get DataFrame of track graph information for every particle ID in the data.
     This function basically applies `get_track_graph_info` to every particle ID.
 
     Args:
-        data:
-        model: Edge classifier model
+        data: Data
+        w: Edge weights. If None, no cut on edge weights
         pt_thld: pt threshold for particle IDs to consider
-        threshold: Edge classification cutoff
+        threshold: Edge classification cutoff (if w is given)
 
     Returns:
         DataFrame with columns as in `TrackGraphInfo`
     """
-    assert not torch.isnan(w).any()
-    edge_mask = (w > threshold).squeeze()
-    data_subgraph = edge_subgraph(data, edge_mask)
-    if threshold <= 0:
-        assert edge_mask.all()
-        assert data_subgraph.num_edges == data.num_edges
+    if w is not None:
+        assert not torch.isnan(w).any()
+        edge_mask = (w > threshold).squeeze()
+        data_subgraph = edge_subgraph(data, edge_mask)
+        if threshold <= 0:
+            assert edge_mask.all()
+            assert data_subgraph.num_edges == data.num_edges
+    else:
+        data_subgraph = data
     gx = torch_geometric.utils.convert.to_networkx(data_subgraph, to_undirected=True)
     assert gx.number_of_nodes() == data_subgraph.num_nodes, (
         gx.number_of_nodes(),
@@ -183,4 +186,41 @@ def summarize_track_graph_info(tgi: pd.DataFrame) -> dict[str, float]:
         n_segments=tgi.n_segments.mean(),
         frac_hits_largest_segment=(tgi.n_hits_largest_segment / tgi.n_hits).mean(),
         frac_hits_largest_component=(tgi.n_hits_largest_component / tgi.n_hits).mean(),
+    )
+
+
+class OrphanCount(NamedTuple):
+    """Stats about the number of orphan nodes in a graph
+
+    Attributes:
+        correct: Number of orphan nodes that are actually bad nodes (low pt or
+            noise)
+        incorrect: Number of orphan nodes that are actually good nodes
+        total: Total number of orphan nodes
+    """
+
+    correct: int
+    incorrect: int
+    total: int
+
+
+def get_orphan_counts(data: Data, pt_thld=0.9) -> OrphanCount:
+    """Count unmber of orphan nodes in a graph. See `OrphanCount` for details."""
+    connected_nodes = data.edge_index.flatten().unique()
+    orphan_mask = torch.zeros(data.num_nodes, dtype=torch.bool)
+    orphan_mask[connected_nodes] = False
+    good_nodes_mask = (data.particle_id) > 0 & (data.pt > pt_thld)
+    return OrphanCount(
+        correct=torch.sum(orphan_mask & ~good_nodes_mask).item(),
+        incorrect=torch.sum(orphan_mask & good_nodes_mask).item(),
+        total=torch.sum(orphan_mask).item(),
+    )
+
+
+def get_all_graph_construction_stats(data: Data, pt_thld=0.9) -> dict[str, float]:
+    """Evaluate graph construction performance for a single batch."""
+    return get_orphan_counts(
+        data, pt_thld=pt_thld
+    )._asdict() | summarize_track_graph_info(
+        get_track_graph_info_from_data(data, pt_thld=pt_thld)
     )
