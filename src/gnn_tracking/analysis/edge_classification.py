@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from functools import partial
-from typing import NamedTuple, Sequence
+from typing import Sequence
 
 import numpy as np
 import pandas as pd
@@ -11,6 +11,7 @@ from torch_geometric.data import Data, DataLoader
 from tqdm.contrib.concurrent import process_map
 
 from gnn_tracking.analysis.graphs import (
+    get_orphan_counts,
     get_track_graph_info_from_data,
     summarize_track_graph_info,
 )
@@ -19,39 +20,12 @@ from gnn_tracking.utils.dictionaries import add_key_suffix
 from gnn_tracking.utils.graph_masks import get_edge_mask_from_node_mask
 
 
-class OrphanCount(NamedTuple):
-    """Stats about the number of orphan nodes in a graph
-
-    Attributes:
-        correct: Number of orphan nodes that are actually bad nodes (low pt or
-            noise)
-        incorrect: Number of orphan nodes that are actually good nodes
-        total: Total number of orphan nodes
-    """
-
-    correct: int
-    incorrect: int
-    total: int
-
-
-def get_orphan_counts(data: Data, pt_thld=0.9) -> OrphanCount:
-    """Count unmber of orphan nodes in a graph. See `OrphanCount` for details."""
-    connected_nodes = data.edge_index.flatten().unique()
-    orphan_mask = torch.zeros(data.num_nodes, dtype=torch.bool)
-    orphan_mask[connected_nodes] = False
-    good_nodes_mask = (data.particle_id) > 0 & (data.pt > pt_thld)
-    return OrphanCount(
-        correct=torch.sum(orphan_mask & ~good_nodes_mask).item(),
-        incorrect=torch.sum(orphan_mask & good_nodes_mask).item(),
-        total=torch.sum(orphan_mask).item(),
-    )
-
-
 def get_all_ec_stats(
     threshold: float, w: torch.Tensor, data: Data, pt_thld=0.9
 ) -> dict[str, float]:
-    """Evaluate edge classification performance for a single threshold and a single
-    batch.
+    """Evaluate edge classification/graph construction performance for a single batch.
+    Similar to `get_all_graph_construction_stats`, but also includes edge classification
+    information.
 
     Args:
         threshold: Edge classification threshold
@@ -76,7 +50,7 @@ def get_all_ec_stats(
         | get_orphan_counts(data, pt_thld=pt_thld)._asdict()
         | summarize_track_graph_info(
             get_track_graph_info_from_data(
-                data, w, threshold=threshold, pt_thld=pt_thld
+                data, w=w, threshold=threshold, pt_thld=pt_thld
             )
         )
     )
