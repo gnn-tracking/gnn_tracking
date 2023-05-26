@@ -219,19 +219,16 @@ def _condensation_loss(
     alphas = torch.argmax(q[:, None] * pid_masks, dim=0)
     # n_pids x n_outdim
     x_alphas = x[alphas]
-    # 1 x 1 x n_pids
-    q_alphas = q[alphas][None, None, :]
+    # 1 x n_pids
+    q_alphas = q[alphas][None, :]
 
-    dist = torch.cdist(x[None, :, :], x_alphas[None, :, :])
+    # n_nodes x n_pids
+    dist = torch.cdist(x[:, :], x_alphas[:, :])
 
     # Attractive potential (n_nodes x n_pids)
-    va = q[:, None] * pid_masks * (torch.square(dist) * q_alphas).squeeze(dim=0)
+    va = q[:, None] * pid_masks * torch.square(dist) * q_alphas
     # Repulsive potential (n_nodes x n_pids)
-    vr = (
-        q[:, None]
-        * (~pid_masks)
-        * (relu(radius_threshold - dist) * q_alphas).squeeze(dim=0)
-    )
+    vr = q[:, None] * (~pid_masks) * relu(radius_threshold - dist) * q_alphas
 
     return {
         "attractive": torch.sum(torch.mean(va[mask], dim=0)),
