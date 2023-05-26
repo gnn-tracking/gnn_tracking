@@ -6,6 +6,7 @@ from typing import Iterable, NamedTuple, Sequence
 import networkx as nx
 import numpy as np
 import pandas as pd
+import torch
 import torch_geometric
 from torch import Tensor
 from torch_geometric.data import Data
@@ -142,10 +143,18 @@ def get_track_graph_info_from_data(
     Returns:
         DataFrame with columns as in `TrackGraphInfo`
     """
+    assert not torch.isnan(w).any()
     edge_mask = (w > threshold).squeeze()
-    gx = torch_geometric.utils.convert.to_networkx(
-        edge_subgraph(data, edge_mask)
-    ).to_undirected()
+    data_subgraph = edge_subgraph(data, edge_mask)
+    if threshold <= 0:
+        assert edge_mask.all()
+        assert data_subgraph.num_edges == data.num_edges
+    gx = torch_geometric.utils.convert.to_networkx(data_subgraph, to_undirected=True)
+    assert gx.number_of_nodes() == data_subgraph.num_nodes, (
+        gx.number_of_nodes(),
+        data_subgraph.num_nodes,
+    )
+    # Can't check edge numbers because of directed vs undirected edges
     particle_ids = data.particle_id[
         (data.particle_id > 0) & (data.pt > pt_thld)
     ].unique()
