@@ -39,16 +39,32 @@ class BinaryClassificationStats:
         return self._y == 1
 
     @cached_property
+    def n_true(self) -> int:
+        return torch.sum(self._true).item()
+
+    @cached_property
     def _false(self) -> torch.Tensor:
         return ~self._true
+
+    @cached_property
+    def n_false(self) -> int:
+        return len(self._y) - self.n_true
 
     @cached_property
     def _predicted_false(self) -> torch.Tensor:
         return self._output < self._thld
 
     @cached_property
+    def n_predicted_false(self) -> int:
+        return torch.sum(self._predicted_false).item()
+
+    @cached_property
     def _predicted_true(self) -> torch.Tensor:
         return ~self._predicted_false
+
+    @cached_property
+    def n_predicted_true(self) -> int:
+        return len(self._y) - self.n_predicted_false
 
     @cached_property
     def TP(self) -> float:
@@ -118,6 +134,10 @@ class BinaryClassificationStats:
             "balanced_acc": self.balanced_acc,
             "F1": self.F1,
             "MCC": self.MCC,
+            "n_true": self.n_true,
+            "n_false": self.n_false,
+            "n_predicted_true": self.n_predicted_true,
+            "n_predicted_false": self.n_predicted_false,
         }
 
 
