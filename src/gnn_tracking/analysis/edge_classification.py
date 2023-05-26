@@ -46,7 +46,9 @@ def get_all_ec_stats(
         | bcs.get_all()
         | add_key_suffix(bcs_thld.get_all(), "_thld")
         | summarize_track_graph_info(
-            get_track_graph_info_from_data(data, w, threshold=threshold)
+            get_track_graph_info_from_data(
+                data, w, threshold=threshold, pt_thld=pt_thld
+            )
         )
     )
 
@@ -57,6 +59,7 @@ def collect_all_ec_stats(
     thresholds: Sequence[float],
     n_batches: int | None = None,
     max_workers=6,
+    pt_thld=0.9,
 ) -> pd.DataFrame:
     """Collect edge classification statistics for a model and a data loader, basically
     mapping `get_all_ec_stats` over the data loader with multiprocessing.
@@ -77,7 +80,7 @@ def collect_all_ec_stats(
         for idx, data in enumerate(data_loader):
             w = model(data)["W"]
             r += process_map(
-                partial(get_all_ec_stats, w=w, data=data),
+                partial(get_all_ec_stats, w=w, data=data, pt_thld=pt_thld),
                 thresholds,
                 max_workers=max_workers,
             )
