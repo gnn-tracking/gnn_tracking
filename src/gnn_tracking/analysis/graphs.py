@@ -11,9 +11,7 @@ import torch_geometric
 from torch import Tensor
 from torch_geometric.data import Data
 
-from gnn_tracking.metrics.binary_classification import BinaryClassificationStats
-from gnn_tracking.utils.dictionaries import add_key_suffix
-from gnn_tracking.utils.graph_masks import edge_subgraph, get_edge_mask_from_node_mask
+from gnn_tracking.utils.graph_masks import edge_subgraph
 
 
 def shortest_path_length_catch_no_path(graph: nx.Graph, source, target) -> int | float:
@@ -89,10 +87,12 @@ def get_track_graph_info(
     Returns:
         `TrackGraphInfo`
     """
+    # IMPORTANT: This does not work with torch arrays! Graph will end up empty
     hits_for_pid = np.where(particle_ids == pid)[0]
     n_hits = len(hits_for_pid)
     assert n_hits > 0
     segment_subgraph = graph.subgraph(hits_for_pid)
+    assert segment_subgraph.number_of_nodes() == n_hits
     segments: list[Sequence[int]] = sorted(  # type: ignore
         nx.connected_components(segment_subgraph), key=len, reverse=True
     )
@@ -165,7 +165,14 @@ def get_track_graph_info_from_data(
     ].unique()
     results = []
     for pid in particle_ids:
-        results.append(get_track_graph_info(gx, data.particle_id, pid.item())._asdict())
+        try:
+            results.append(
+                get_track_graph_info(
+                    gx, data.particle_id.cpu().numpy(), pid.item()
+                )._asdict()
+            )
+        except Exception as e:
+            raise ValueError("Error for PID", pid) from e
     return pd.DataFrame.from_records(results)
 
 
@@ -219,22 +226,28 @@ def get_orphan_counts(data: Data, pt_thld=0.9) -> OrphanCount:
     )
 
 
+def get_basic_counts(data: Data, pt_thld=0.9) -> dict[str, int]:
+    """Get basic counts of edges and nodes"""
+    good_hits_mask = (data.pt > pt_thld) & (data.particle_id > 0)
+    good_edges_mask = (data.y == 0) & (good_hits_mask[data.edge_index[0, :]] > 0)
+
+    return {
+        "n_hits": data.num_nodes,
+        "n_hits_noise": torch.sum(data.particle_id <= 0).item(),
+        "n_hits_thld": torch.sum(good_hits_mask).item(),
+        "n_edges": data.num_edges,
+        "n_tracks": len(data.particle_id.unique()),
+        "n_true_edges": torch.sum(data.y).item(),
+        "n_true_edges_thld": torch.sum(good_edges_mask),
+    }
+
+
 def get_all_graph_construction_stats(data: Data, pt_thld=0.9) -> dict[str, float]:
     """Evaluate graph construction performance for a single batch."""
-    bcs = BinaryClassificationStats(
-        output=torch.ones_like(data.y).long(), y=data.y.long(), thld=0.0
-    )
-    pt_edge_mask = get_edge_mask_from_node_mask(data.pt > pt_thld, data.edge_index)
-    bcs_thld = BinaryClassificationStats(
-        output=torch.ones_like(data.y[pt_edge_mask]).long(),
-        y=data.y[pt_edge_mask].long(),
-        thld=0.0,
-    )
     return (
         get_orphan_counts(data, pt_thld=pt_thld)._asdict()
         | summarize_track_graph_info(
             get_track_graph_info_from_data(data, pt_thld=pt_thld)
         )
-        | bcs.get_all()
-        | add_key_suffix(bcs_thld.get_all(), "_thld")
+        | get_basic_counts(data, pt_thld=pt_thld)
     )
