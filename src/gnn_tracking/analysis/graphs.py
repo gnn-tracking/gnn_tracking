@@ -202,15 +202,15 @@ class OrphanCount(NamedTuple):
     """Stats about the number of orphan nodes in a graph
 
     Attributes:
-        correct: Number of orphan nodes that are actually bad nodes (low pt or
+        n_orphan_correct: Number of orphan nodes that are actually bad nodes (low pt or
             noise)
-        incorrect: Number of orphan nodes that are actually good nodes
-        total: Total number of orphan nodes
+        n_orphan_incorrect: Number of orphan nodes that are actually good nodes
+        n_orphan_total: Total number of orphan nodes
     """
 
-    correct: int
-    incorrect: int
-    total: int
+    n_orphan_correct: int
+    n_orphan_incorrect: int
+    n_orphan_total: int
 
 
 def get_orphan_counts(data: Data, pt_thld=0.9) -> OrphanCount:
@@ -219,10 +219,12 @@ def get_orphan_counts(data: Data, pt_thld=0.9) -> OrphanCount:
     orphan_mask = torch.zeros_like(data.particle_id, dtype=torch.bool)
     orphan_mask[connected_nodes] = False
     good_nodes_mask = (data.particle_id) > 0 & (data.pt > pt_thld)
+    n_orphan_correct = torch.sum(orphan_mask & ~good_nodes_mask).item()
+    n_orphan_incorrect = torch.sum(orphan_mask & good_nodes_mask).item()
     return OrphanCount(
-        correct=torch.sum(orphan_mask & ~good_nodes_mask).item(),
-        incorrect=torch.sum(orphan_mask & good_nodes_mask).item(),
-        total=torch.sum(orphan_mask).item(),
+        n_orphan_correct=n_orphan_correct,
+        n_orphan_incorrect=n_orphan_incorrect,
+        n_orphan_total=torch.sum(orphan_mask).item(),
     )
 
 
