@@ -267,20 +267,23 @@ def get_all_graph_construction_stats(data: Data, pt_thld=0.9) -> dict[str, float
 
 
 def get_largest_segment_fracs(data: Data, pt_thld=0.9) -> np.ndarray:
-    particle_ids = data.particle_id[
-        (data.particle_id > 0) & (data.pt > pt_thld)
-    ].unique()
+    basic_hit_mask = (data.pt > pt_thld) & (data.particle_id > 0)
+    rdata = Data(edge_index=data.edge_index, particle_id=data.particle_id).subgraph(
+        basic_hit_mask
+    )
     r = []
-    for pid in particle_ids:
-        hit_mask: Tensor = data.particle_id == pid  # type: ignore
-        hit_locations = hit_mask.nonzero().squeeze()
+    for pid in rdata.particle_id.unique():
+        hit_mask: Tensor = rdata.particle_id == pid  # type: ignore
+        hit_locations = hit_mask.nonzero().squeeze(dim=-1)
         n_hits = hit_mask.sum().item()
+        assert n_hits > 0
         assert n_hits == len(hit_locations), (n_hits, len(hit_locations))
-        edge_mask = hit_mask[data.edge_index[0, :]] & hit_mask[data.edge_index[1, :]]
+        # For large graphs, getting this edge_mask is the slowest part
+        edge_mask = hit_mask[rdata.edge_index[0, :]] & hit_mask[rdata.edge_index[1, :]]
         segment_subgraph = nx.Graph()
         segment_subgraph.add_nodes_from(hit_locations.detach().cpu().numpy().tolist())
         segment_subgraph.add_edges_from(
-            data.edge_index[:, edge_mask].T.detach().cpu().numpy()
+            rdata.edge_index[:, edge_mask].T.detach().cpu().numpy()
         )
         assert segment_subgraph.number_of_nodes() == n_hits, (
             segment_subgraph.number_of_nodes(),
