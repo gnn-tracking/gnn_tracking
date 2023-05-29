@@ -280,10 +280,11 @@ def get_largest_segment_fracs(data: Data, pt_thld=0.9, partitions=500) -> np.nda
         Array of fractions.
     """
     basic_hit_mask = (data.pt > pt_thld) & (data.particle_id > 0)
-    rdata = Data(edge_index=data.edge_index, particle_id=data.particle_id).subgraph(
-        basic_hit_mask
-    )
-    rdata.num_nodes = len(data.particle_id)
+    rdata = Data(
+        edge_index=data.edge_index,
+        particle_id=data.particle_id,
+        num_nodes=len(data.particle_id),
+    ).subgraph(basic_hit_mask)
     r = []
     # The edge masks are the most performance intensive part of this function.
     # Therefore, we first split pids in groups and calculate the edge masks for each
