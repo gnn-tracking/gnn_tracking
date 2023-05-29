@@ -6,7 +6,7 @@ import torch
 import torch.nn as nn
 from torch import Tensor
 from torch_geometric.data import Data
-from torch_geometric.utils import index_to_mask
+from torch_geometric.utils import remove_isolated_nodes
 
 from gnn_tracking.models.dynamic_edge_conv import DynamicEdgeConv
 from gnn_tracking.models.edge_classifier import ECForGraphTCN, PerfectEdgeClassification
@@ -210,9 +210,13 @@ class ModularGraphTCN(nn.Module):
         data = edge_subgraph(data, edge_mask)
 
         if self._mask_orphan_nodes:
-            connected_nodes = data.edge_index.flatten().unique()
-            hit_mask = index_to_mask(connected_nodes, size=data.num_nodes)
-            data = data.subgraph(connected_nodes)
+            edge_idxs, _, hit_mask = remove_isolated_nodes(data.edge_index)
+            for key, value in data:
+                if data.is_edge_attr(key) and key != "edge_index":
+                    _, data[key], _ = remove_isolated_nodes(data.edge_index, value)
+                elif data.is_node_attr(key):
+                    data[key] = value[hit_mask]
+            data.edge_index = edge_idxs
         else:
             hit_mask = torch.ones(
                 data.num_nodes, dtype=torch.bool, device=data.x.device
