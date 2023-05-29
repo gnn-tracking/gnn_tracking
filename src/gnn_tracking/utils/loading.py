@@ -114,8 +114,7 @@ def get_loaders(
         shuffle = key == "train"
         if key == "train" and len(ds_dct[key]):
             replacement = (
-                (max_sample_size > len(ds_dct[key]))
-                if max_sample_size else False
+                (max_sample_size > len(ds_dct[key])) if max_sample_size else False
             )
             sampler = RandomSampler(
                 ds_dct[key],
