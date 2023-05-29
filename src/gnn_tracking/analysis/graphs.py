@@ -283,6 +283,7 @@ def get_largest_segment_fracs(data: Data, pt_thld=0.9, partitions=500) -> np.nda
     rdata = Data(edge_index=data.edge_index, particle_id=data.particle_id).subgraph(
         basic_hit_mask
     )
+    rdata.num_nodes = len(data.particle_id)
     r = []
     # The edge masks are the most performance intensive part of this function.
     # Therefore, we first split pids in groups and calculate the edge masks for each

@@ -160,20 +160,39 @@ class RadiusScanner:
         results = np.array([self._results[r] for r in search_space])
         return search_space, results
 
+    def _get_next_radius(self) -> float:
+        if self._radius_range[1] < self._radius_range[0]:
+            self.logger.warning("Radius range is empty. Abort.")
+            return -1
+        search_space = np.array(
+            sorted(
+                self._radius_range
+                + [
+                    r
+                    for r in self._results
+                    if self._radius_range[0] < r < self._radius_range[1]
+                ]
+            )
+        )
+        if len(search_space) < 2:
+            # Don't just take the middle, because else we'll never get
+            # more than one
+            return np.random.uniform(*self._radius_range)
+        distances = search_space[1:] - search_space[:-1]
+        return search_space[np.argmax(distances)] + distances.max() / 2
+
     def __call__(self):
         t = Timer()
         n_sampled = 0
-        rng = np.random.default_rng(seed=42)
         while n_sampled < self._n_trials:
-            if self._radius_range[1] < self._radius_range[0]:
-                self.logger.warning("Radius range is empty. Abort.")
+            radius = self._get_next_radius()
+            if radius < 0:
                 break
-            radius = rng.uniform(*self._radius_range)
             v, _ = self._objective(radius)
             if not math.isnan(v):
                 n_sampled += 1
         elapsed = t()
-        self.logger.info("Finished second scan in %ds.", elapsed)
+        self.logger.info("Finished radius scan in %ds.", elapsed)
 
         search_space, results = self._get_arrays()
 
