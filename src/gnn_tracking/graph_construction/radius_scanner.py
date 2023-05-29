@@ -61,7 +61,7 @@ class RSResults:
 
     def get_foms(self) -> dict[str, float]:
         return {
-            f"frac_segment50_{t*100:.0f}": self.cs_n_edges(
+            f"n_edges_frac_segment50_{t*100:.0f}": self.cs_n_edges(
                 self.get_target_radius(t)
             ).item()
             for t in self.targets
@@ -148,7 +148,6 @@ class RadiusScanner:
         if max_radius is not None and max_radius < self._radius_range[1]:
             self.logger.debug("Updated max radius to %f (%s)", max_radius, reason)
             self._radius_range[1] = max_radius
-        assert self._radius_range[0] < self._radius_range[1]
 
     def _get_arrays(self):
         search_space = np.array(sorted(self._results))
@@ -160,6 +159,9 @@ class RadiusScanner:
         n_sampled = 0
         rng = np.random.default_rng(seed=42)
         while n_sampled < self._n_trials:
+            if self._radius_range[1] < self._radius_range[0]:
+                self.logger.warning("Radius range is empty. Abort.")
+                break
             radius = rng.uniform(*self._radius_range)
             v, _ = self._objective(radius)
             if not math.isnan(v):
