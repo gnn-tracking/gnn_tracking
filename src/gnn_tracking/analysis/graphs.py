@@ -73,6 +73,17 @@ class TrackGraphInfo(NamedTuple):
     n_hits_largest_component: int
 
 
+# A much faster way to get all connected component stats
+# in one go:
+# for c in nx.connected_components(gx):
+#     for pid in data.particle_id:
+#         node_indices = np.where(data.particle_id.cpu().numpy() == pid.item())[0]
+#         assert len(node_indices) > 0
+#         overlap = len(set(node_indices).intersection(set(c)))
+#         if overlap > 0:
+#             r[pid.item()].append(overlap)
+
+
 def get_track_graph_info(
     graph: nx.Graph, particle_ids: np.ndarray, pid: int
 ) -> TrackGraphInfo:
@@ -253,3 +264,30 @@ def get_all_graph_construction_stats(data: Data, pt_thld=0.9) -> dict[str, float
         )
         | get_basic_counts(data, pt_thld=pt_thld)
     )
+
+
+def get_largest_segment_fracs(data: Data, pt_thld=0.9) -> np.ndarray:
+    particle_ids = data.particle_id[
+        (data.particle_id > 0) & (data.pt > pt_thld)
+    ].unique()
+    r = []
+    for pid in particle_ids:
+        hit_mask: Tensor = data.particle_id == pid  # type: ignore
+        hit_locations = hit_mask.nonzero().squeeze()
+        n_hits = hit_mask.sum().item()
+        assert n_hits == len(hit_locations), (n_hits, len(hit_locations))
+        edge_mask = hit_mask[data.edge_index[0, :]] & hit_mask[data.edge_index[1, :]]
+        segment_subgraph = nx.Graph()
+        segment_subgraph.add_nodes_from(hit_locations.detach().cpu().numpy().tolist())
+        segment_subgraph.add_edges_from(
+            data.edge_index[:, edge_mask].T.detach().cpu().numpy()
+        )
+        assert segment_subgraph.number_of_nodes() == n_hits, (
+            segment_subgraph.number_of_nodes(),
+            n_hits,
+        )
+        segments: list[Sequence[int]] = sorted(  # type: ignore
+            nx.connected_components(segment_subgraph), key=len, reverse=True
+        )
+        r.append(len(segments[0]) / n_hits)
+    return np.array(r)
