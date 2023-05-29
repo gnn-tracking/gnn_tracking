@@ -210,13 +210,9 @@ class ModularGraphTCN(nn.Module):
         data = edge_subgraph(data, edge_mask)
 
         if self._mask_orphan_nodes:
-            edge_idxs, _, hit_mask = remove_isolated_nodes(data.edge_index)
+            data.edge_index, _, hit_mask = remove_isolated_nodes(data.edge_index)
             for key, value in data:
-                if data.is_edge_attr(key) and key != "edge_index":
-                    _, data[key], _ = remove_isolated_nodes(data.edge_index, value)
-                elif data.is_node_attr(key):
-                    data[key] = value[hit_mask]
-            data.edge_index = edge_idxs
+                data[key] = value[hit_mask] if data.is_node_attr(key) else data[key]
         else:
             hit_mask = torch.ones(
                 data.num_nodes, dtype=torch.bool, device=data.x.device
