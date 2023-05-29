@@ -59,11 +59,17 @@ class RSResults:
             bounds=((self.search_space.min(), self.search_space.max()),),
         ).x
 
+    def _get_fom(self, target: float) -> float:
+        if np.isfinite(self.search_space).sum() < 2:
+            return float("nan")
+        target_r = self.get_target_radius(target)
+        if math.isnan(target_r):
+            return float("nan")
+        return self.cs_n_edges(target_r).item()
+
     def get_foms(self) -> dict[str, float]:
         return {
-            f"n_edges_frac_segment50_{t*100:.0f}": self.cs_n_edges(
-                self.get_target_radius(t)
-            ).item()
+            f"n_edges_frac_segment50_{t*100:.0f}": self._get_fom(t)
             for t in self.targets
         }
 
