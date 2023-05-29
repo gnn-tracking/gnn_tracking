@@ -266,31 +266,56 @@ def get_all_graph_construction_stats(data: Data, pt_thld=0.9) -> dict[str, float
     )
 
 
-def get_largest_segment_fracs(data: Data, pt_thld=0.9) -> np.ndarray:
+def get_largest_segment_fracs(data: Data, pt_thld=0.9, partitions=500) -> np.ndarray:
+    """A fast way to get the fraction of hits in the largest segment for each track.
+
+    Args:
+        data:
+        pt_thld:
+        partitions: This value only affects performance. It is the number of partitions
+            to split the particle ids into. Setting this to ~500 can result in speedups
+            of up to a factor of 15 (depending on number of edges).
+
+    Returns:
+        Array of fractions.
+    """
     basic_hit_mask = (data.pt > pt_thld) & (data.particle_id > 0)
     rdata = Data(edge_index=data.edge_index, particle_id=data.particle_id).subgraph(
         basic_hit_mask
     )
     r = []
-    for pid in rdata.particle_id.unique():
-        hit_mask: Tensor = rdata.particle_id == pid  # type: ignore
-        hit_locations = hit_mask.nonzero().squeeze(dim=-1)
-        n_hits = hit_mask.sum().item()
-        assert n_hits > 0
-        assert n_hits == len(hit_locations), (n_hits, len(hit_locations))
-        # For large graphs, getting this edge_mask is the slowest part
-        edge_mask = hit_mask[rdata.edge_index[0, :]] & hit_mask[rdata.edge_index[1, :]]
-        segment_subgraph = nx.Graph()
-        segment_subgraph.add_nodes_from(hit_locations.detach().cpu().numpy().tolist())
-        segment_subgraph.add_edges_from(
-            rdata.edge_index[:, edge_mask].T.detach().cpu().numpy()
-        )
-        assert segment_subgraph.number_of_nodes() == n_hits, (
-            segment_subgraph.number_of_nodes(),
-            n_hits,
-        )
-        segments: list[Sequence[int]] = sorted(  # type: ignore
-            nx.connected_components(segment_subgraph), key=len, reverse=True
-        )
-        r.append(len(segments[0]) / n_hits)
+    # The edge masks are the most performance intensive part of this function.
+    # Therefore, we first split pids in groups and calculate the edge masks for each
+    # group, thereafter refining this selection.
+    unique_pids = rdata.particle_id.unique()
+    unique_pids_grouped = [
+        unique_pids[i : i + partitions] for i in range(0, len(unique_pids), partitions)
+    ]
+    for pid_group in unique_pids_grouped:
+        g_hit_mask = torch.isin(rdata.particle_id, pid_group)
+        gdata = rdata.subgraph(g_hit_mask)
+        for pid in pid_group:
+            hit_mask: Tensor = gdata.particle_id == pid  # type: ignore
+            hit_locations = hit_mask.nonzero().squeeze(dim=-1)
+            n_hits = hit_mask.sum().item()
+            assert n_hits > 0
+            assert n_hits == len(hit_locations), (n_hits, len(hit_locations))
+            edge_mask = (
+                hit_mask[gdata.edge_index[0, :]] & hit_mask[gdata.edge_index[1, :]]
+            )
+            segment_subgraph = nx.Graph()
+            segment_subgraph.add_nodes_from(
+                hit_locations.detach().cpu().numpy().tolist()
+            )
+            segment_subgraph.add_edges_from(
+                gdata.edge_index[:, edge_mask].T.detach().cpu().numpy()
+            )
+            assert segment_subgraph.number_of_nodes() == n_hits, (
+                segment_subgraph.number_of_nodes(),
+                n_hits,
+            )
+            segments: list[Sequence[int]] = sorted(  # type: ignore
+                nx.connected_components(segment_subgraph), key=len, reverse=True
+            )
+            r.append(len(segments[0]) / n_hits)
     return np.array(r)
