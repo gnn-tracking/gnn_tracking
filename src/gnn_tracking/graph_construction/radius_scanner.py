@@ -161,8 +161,8 @@ class RadiusScanner:
         return search_space, results
 
     def _get_next_radius(self) -> float:
-        if self._radius_range[1] < self._radius_range[0]:
-            self.logger.warning("Radius range is empty. Abort.")
+        if self._radius_range[1] - self._radius_range[0] < 0.001:
+            self.logger.warning("Radius range is near-empty. Abort.")
             return -1
         search_space = np.array(
             sorted(
