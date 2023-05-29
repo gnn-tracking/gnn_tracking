@@ -92,7 +92,6 @@ class RadiusScanner:
         n_trials: int = 10,
         max_edges: int = 5_000_000,
         target_fracs=(0.8, 0.9, 0.95),
-        n_not_clipped=10,
     ):
         self._model_output = model_output
         self._radius_range = list(radius_range)
@@ -101,8 +100,7 @@ class RadiusScanner:
         self._study = None
         self.logger = get_logger("RadiusHP")
         self._max_edges = max_edges
-        self._target_fracs = target_fracs
-        self._n_not_clipped = n_not_clipped
+        self._targets = target_fracs
         self._results: dict[float, tuple[float, int]] = {}
 
     def _objective_single(self, mo, radius: float) -> tuple[float, int | float]:
@@ -112,8 +110,7 @@ class RadiusScanner:
             mo, radius=radius, max_num_neighbors=self._max_num_neighbors
         )
         if data.num_edges > self._max_edges:
-            self.logger.debug("Aborting trial for r=%f due to too many edges", radius)
-            self._clip_radius_range(max_radius=radius)
+            self._clip_radius_range(max_radius=radius, reason="too many edges")
             return float("nan"), data.num_edges
         r = (get_largest_segment_fracs(data) > 0.5).mean()
         return r, data.num_edges
@@ -122,40 +119,35 @@ class RadiusScanner:
         """Objective function for optuna."""
         vals = []
         for mo in self._model_output:
-            _r, _n_edges = self._objective_single(mo, radius)
-            vals.append((_r, _n_edges))
-        r, n_edges = np.array(vals).mean(axis=0)
-        self.logger.debug("Radius %f -> 50-segment: %f, edges: %d", radius, r, n_edges)
-        self._results[radius] = r, n_edges
-        if r > max(self._target_fracs):
-            self.logger.debug("Overachieving. Clipping")
-            self._clip_radius_range(max_radius=radius)
-        # Test if we are in the decreasing area
-        smaller_radii = [r for r in self._results if r < radius]
-        if len(smaller_radii) >= 1:
-            nsr = max(smaller_radii)
-            nsr_result = self._results[nsr][0]
-            if r < nsr_result:
-                self.logger.debug(
-                    "Decreasing segment-connectivity for increased radius "
-                    "(r=%f, r=%f). In random-sampling area. Clipping.",
-                    nsr,
-                    radius,
-                )
-                self._clip_radius_range(max_radius=radius)
-        return r, n_edges
+            _v, _n_edges = self._objective_single(mo, radius)
+            if math.isnan(_v):
+                return float("nan"), float("nan")
+            vals.append((_v, _n_edges))
+        v, n_edges = np.array(vals).mean(axis=0)
+        self.logger.debug("Radius %f -> 50-segment: %f, edges: %f", radius, v, n_edges)
+        self._results[radius] = v, n_edges
+        self._update_search_range()
+        return v, n_edges
 
-    def _clip_radius_range(self, min_radius=None, max_radius=None):
-        if min_radius is not None:
-            _ = self._radius_range[0]
-            self._radius_range[0] = max(self._radius_range[0], min_radius)
-            if not math.isclose(_, self._radius_range[0]):
-                self.logger.debug("Updated min radius to %f", self._radius_range[0])
-        if max_radius is not None:
-            _ = self._radius_range[0]
-            self._radius_range[1] = min(self._radius_range[1], max_radius)
-            if not math.isclose(_, self._radius_range[1]):
-                self.logger.debug("Updated max radius to %f", self._radius_range[1])
+    def _update_search_range(self):
+        for r in sorted(self._results):
+            v = self._results[r][0]
+            if v > max(self._targets):
+                self._clip_radius_range(max_radius=r, reason="overachieving")
+            larger_rs = [_r for _r in sorted(self._results) if _r > r]
+            larger_r_vs = [self._results[_r][0] for _r in larger_rs]
+            if larger_r_vs and max(larger_r_vs) > v and v < min(self._targets):
+                self._clip_radius_range(min_radius=r, reason="underarchieving")
+            if larger_r_vs and larger_r_vs[0] < v:
+                self._clip_radius_range(max_radius=larger_rs[0], reason="decreasing")
+
+    def _clip_radius_range(self, min_radius=None, max_radius=None, reason=""):
+        if min_radius is not None and min_radius > self._radius_range[0]:
+            self.logger.debug("Updated min radius to %f (%s)", min_radius, reason)
+            self._radius_range[0] = min_radius
+        if max_radius is not None and max_radius < self._radius_range[1]:
+            self.logger.debug("Updated max radius to %f (%s)", max_radius, reason)
+            self._radius_range[1] = max_radius
         assert self._radius_range[0] < self._radius_range[1]
 
     def _get_arrays(self):
@@ -163,36 +155,15 @@ class RadiusScanner:
         results = np.array([self._results[r] for r in search_space])
         return search_space, results
 
-    def _update_search_range(self):
-        search_space, results = self._get_arrays()
-        min_radius = max(
-            search_space[results[:, 0] < min(self._target_fracs)],
-            default=self._radius_range[0],
-        )
-        max_radius = min(
-            search_space[results[:, 0] > max(self._target_fracs)],
-            default=self._radius_range[1],
-        )
-        self.logger.debug("Updating search range to %f, %f", min_radius, max_radius)
-        self._clip_radius_range(
-            min_radius=min_radius,
-            max_radius=max_radius,
-        )
-
     def __call__(self):
-        initial_search_space = np.linspace(*self._radius_range, self._n_not_clipped)
-        np.random.shuffle(initial_search_space)
         t = Timer()
-        for radius in initial_search_space:
-            self._objective(radius)
-        elapsed = t()
-        self.logger.info("Finished initial scan in %ds.", elapsed)
-        self._update_search_range()
-        search_space = np.linspace(*self._radius_range, self._n_trials)
-        np.random.shuffle(search_space)
-        self.logger.debug("Starting main scan.")
-        for radius in search_space:
-            self._objective(radius)
+        n_sampled = 0
+        rng = np.random.default_rng(seed=42)
+        while n_sampled < self._n_trials:
+            radius = rng.uniform(*self._radius_range)
+            v, _ = self._objective(radius)
+            if not math.isnan(v):
+                n_sampled += 1
         elapsed = t()
         self.logger.info("Finished second scan in %ds.", elapsed)
 
@@ -201,5 +172,5 @@ class RadiusScanner:
         return RSResults(
             search_space=search_space,
             results=results,
-            targets=self._target_fracs,
+            targets=self._targets,
         )
