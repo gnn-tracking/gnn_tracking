@@ -1,16 +1,18 @@
 from __future__ import annotations
 
+import logging
 from abc import ABC, abstractmethod
 from typing import Any
 
 import numpy as np
 from torch_geometric.data import Data
 
-from gnn_tracking.utils.log import logger
+from gnn_tracking.utils.log import get_logger
 
 
 class LossWeightSetterHook(ABC):
     def __init__(self, loss_name: str | tuple[str, ...], **kwargs):
+        self.logger = get_logger("LWS", level=logging.INFO)
         self._loss_name = loss_name
 
     @abstractmethod
@@ -59,7 +61,7 @@ class LinearLWSH(LossWeightSetterHook):
         r = self._start_value + (self._end_value - self._start_value) * idx / (
             self._t_max * self._n_batches
         )
-        logger.debug("Setting loss weight to %f", r)
+        self.logger.debug("Setting loss weight to %f", r)
         return r
 
 
@@ -86,5 +88,5 @@ class SineLWSH(LossWeightSetterHook):
         amplitude = self._amplitude * amplitude_decay**idx
         s = np.sin(2 * np.pi * idx / (self._period * self._n_batches))
         r = self._mean + amplitude * s
-        logger.debug("Setting loss weight to %f", r)
+        self.logger.debug("Setting loss weight to %f", r)
         return r
