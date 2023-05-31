@@ -210,7 +210,7 @@ class ModularGraphTCN(nn.Module):
         data = edge_subgraph(data, edge_mask)
 
         if self._mask_orphan_nodes:
-            # Edge features do not need to be updated since there 
+            # Edge features do not need to be updated since there
             # are no loops (not affected by labeling)
             data.edge_index, _, hit_mask = remove_isolated_nodes(data.edge_index)
             for key, value in data:
