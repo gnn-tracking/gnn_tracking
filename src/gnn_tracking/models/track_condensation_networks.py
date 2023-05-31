@@ -6,7 +6,7 @@ import torch
 import torch.nn as nn
 from torch import Tensor
 from torch_geometric.data import Data
-from torch_geometric.utils import index_to_mask
+from torch_geometric.utils import remove_isolated_nodes
 
 from gnn_tracking.models.dynamic_edge_conv import DynamicEdgeConv
 from gnn_tracking.models.edge_classifier import ECForGraphTCN, PerfectEdgeClassification
@@ -210,9 +210,11 @@ class ModularGraphTCN(nn.Module):
         data = edge_subgraph(data, edge_mask)
 
         if self._mask_orphan_nodes:
-            connected_nodes = data.edge_index.flatten().unique()
-            hit_mask = index_to_mask(connected_nodes, size=data.num_nodes)
-            data = data.subgraph(connected_nodes)
+            # Edge features do not need to be updated since there
+            # are no loops (not affected by labeling)
+            data.edge_index, _, hit_mask = remove_isolated_nodes(data.edge_index)
+            for key, value in data:
+                data[key] = value[hit_mask] if data.is_node_attr(key) else data[key]
         else:
             hit_mask = torch.ones(
                 data.num_nodes, dtype=torch.bool, device=data.x.device
