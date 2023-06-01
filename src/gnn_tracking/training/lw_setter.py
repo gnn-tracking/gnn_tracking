@@ -12,11 +12,17 @@ from gnn_tracking.utils.log import get_logger
 
 class LossWeightSetterHook(ABC):
     def __init__(self, loss_name: str | tuple[str, ...], **kwargs):
+        """A hook to set dynamic loss weights in `TCNTrainer`.
+
+        Args:
+            loss_name:
+            **kwargs:
+        """
         self.logger = get_logger("LWS", level=logging.INFO)
         self._loss_name = loss_name
 
     @abstractmethod
-    def get_lw(self, epoch, batch_idx):
+    def get_lw(self, epoch: int, batch_idx: int) -> float:
         pass
 
     def __call__(
