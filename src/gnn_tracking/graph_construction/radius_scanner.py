@@ -59,19 +59,21 @@ class RSResults:
             bounds=((self.search_space.min(), self.search_space.max()),),
         ).x
 
-    def _get_fom(self, target: float) -> float:
+    def _get_fom(self, target: float) -> tuple[float, float]:
         if np.isfinite(self.search_space).sum() < 2:
-            return float("nan")
+            return float("nan"), float("nan")
         target_r = self.get_target_radius(target)
         if math.isnan(target_r):
-            return float("nan")
-        return self.cs_n_edges(target_r).item()
+            return float("nan"), float("nan")
+        return target_r, self.cs_n_edges(target_r).item()
 
     def get_foms(self) -> dict[str, float]:
-        return {
-            f"n_edges_frac_segment50_{t*100:.0f}": self._get_fom(t)
-            for t in self.targets
-        }
+        foms = {}
+        for t in self.targets:
+            r, n_edges = self._get_fom(t)
+            foms[f"n_edges_frac_segment50_{t*100:.0f}"] = n_edges
+            foms[f"n_edges_frac_segment50_{t*100:.0f}_r"] = r
+        return foms
 
     def plot(self) -> plt.Axes:
         xs = np.linspace(*self.search_space[[0, -1]], 1000)
