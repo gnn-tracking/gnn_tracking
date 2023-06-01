@@ -65,6 +65,7 @@ Thanks also goes to these wonderful people:
     <tr>
       <td align="center" valign="top" width="14.28%"><a href="https://github.com/shubhanshu02"><img src="https://avatars.githubusercontent.com/u/54344426?v=4?s=100" width="100px;" alt="Shubhanshu Saxena"/><br /><sub><b>Shubhanshu Saxena</b></sub></a><br /><a href="https://github.com/gnn-tracking/gnn_tracking/commits?author=shubhanshu02" title="Code">💻</a></td>
       <td align="center" valign="top" width="14.28%"><a href="https://kingjuno.github.io/"><img src="https://avatars.githubusercontent.com/u/69108486?v=4?s=100" width="100px;" alt="Geo Jolly"/><br /><sub><b>Geo Jolly</b></sub></a><br /><a href="https://github.com/gnn-tracking/gnn_tracking/commits?author=kingjuno" title="Tests">⚠️</a></td>
+      <td align="center" valign="top" width="14.28%"><a href="https://github.com/jnpark3"><img src="https://avatars.githubusercontent.com/u/49174255?v=4?s=100" width="100px;" alt="Jian Park"/><br /><sub><b>Jian Park</b></sub></a><br /><a href="https://github.com/gnn-tracking/gnn_tracking/commits?author=jnpark3" title="Code">💻</a></td>
     </tr>
   </tbody>
   <tfoot>
