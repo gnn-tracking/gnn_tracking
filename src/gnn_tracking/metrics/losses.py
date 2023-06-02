@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import copy
+import itertools
 import math
 from abc import ABC, abstractmethod
 from typing import Any, Mapping, Protocol, Union
@@ -10,6 +11,7 @@ from typing import Any, Mapping, Protocol, Union
 import torch
 from torch import Tensor
 from torch.nn.functional import binary_cross_entropy, mse_loss, relu
+from torch_cluster import radius_graph
 from typing_extensions import TypeAlias
 
 from gnn_tracking.utils.log import logger
@@ -464,3 +466,71 @@ class LossClones(torch.nn.Module):
             loss = self._loss(**renamed_kwargs)
             losses[layer_name] = loss
         return losses
+
+
+def get_truth_edge_index(pids: T) -> T:
+    upids = torch.unique(pids)
+    mask: T = pids.reshape(1, -1) == upids.reshape(-1, 1)  # type: ignore
+    edges = []
+    for i_particle in range(mask.shape[0]):
+        indices = torch.nonzero(mask[i_particle]).squeeze(dim=-1)
+        if len(indices) < 2:
+            continue
+        edges += list(itertools.combinations(indices, 2))
+    return torch.Tensor(edges).long().T
+
+
+class GraphConstructionHingeEmbeddingLoss(torch.nn.Module):
+    def __init__(
+        self, *, r_emb=0.002, r_emb_hinge=0.002, frac_random_edges: float = 0.3
+    ):
+        """
+
+        Args:
+            r_emb: Radius for edge construction
+            r_emb_hinge: Radius for hinge loss
+            frac_random_edges: Fraction of random edges of the graph to be used for the
+                loss function.
+        """
+        super().__init__()
+        self.r_emb = r_emb
+        self.r_emb_hinge = r_emb_hinge
+        self.frac_random_edges = frac_random_edges
+
+    def _get_random_edges(self, n_nodes: int, n_previous_edges: int) -> T:
+        # frac_random_edges is fraction _after_ we added the random edges, so
+        # we need to divide by (1 - frac_random_edges)
+        n_random_edges = int(
+            n_previous_edges * self.frac_random_edges / (1 - self.frac_random_edges)
+        )
+        return torch.randint(
+            n_nodes,
+            size=(
+                2,
+                n_random_edges,
+            ),
+        )
+
+    def _build_graph(self, x: T, particle_id: T, batch: T):
+        knn_edges = radius_graph(
+            x, r=self.r_emb, batch=batch, loop=False, max_num_neighbors=256
+        )
+        truth_edges = get_truth_edge_index(particle_id)
+        # Convert fraction of random edges to number of random edges
+        random_edges = self._get_random_edges(
+            len(particle_id), knn_edges.shape[1] + truth_edges.shape[1]
+        )
+        return torch.unique(
+            torch.cat((knn_edges, truth_edges, random_edges), dim=-1), dim=-1
+        )
+
+    def forward(self, x: T, particle_id: T, batch: T) -> dict[str, T]:
+        edge_index = self._build_graph(x, particle_id, batch)
+        true_edge = particle_id[edge_index[0]] == particle_id[edge_index[1]]
+        dists = torch.sqrt(
+            (x[edge_index[0]] - x[edge_index[1]]).pow(2).sum(1) + 10**-8
+        )
+        return {
+            "attractive": torch.sum(dists[true_edge]),
+            "repulsive": torch.sum(relu(self.r_emb_hinge - dists[~true_edge])),
+        }
