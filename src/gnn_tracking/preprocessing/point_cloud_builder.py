@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import collections
+import itertools
 import logging
 import traceback
 from pathlib import Path, PurePath
@@ -15,6 +16,18 @@ from trackml.dataset import load_event
 from gnn_tracking.utils.log import get_logger
 
 pd.options.mode.chained_assignment = None  # default='warn'
+
+
+def get_truth_edge_index(pids: np.ndarray) -> np.ndarray:
+    upids = np.unique(pids[pids > 0])
+    mask: np.ndarray = pids.reshape(1, -1) == upids.reshape(-1, 1)  # type: ignore
+    edges = []
+    for i_particle in range(mask.shape[0]):
+        indices = np.nonzero(mask[i_particle])[0]
+        if len(indices) < 2:
+            continue
+        edges += list(itertools.combinations(indices, 2))
+    return np.array(edges).T
 
 
 # TODO: In need of refactoring: load_point_clouds should be factored out (this should
@@ -39,6 +52,7 @@ class PointCloudBuilder:
         collect_data: bool = True,
         feature_names: tuple = ("r", "phi", "z", "eta_rz", "u", "v", "charge_frac"),
         feature_scale: tuple = (1, 1, 1, 1, 1, 1, 1),
+        add_true_edges: bool = False,
     ):
         """Build point clouds, that is, read the input data files and convert them
         to pytorch geometric data objects (without any edges yet).
@@ -57,6 +71,7 @@ class PointCloudBuilder:
             write_output: Store the point clouds in a torch .pt file
             log_level: Specify INFO (0) or DEBUG (>0)
             collect_data: Collect data in memory
+            add_true_edges: Add true edges to the point cloud
         """
         # create outdir if necessary
         self.outdir = Path(outdir)
@@ -96,6 +111,7 @@ class PointCloudBuilder:
         self.data_list: list[Data] = []
         self.logger = get_logger("PointCloudBuilder", level=log_level)
         self._collect_data = collect_data
+        self.add_true_edges = add_true_edges
 
     def calc_eta(self, r, z):
         """Compute pseudorapidity (spatial)."""
@@ -270,13 +286,19 @@ class PointCloudBuilder:
 
         return extended_sector
 
+    def _get_edge_index(self, particle_id: np.ndarray):
+        if self.add_true_edges:
+            return torch.from_numpy(get_truth_edge_index(particle_id)).long()
+        else:
+            return torch.zeros((2, 0)).long()
+
     def to_pyg_data(self, hits: pd.DataFrame) -> Data:
         """Build the output data structure"""
         data = Data(
             x=torch.from_numpy(
                 hits[self.feature_names].to_numpy() / self.feature_scale
             ).float(),
-            edge_index=torch.zeros((2, 0)).long(),
+            edge_index=self._get_edge_index(hits["particle_id"].to_numpy()),
             y=torch.zeros(0).float(),
             layer=torch.from_numpy(hits.layer.to_numpy()).long(),
             particle_id=torch.from_numpy(hits["particle_id"].to_numpy()).long(),
