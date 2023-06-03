@@ -110,7 +110,7 @@ class RadiusScanner:
                 <= min(start_radii)
                 <= max(start_radii)
                 <= radius_range[1]
-            )
+            ), (radius_range, start_radii)
         self._start_radii = start_radii
         self._model_output = model_output
         self._radius_range = list(radius_range)
