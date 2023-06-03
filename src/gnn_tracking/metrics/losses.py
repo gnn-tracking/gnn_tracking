@@ -470,12 +470,14 @@ class LossClones(torch.nn.Module):
 
 @torch.jit.script
 def _hinge_loss_components(
-    *, x: T, edge_index: T, particle_id: T, r_emb_hinge: float
+    *, x: T, edge_index: T, particle_id: T, pt: T, r_emb_hinge: float, pt_thld: float
 ) -> tuple[T, T]:
     true_edge = particle_id[edge_index[0]] == particle_id[edge_index[1]]
+    true_high_pt_edge = true_edge & (pt[edge_index[0]] > pt_thld)
     dists = norm(x[edge_index[0]] - x[edge_index[1]], dim=-1)
-    return torch.mean(dists[true_edge]), torch.mean(
-        relu(r_emb_hinge - dists[~true_edge])
+    n_true_edges = true_edge.sum()
+    return torch.sum(dists[true_high_pt_edge]) / n_true_edges, torch.sum(
+        relu(r_emb_hinge - dists[~true_edge]) / n_true_edges
     )
 
 
@@ -485,20 +487,22 @@ class GraphConstructionHingeEmbeddingLoss(torch.nn.Module):
         *,
         r_emb=0.002,
         max_num_neighbors: int = 256,
+        attr_pt_thld: float = 0.9,
     ):
         """Loss for graph construction using metric learning.
 
         Args:
             r_emb: Radius for edge construction
-            r_emb_hinge: Radius for hinge loss. If None, will be set to `r_emb`.
             max_num_neighbors: Maximum number of neighbors in radius graph building.
                 See https://github.com/rusty1s/pytorch_cluster#radius-graph
         """
         super().__init__()
         self.r_emb = r_emb
         self.max_num_neighbors = max_num_neighbors
+        self.attr_pt_thld = attr_pt_thld
 
-    def _build_graph(self, x: T, batch: T, true_edges: T) -> T:
+    def _build_graph(self, x: T, batch: T, true_edges: T, pt: T) -> T:
+        true_edge_mask = pt[true_edges[0]] > self.attr_pt_thld
         near_edges = radius_graph(
             x,
             r=self.r_emb,
@@ -506,18 +510,22 @@ class GraphConstructionHingeEmbeddingLoss(torch.nn.Module):
             loop=False,
             max_num_neighbors=self.max_num_neighbors,
         )
-        return torch.unique(torch.cat([true_edges, near_edges], dim=-1), dim=-1)
+        return torch.unique(
+            torch.cat([true_edges[:, true_edge_mask], near_edges], dim=-1), dim=-1
+        )
 
     # noinspection PyUnusedLocal
     def forward(
-        self, *, x: T, particle_id: T, batch: T, edge_index: T, **kwargs
+        self, *, x: T, particle_id: T, batch: T, edge_index: T, pt: T, **kwargs
     ) -> dict[str, T]:
-        edge_index = self._build_graph(x=x, batch=batch, true_edges=edge_index)
+        edge_index = self._build_graph(x=x, batch=batch, true_edges=edge_index, pt=pt)
         attr, rep = _hinge_loss_components(
             x=x,
             edge_index=edge_index,
             particle_id=particle_id,
             r_emb_hinge=self.r_emb,
+            pt=pt,
+            pt_thld=self.attr_pt_thld,
         )
         return {
             "attractive": attr,
