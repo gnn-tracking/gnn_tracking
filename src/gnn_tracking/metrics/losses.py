@@ -472,7 +472,9 @@ class LossClones(torch.nn.Module):
 def _hinge_loss_components(
     *, x: T, edge_index: T, particle_id: T, pt: T, r_emb_hinge: float, pt_thld: float
 ) -> tuple[T, T]:
-    true_edge = particle_id[edge_index[0]] == particle_id[edge_index[1]]
+    true_edge = (particle_id[edge_index[0]] == particle_id[edge_index[1]]) & (
+        particle_id[edge_index[0]] > 0
+    )
     true_high_pt_edge = true_edge & (pt[edge_index[0]] > pt_thld)
     dists = norm(x[edge_index[0]] - x[edge_index[1]], dim=-1)
     normalization = true_high_pt_edge.sum() + 1e-8
