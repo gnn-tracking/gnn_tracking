@@ -7,9 +7,10 @@ import torch.nn
 from torch import Tensor as T
 from torch.nn import Linear, ModuleList, init
 from torch.nn.functional import normalize, relu
+from torch_geometric.data import Data
 
 
-class FCNN(torch.nn.Module):
+class GraphConstructionFCNN(torch.nn.Module):
     def __init__(
         self,
         *,
@@ -45,8 +46,8 @@ class FCNN(torch.nn.Module):
         for p in layer.parameters():
             init.normal_(p.data, mean=0, std=math.sqrt(var))
 
-    def forward(self, x: T) -> dict[str, T]:
-        x = normalize(x, p=2.0, dim=1, eps=1e-12, out=None)
+    def forward(self, data: Data) -> dict[str, T]:
+        x = normalize(data.x, p=2.0, dim=1, eps=1e-12, out=None)
         x = self.encoder(x)
         for layer in self.layers:
             x = np.sqrt(self.beta) * layer(relu(x)) + np.sqrt(1 - self.beta) * x

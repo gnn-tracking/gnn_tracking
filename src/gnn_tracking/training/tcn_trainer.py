@@ -218,6 +218,8 @@ class TCNTrainer:
                 "edge_index": data.edge_index,
                 "sector": data.sector,
                 "node_features": data.x,
+                "batch": data.batch,
+                "epoch": self._epoch,
             }
         )
         return dct
