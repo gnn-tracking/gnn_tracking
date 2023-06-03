@@ -11,7 +11,6 @@ import torch
 from torch import Tensor
 from torch.nn.functional import binary_cross_entropy, mse_loss, relu
 from torch_cluster import radius_graph
-from torch_geometric.data import Data
 from typing_extensions import TypeAlias
 
 from gnn_tracking.utils.log import logger
@@ -473,65 +472,38 @@ class GraphConstructionHingeEmbeddingLoss(torch.nn.Module):
         self,
         *,
         r_emb=0.002,
-        r_emb_hinge=0.002,
-        frac_random_edges: float = 0.3,
+        r_emb_hinge: float | None = None,
         max_num_neighbors: int = 256,
-        skip_knn_for_epoch_leq: int = -1,
     ):
-        """
+        """Loss for graph construction using metric learning.
 
         Args:
             r_emb: Radius for edge construction
-            r_emb_hinge: Radius for hinge loss
-            frac_random_edges: Fraction of random edges of the graph to be used for the
-                loss function.
+            r_emb_hinge: Radius for hinge loss. If None, will be set to `r_emb`.
+            max_num_neighbors: Maximum number of neighbors in radius graph building.
+                See https://github.com/rusty1s/pytorch_cluster#radius-graph
         """
         super().__init__()
         self.r_emb = r_emb
+        if r_emb_hinge is None:
+            r_emb_hinge = r_emb
         self.r_emb_hinge = r_emb_hinge
-        self.frac_random_edges = frac_random_edges
         self.max_num_neighbors = max_num_neighbors
-        self.skip_knn_for_epoch_leq = skip_knn_for_epoch_leq
 
-    def _get_random_edges(self, n_nodes: int, n_previous_edges: int) -> T:
-        # frac_random_edges is fraction _after_ we added the random edges, so
-        # we need to divide by (1 - frac_random_edges)
-        n_random_edges = int(
-            n_previous_edges * self.frac_random_edges / (1 - self.frac_random_edges)
+    def _build_graph(self, x: T, batch: T, true_edges):
+        near_edges = radius_graph(
+            x,
+            r=self.r_emb,
+            batch=batch,
+            loop=False,
+            max_num_neighbors=self.max_num_neighbors,
         )
-        return torch.randint(
-            n_nodes,
-            size=(
-                2,
-                n_random_edges,
-            ),
-        )
-
-    def _build_graph(self, x: T, particle_id: T, batch: T, epoch: int, true_edge_index):
-        edges = [true_edge_index]
-        if epoch > self.skip_knn_for_epoch_leq:
-            edges.append(
-                radius_graph(
-                    x,
-                    r=self.r_emb,
-                    batch=batch,
-                    loop=False,
-                    max_num_neighbors=self.max_num_neighbors,
-                )
-            )
-        # Convert fraction of random edges to number of random edges
-        print("Getting random edges")
-        edges.append(
-            self._get_random_edges(len(particle_id), sum(e.shape[1] for e in edges))
-        )
-        return torch.unique(torch.cat(edges, dim=-1), dim=-1)
+        return torch.unique(torch.cat([true_edges, near_edges], dim=-1), dim=-1)
 
     def forward(
-        self, x: T, particle_id: T, batch: T, epoch: int, data: Data, **kwargs
+        self, *, x: T, particle_id: T, batch: T, edge_index: T, **kwargs
     ) -> dict[str, T]:
-        edge_index = self._build_graph(
-            x, particle_id, batch, epoch=epoch, true_edge_index=data.edge_index
-        )
+        edge_index = self._build_graph(x=x, batch=batch, true_edges=edge_index)
         true_edge = particle_id[edge_index[0]] == particle_id[edge_index[1]]
         dists = torch.sqrt(
             (x[edge_index[0]] - x[edge_index[1]]).pow(2).sum(1) + 10**-8
