@@ -474,7 +474,9 @@ def _hinge_loss_components(
 ) -> tuple[T, T]:
     true_edge = particle_id[edge_index[0]] == particle_id[edge_index[1]]
     dists = norm(x[edge_index[0]] - x[edge_index[1]], dim=-1)
-    return torch.sum(dists[true_edge]), torch.sum(relu(r_emb_hinge - dists[~true_edge]))
+    return torch.mean(dists[true_edge]), torch.mean(
+        relu(r_emb_hinge - dists[~true_edge])
+    )
 
 
 class GraphConstructionHingeEmbeddingLoss(torch.nn.Module):
@@ -482,7 +484,6 @@ class GraphConstructionHingeEmbeddingLoss(torch.nn.Module):
         self,
         *,
         r_emb=0.002,
-        r_emb_hinge: float | None = None,
         max_num_neighbors: int = 256,
     ):
         """Loss for graph construction using metric learning.
@@ -495,9 +496,6 @@ class GraphConstructionHingeEmbeddingLoss(torch.nn.Module):
         """
         super().__init__()
         self.r_emb = r_emb
-        if r_emb_hinge is None:
-            r_emb_hinge = r_emb
-        self.r_emb_hinge = r_emb_hinge
         self.max_num_neighbors = max_num_neighbors
 
     def _build_graph(self, x: T, batch: T, true_edges: T) -> T:
@@ -519,7 +517,7 @@ class GraphConstructionHingeEmbeddingLoss(torch.nn.Module):
             x=x,
             edge_index=edge_index,
             particle_id=particle_id,
-            r_emb_hinge=self.r_emb_hinge,
+            r_emb_hinge=self.r_emb,
         )
         return {
             "attractive": attr,
