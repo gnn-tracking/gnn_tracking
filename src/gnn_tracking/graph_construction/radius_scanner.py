@@ -5,6 +5,7 @@ import typing
 from functools import cached_property
 
 import numpy as np
+import torch
 from matplotlib import pyplot as plt
 from scipy.interpolate import CubicSpline
 from scipy.optimize import minimize
@@ -133,6 +134,10 @@ class RadiusScanner:
         if data.num_edges > self._max_edges:
             self._clip_radius_range(max_radius=radius, reason="too many edges")
             return float("nan"), data.num_edges
+        max_num_neighbors = torch.mode(data.edge_index.view(-1)).values.item()
+        if max_num_neighbors > self._max_num_neighbors:
+            self._clip_radius_range(max_radius=radius, reason="in random sampling area")
+            return float("nan"), data.num_edges
         r = (get_largest_segment_fracs(data) > 0.5).mean()
         return r, data.num_edges
 
@@ -151,16 +156,14 @@ class RadiusScanner:
         return v, n_edges
 
     def _update_search_range(self):
-        for r in sorted(self._results):
+        # We can assume monotony, because we return nans for the random sampling area,
+        # so we're strictly adding more edges for increased radius
+        for r, v in sorted(self._results):
             v = self._results[r][0]
             if v > max(self._targets):
                 self._clip_radius_range(max_radius=r, reason="overachieving")
-            larger_rs = [_r for _r in sorted(self._results) if _r > r]
-            larger_r_vs = [self._results[_r][0] for _r in larger_rs]
-            if larger_r_vs and max(larger_r_vs) > v and v < min(self._targets):
+            if v < min(self._targets):
                 self._clip_radius_range(min_radius=r, reason="underarchieving")
-            if larger_r_vs and larger_r_vs[0] < v:
-                self._clip_radius_range(max_radius=larger_rs[0], reason="decreasing")
 
     def _clip_radius_range(
         self,
