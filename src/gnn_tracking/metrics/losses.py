@@ -9,6 +9,7 @@ from typing import Any, Mapping, Protocol, Union
 
 import torch
 from torch import Tensor
+from torch.linalg import norm
 from torch.nn.functional import binary_cross_entropy, mse_loss, relu
 from torch_cluster import radius_graph
 from typing_extensions import TypeAlias
@@ -467,6 +468,15 @@ class LossClones(torch.nn.Module):
         return losses
 
 
+@torch.jit.script
+def _hinge_loss_components(
+    *, x: T, edge_index: T, particle_id: T, r_emb_hinge: float
+) -> tuple[T, T]:
+    true_edge = particle_id[edge_index[0]] == particle_id[edge_index[1]]
+    dists = norm(x[edge_index[0]] - x[edge_index[1]], dim=-1)
+    return torch.sum(dists[true_edge]), torch.sum(relu(r_emb_hinge - dists[~true_edge]))
+
+
 class GraphConstructionHingeEmbeddingLoss(torch.nn.Module):
     def __init__(
         self,
@@ -490,7 +500,7 @@ class GraphConstructionHingeEmbeddingLoss(torch.nn.Module):
         self.r_emb_hinge = r_emb_hinge
         self.max_num_neighbors = max_num_neighbors
 
-    def _build_graph(self, x: T, batch: T, true_edges):
+    def _build_graph(self, x: T, batch: T, true_edges: T) -> T:
         near_edges = radius_graph(
             x,
             r=self.r_emb,
@@ -500,15 +510,18 @@ class GraphConstructionHingeEmbeddingLoss(torch.nn.Module):
         )
         return torch.unique(torch.cat([true_edges, near_edges], dim=-1), dim=-1)
 
+    # noinspection PyUnusedLocal
     def forward(
         self, *, x: T, particle_id: T, batch: T, edge_index: T, **kwargs
     ) -> dict[str, T]:
         edge_index = self._build_graph(x=x, batch=batch, true_edges=edge_index)
-        true_edge = particle_id[edge_index[0]] == particle_id[edge_index[1]]
-        dists = torch.sqrt(
-            (x[edge_index[0]] - x[edge_index[1]]).pow(2).sum(1) + 10**-8
+        attr, rep = _hinge_loss_components(
+            x=x,
+            edge_index=edge_index,
+            particle_id=particle_id,
+            r_emb_hinge=self.r_emb_hinge,
         )
         return {
-            "attractive": torch.sum(dists[true_edge]),
-            "repulsive": torch.sum(relu(self.r_emb_hinge - dists[~true_edge])),
+            "attractive": attr,
+            "repulsive": rep,
         }
