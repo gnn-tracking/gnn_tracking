@@ -186,12 +186,6 @@ class RadiusScanner:
     def _get_next_radius(self) -> float:
         if self._start_radii:
             return self._start_radii.pop()
-        if (
-            self._radius_range[1] / self._radius_range[0] < 1.05
-            and len(self._results) > 1
-        ):
-            self.logger.warning("Radius range is near-empty. Abort.")
-            return -1
         search_space = np.array(
             sorted(
                 self._radius_range
