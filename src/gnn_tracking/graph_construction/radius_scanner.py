@@ -20,7 +20,7 @@ from gnn_tracking.utils.timing import Timer
 def construct_graph(mo: dict[str, typing.Any], radius, max_num_neighbors=128):
     edge_index = radius_graph(mo["x"], radius, max_num_neighbors=max_num_neighbors)
     y: Tensor = (  # type: ignore
-        mo["particle_id"][edge_index[0, :]] == mo["particle_id"][edge_index[1, :]]
+        mo["particle_id"][edge_index[0]] == mo["particle_id"][edge_index[1]]
     )
     data = Data(x=mo["x"], edge_index=edge_index, y=y)
     data.pt = mo["particle_id"]
@@ -100,7 +100,18 @@ class RadiusScanner:
         n_trials: int = 10,
         max_edges: int = 5_000_000,
         target_fracs=(0.8, 0.9, 0.95),
+        start_radii: list[float] | None = None,
     ):
+        if start_radii is None:
+            start_radii = []
+        if start_radii:
+            assert (
+                radius_range[0]
+                <= min(start_radii)
+                <= max(start_radii)
+                <= radius_range[1]
+            )
+        self._start_radii = start_radii
         self._model_output = model_output
         self._radius_range = list(radius_range)
         self._max_num_neighbors = max_num_neighbors
@@ -111,7 +122,9 @@ class RadiusScanner:
         self._targets = target_fracs
         self._results: dict[float, tuple[float, int]] = {}
 
-    def _objective_single(self, mo, radius: float) -> tuple[float, int | float]:
+    def _objective_single(
+        self, mo: dict[str, typing.Any], radius: float
+    ) -> tuple[float, int | float]:
         if radius > self._radius_range[1]:
             return float("nan"), float("nan")
         data = construct_graph(
@@ -123,7 +136,7 @@ class RadiusScanner:
         r = (get_largest_segment_fracs(data) > 0.5).mean()
         return r, data.num_edges
 
-    def _objective(self, radius) -> tuple[float, int | float]:
+    def _objective(self, radius: float) -> tuple[float, int | float]:
         """Objective function for optuna."""
         vals = []
         for mo in self._model_output:
@@ -149,7 +162,12 @@ class RadiusScanner:
             if larger_r_vs and larger_r_vs[0] < v:
                 self._clip_radius_range(max_radius=larger_rs[0], reason="decreasing")
 
-    def _clip_radius_range(self, min_radius=None, max_radius=None, reason=""):
+    def _clip_radius_range(
+        self,
+        min_radius: float | None = None,
+        max_radius: float | None = None,
+        reason="",
+    ):
         if min_radius is not None and min_radius > self._radius_range[0]:
             self.logger.debug("Updated min radius to %f (%s)", min_radius, reason)
             self._radius_range[0] = min_radius
@@ -163,7 +181,12 @@ class RadiusScanner:
         return search_space, results
 
     def _get_next_radius(self) -> float:
-        if self._radius_range[1] - self._radius_range[0] < 0.001:
+        if self._start_radii:
+            return self._start_radii.pop()
+        if (
+            self._radius_range[1] / self._radius_range[0] < 1.05
+            and len(self._results) > 1
+        ):
             self.logger.warning("Radius range is near-empty. Abort.")
             return -1
         search_space = np.array(
@@ -180,8 +203,12 @@ class RadiusScanner:
             # Don't just take the middle, because else we'll never get
             # more than one
             return np.random.uniform(*self._radius_range)
+        if (search_space[1:] / search_space[:-1]).max() < 1.05:
+            self.logger.warning("Already very finely sampled. Abort.")
+            return -1
         distances = search_space[1:] - search_space[:-1]
-        return search_space[np.argmax(distances)] + distances.max() / 2
+        max_distance = distances.max()
+        return search_space[np.argmax(distances)] + max_distance / 2
 
     def __call__(self):
         t = Timer()
