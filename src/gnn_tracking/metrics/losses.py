@@ -475,9 +475,9 @@ def _hinge_loss_components(
     true_edge = particle_id[edge_index[0]] == particle_id[edge_index[1]]
     true_high_pt_edge = true_edge & (pt[edge_index[0]] > pt_thld)
     dists = norm(x[edge_index[0]] - x[edge_index[1]], dim=-1)
-    n_true_edges = true_edge.sum()
-    return torch.sum(dists[true_high_pt_edge]) / n_true_edges, torch.sum(
-        relu(r_emb_hinge - dists[~true_edge]) / n_true_edges
+    normalization = true_high_pt_edge.sum() + 1e-8
+    return torch.sum(dists[true_high_pt_edge]) / normalization, torch.sum(
+        relu(r_emb_hinge - dists[~true_edge]) / normalization
     )
 
 
