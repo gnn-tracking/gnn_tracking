@@ -32,6 +32,9 @@ class GraphConstructionFCNN(torch.nn.Module):
         self.layers = ModuleList(
             [Linear(hidden_dim, hidden_dim, bias=False) for _ in range(depth - 1)]
         )
+        self.latent_normalization = torch.nn.Parameter(
+            torch.Tensor([1.0]), requires_grad=True
+        )
         self.reset_parameters()
 
     def reset_parameters(self):
@@ -51,6 +54,6 @@ class GraphConstructionFCNN(torch.nn.Module):
         x = self.encoder(x)
         for layer in self.layers:
             x = np.sqrt(self.beta) * layer(relu(x)) + np.sqrt(1 - self.beta) * x
-        return {
-            "H": self.decoder(relu(x)),
-        }
+        x = self.decoder(relu(x))
+        x *= self.latent_normalization
+        return {"H": x}
