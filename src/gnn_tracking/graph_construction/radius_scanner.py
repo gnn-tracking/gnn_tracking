@@ -73,6 +73,10 @@ class RSResults:
             r, n_edges = self._get_fom(t)
             foms[f"n_edges_frac_segment50_{t*100:.0f}"] = n_edges
             foms[f"n_edges_frac_segment50_{t*100:.0f}_r"] = r
+        idx_max_frac = self.results[:, 0].argmax()
+        foms["max_frac_segment50"] = self.results[idx_max_frac, 0]
+        foms["n_edges_max_frac_segment50"] = self.results[idx_max_frac, 1]
+        foms["max_frac_segment50_r"] = self.search_space[idx_max_frac]
         return foms
 
     def plot(self) -> plt.Axes:
@@ -104,13 +108,6 @@ class RadiusScanner:
     ):
         if start_radii is None:
             start_radii = []
-        if start_radii:
-            assert (
-                radius_range[0]
-                <= min(start_radii)
-                <= max(start_radii)
-                <= radius_range[1]
-            ), (radius_range, start_radii)
         self._start_radii = start_radii
         self._model_output = model_output
         self._radius_range = list(radius_range)
@@ -182,7 +179,10 @@ class RadiusScanner:
 
     def _get_next_radius(self) -> float:
         if self._start_radii:
-            return self._start_radii.pop()
+            return min(
+                max(self._radius_range[0], self._start_radii.pop()),
+                self._radius_range[1],
+            )
         search_space = np.array(
             sorted(
                 self._radius_range
@@ -208,7 +208,7 @@ class RadiusScanner:
         t = Timer()
         n_sampled = 0
         while n_sampled < self._n_trials:
-            radius = self._get_next_radius()
+            radius = float(self._get_next_radius())
             if radius < 0:
                 break
             v, _ = self._objective(radius)
