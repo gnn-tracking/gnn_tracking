@@ -106,6 +106,18 @@ class RadiusScanner:
         target_fracs=(0.8, 0.9, 0.95),
         start_radii: list[float] | None = None,
     ):
+        """
+
+        Args:
+            model_output:
+            radius_range: Range of radii to scan
+            max_num_neighbors: Parameter to torch scatter radius graph: Maximal number
+                of neighbors to consider
+            n_trials:
+            max_edges: Maximal number of edges for which we still evaluate the metrics
+            target_fracs: Target fractions of 50%-segments that we are interested in
+            start_radii: First guesses for radii
+        """
         if start_radii is None:
             start_radii = []
         self._start_radii = start_radii
