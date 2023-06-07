@@ -21,9 +21,12 @@ cf_logger = get_logger("CF")
 
 
 def load_detector(detector_path: Path) -> tuple[pd.DataFrame, dict]:
-    """Adapted/copied from ExaTrkX's preprocessing. See docstring above."""
+    """Adapted/copied from ExaTrkX's preprocessing. See docstring above.
+
+    WARNING: This might create a race condition with creating the preprocessed file.
+    """
     detector_orig = pd.read_csv(detector_path)
-    detector_preproc = detector_path.stem + ".pickle"
+    detector_preproc = detector_path.parent / (detector_path.stem + ".pickle")
     try:
         cf_logger.info("Loading detector...")
         with open(detector_preproc, "rb") as f:
@@ -32,9 +35,16 @@ def load_detector(detector_path: Path) -> tuple[pd.DataFrame, dict]:
     except FileNotFoundError:
         cf_logger.info("Failed to load preprocessed detector. Building...")
         detector = preprocess_detector(detector_orig)
-        with open(detector_preproc, "xb") as f:
-            pickle.dump(detector, f)
-        cf_logger.info("Detector preprocessed and saved.")
+        try:
+            with open(detector_preproc, "xb") as f:
+                pickle.dump(detector, f)
+        except FileExistsError:
+            cf_logger.warning(
+                "Output file created in the meantime. This is because this "
+                "function is not thread-safe. Shouldn't be a problem though."
+            )
+        else:
+            cf_logger.info("Detector preprocessed and saved.")
     return detector_orig, detector
 
 
