@@ -9,6 +9,7 @@ from __future__ import annotations
 import argparse
 import logging
 import os
+from pathlib import Path
 
 from point_cloud_builder import PointCloudBuilder
 
@@ -44,6 +45,12 @@ def get_parser() -> argparse.ArgumentParser:
 
 if __name__ == "__main__":
     args = get_parser().parse_args()
+    # Yes, we need the kaggle version of this file, the codalab one has the pitch
+    # in terms of x and y rather than u and v. They are exactly the same otherwise,
+    # so nothing in terms of the geometry is changed between the files.
+    detector_config_path = Path(
+        "/scratch/gpfs/IOJALVO/gnn-tracking/object_condensation/codalab-data/detector_kaggle.csv"
+    )
     pc_builder = PointCloudBuilder(
         indir=args.indir,
         outdir=args.outdir,
@@ -56,6 +63,9 @@ if __name__ == "__main__":
         thld=0.9,
         log_level=logging.WARNING,
         collect_data=False,
+        add_true_edges=True,
+        add_cell_features=True,
+        detector_config=detector_config_path,
     )
     start = args.start * args.batch_size
     stop = None
