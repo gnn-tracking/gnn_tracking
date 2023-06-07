@@ -386,6 +386,7 @@ class PointCloudBuilder:
             hits = self.append_features(hits, particles, truth, cells)
             hits_by_pid = hits.groupby("particle_id")
 
+            # todo: This should just be a groupby operation
             particle_id_counts = {pid: len(hit_group) for pid, hit_group in hits_by_pid}
             pid_layers_hit = {
                 pid: len(np.unique(hit_group.layer)) for pid, hit_group in hits_by_pid
