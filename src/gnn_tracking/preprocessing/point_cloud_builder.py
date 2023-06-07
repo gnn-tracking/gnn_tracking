@@ -116,11 +116,11 @@ class PointCloudBuilder:
         self.logger = get_logger("PointCloudBuilder", level=log_level)
         self._collect_data = collect_data
         self.add_true_edges = add_true_edges
-        self._detector_config = detector_config
         self.add_cell_features = add_cell_features
         if add_cell_features and detector_config is None:
             _ = "Detector config must be provided if cell features are added"
             raise ValueError(_)
+        self._detector = ecf.load_detector(detector_config)[1]
 
     def calc_eta(self, r, z):
         """Compute pseudorapidity (spatial)."""
@@ -189,8 +189,7 @@ class PointCloudBuilder:
 
         cell_features = []
         if self.add_cell_features:
-            _, detector_proc = ecf.load_detector(self._detector_config)
-            hits = ecf.augment_hit_features(hits, cells, detector_proc)
+            hits = ecf.augment_hit_features(hits, cells, detector_proc=self._detector)
             assert "cell_count" in hits.columns
             # Cell count and val are already in features
             cell_features = [
