@@ -13,6 +13,7 @@ import torch
 from torch_geometric.data import Data
 from trackml.dataset import load_event
 
+import gnn_tracking.preprocessing.exatrkx_cell_features as ecf
 from gnn_tracking.utils.log import get_logger
 
 pd.options.mode.chained_assignment = None  # default='warn'
@@ -33,6 +34,7 @@ def get_truth_edge_index(pids: np.ndarray) -> np.ndarray:
 # TODO: In need of refactoring: load_point_clouds should be factored out (this should
 # only be used for building the graphs), and the parsing of the filenames should be
 # done with the function that is also used in build_point_clouds
+# Split up in feature building and sectorization?
 class PointCloudBuilder:
     def __init__(
         self,
@@ -53,6 +55,8 @@ class PointCloudBuilder:
         feature_names: tuple = ("r", "phi", "z", "eta_rz", "u", "v", "charge_frac"),
         feature_scale: tuple = (1, 1, 1, 1, 1, 1, 1),
         add_true_edges: bool = False,
+        add_cell_features: bool = False,
+        detector_config: Path | None = None,
     ):
         """Build point clouds, that is, read the input data files and convert them
         to pytorch geometric data objects (without any edges yet).
@@ -112,13 +116,20 @@ class PointCloudBuilder:
         self.logger = get_logger("PointCloudBuilder", level=log_level)
         self._collect_data = collect_data
         self.add_true_edges = add_true_edges
+        self._detector_config = detector_config
+        self.add_cell_features = add_cell_features
+        if add_cell_features and detector_config is None:
+            _ = "Detector config must be provided if cell features are added"
+            raise ValueError(_)
 
     def calc_eta(self, r, z):
         """Compute pseudorapidity (spatial)."""
         theta = np.arctan2(r, z)
         return -1.0 * np.log(np.tan(theta / 2.0))
 
-    def restrict_to_subdetectors(self, hits: pd.DataFrame) -> pd.DataFrame:
+    def restrict_to_subdetectors(
+        self, hits: pd.DataFrame, cells: pd.DataFrame
+    ) -> tuple[pd.DataFrame, pd.DataFrame]:
         """Rename (volume, layer) pairs with an integer label."""
         pixel_barrel = [(8, 2), (8, 4), (8, 6), (8, 8)]
         pixel_LEC = [(7, 14), (7, 12), (7, 10), (7, 8), (7, 6), (7, 4), (7, 2)]
@@ -140,7 +151,10 @@ class PointCloudBuilder:
                 for i, layer in enumerate(available_allowed_layers)
             ]
         )
-        return hits
+
+        cells = cells[cells.hit_id.isin(hits.hit_id)].copy()
+
+        return hits, cells
 
     def append_features(
         self,
@@ -166,12 +180,28 @@ class PointCloudBuilder:
             truth = pd.concat([truth, truth_noise])
 
         # add in channel-specific info
-        cells = cells.groupby(["hit_id"]).agg(
+        cells_agg = cells.groupby(["hit_id"]).agg(
             charge_sum=pd.NamedAgg(column="value", aggfunc="sum"),
             channel_counts=pd.NamedAgg(column="value", aggfunc="size"),
         )
-        cells["charge_frac"] = cells.charge_sum / cells.channel_counts
-        hits = pd.merge(hits, cells, on="hit_id", how="left")
+        cells_agg["charge_frac"] = cells_agg.charge_sum / cells_agg.channel_counts
+        hits = pd.merge(hits, cells_agg, on="hit_id", how="left")
+
+        cell_features = []
+        if self.add_cell_features:
+            _, detector_proc = ecf.load_detector(self._detector_config)
+            hits = ecf.augment_hit_features(hits, cells, detector_proc)
+            assert "cell_count" in hits.columns
+            # Cell count and val are already in features
+            cell_features = [
+                "leta",
+                "lphi",
+                "lx",
+                "ly",
+                "lz",
+                "geta",
+                "gphi",
+            ]
 
         # append volume labels as one-hot features to X
         volume_labels = ["V7", "V8", "V9", "V12", "V13", "V14", "V16", "V17", "V18"]
@@ -198,6 +228,7 @@ class PointCloudBuilder:
                 "volume_id",
                 "layer",
                 *volume_labels,
+                *cell_features,
             ]
         ].merge(truth[["hit_id", "particle_id", "pt", "eta_pt"]], on="hit_id")
         return hits
@@ -351,7 +382,7 @@ class PointCloudBuilder:
                     continue
                 raise
 
-            hits = self.restrict_to_subdetectors(hits)
+            hits, cells = self.restrict_to_subdetectors(hits, cells)
             hits = self.append_features(hits, particles, truth, cells)
             hits_by_pid = hits.groupby("particle_id")
 
