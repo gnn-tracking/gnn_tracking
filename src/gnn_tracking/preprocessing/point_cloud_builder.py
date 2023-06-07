@@ -31,6 +31,25 @@ def get_truth_edge_index(pids: np.ndarray) -> np.ndarray:
     return np.array(edges).T
 
 
+_DEFAULT_FEATURES = (
+    "r",
+    "phi",
+    "z",
+    "eta_rz",
+    "u",
+    "v",
+    "charge_frac",
+    "leta",
+    "lphi",
+    "lx",
+    "ly",
+    "lz",
+    "geta",
+    "gphi",
+)
+_DEFAULT_FEATURE_SCALE = tuple(1 for _ in _DEFAULT_FEATURES)
+
+
 # TODO: In need of refactoring: load_point_clouds should be factored out (this should
 # only be used for building the graphs), and the parsing of the filenames should be
 # done with the function that is also used in build_point_clouds
@@ -38,9 +57,10 @@ def get_truth_edge_index(pids: np.ndarray) -> np.ndarray:
 class PointCloudBuilder:
     def __init__(
         self,
+        *,
         outdir: str | PurePath,
         indir: str | PurePath,
-        *,
+        detector_config: PurePath,
         n_sectors: int,
         redo: bool = True,
         pixel_only: bool = True,
@@ -52,11 +72,9 @@ class PointCloudBuilder:
         write_output: bool = True,
         log_level=logging.INFO,
         collect_data: bool = True,
-        feature_names: tuple = ("r", "phi", "z", "eta_rz", "u", "v", "charge_frac"),
-        feature_scale: tuple = (1, 1, 1, 1, 1, 1, 1),
+        feature_names: tuple = _DEFAULT_FEATURES,
+        feature_scale: tuple = _DEFAULT_FEATURE_SCALE,
         add_true_edges: bool = False,
-        add_cell_features: bool = False,
-        detector_config: Path | None = None,
     ):
         """Build point clouds, that is, read the input data files and convert them
         to pytorch geometric data objects (without any edges yet).
@@ -116,11 +134,7 @@ class PointCloudBuilder:
         self.logger = get_logger("PointCloudBuilder", level=log_level)
         self._collect_data = collect_data
         self.add_true_edges = add_true_edges
-        self.add_cell_features = add_cell_features
-        if add_cell_features and detector_config is None:
-            _ = "Detector config must be provided if cell features are added"
-            raise ValueError(_)
-        self._detector = ecf.load_detector(detector_config)[1]
+        self._detector = ecf.load_detector(Path(detector_config))[1]
 
     def calc_eta(self, r, z):
         """Compute pseudorapidity (spatial)."""
@@ -187,20 +201,7 @@ class PointCloudBuilder:
         cells_agg["charge_frac"] = cells_agg.charge_sum / cells_agg.channel_counts
         hits = pd.merge(hits, cells_agg, on="hit_id", how="left")
 
-        cell_features = []
-        if self.add_cell_features:
-            hits = ecf.augment_hit_features(hits, cells, detector_proc=self._detector)
-            assert "cell_count" in hits.columns
-            # Cell count and val are already in features
-            cell_features = [
-                "leta",
-                "lphi",
-                "lx",
-                "ly",
-                "lz",
-                "geta",
-                "gphi",
-            ]
+        hits = ecf.augment_hit_features(hits, cells, detector_proc=self._detector)
 
         # append volume labels as one-hot features to X
         volume_labels = ["V7", "V8", "V9", "V12", "V13", "V14", "V16", "V17", "V18"]
@@ -212,24 +213,7 @@ class PointCloudBuilder:
         hits["eta_rz"] = self.calc_eta(hits.r, hits.z)
         hits["u"] = hits["x"] / (hits["x"] ** 2 + hits["y"] ** 2)
         hits["v"] = hits["y"] / (hits["x"] ** 2 + hits["y"] ** 2)
-        hits = hits[
-            [
-                "hit_id",
-                "r",
-                "phi",
-                "eta_rz",
-                "x",
-                "y",
-                "z",
-                "u",
-                "v",
-                "charge_frac",
-                "volume_id",
-                "layer",
-                *volume_labels,
-                *cell_features,
-            ]
-        ].merge(truth[["hit_id", "particle_id", "pt", "eta_pt"]], on="hit_id")
+        hits = hits.merge(truth[["hit_id", "particle_id", "pt", "eta_pt"]], on="hit_id")
         return hits
 
     def sector_hits(

@@ -64,7 +64,6 @@ if __name__ == "__main__":
         log_level=logging.WARNING,
         collect_data=False,
         add_true_edges=True,
-        add_cell_features=True,
         detector_config=detector_config_path,
     )
     start = args.start * args.batch_size

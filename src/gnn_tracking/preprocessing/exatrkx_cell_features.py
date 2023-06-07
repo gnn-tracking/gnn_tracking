@@ -156,7 +156,7 @@ class DetectorPixelSize:
             self.all_s[v, l, m, 1] = r.pitch_v
 
 
-def cartesion_to_spherical(x, y, z):
+def cartesian_to_spherical(x, y, z):
     """Adapted/copied from ExaTrkX's preprocessing. See docstring above."""
 
     r3 = np.sqrt(x**2 + y**2 + z**2)
@@ -203,8 +203,8 @@ def get_all_rotated(hits: DF, detector: dict, l_u: S, l_v: S, l_w: S):
     modules = hits["module_id"].to_numpy()
     rotations = detector["rotations"]
     rotations_hits = rotations[vols, layers, modules]
-    u = l_u.values.reshape(-1, 1)
-    v = l_v.values.reshape(-1, 1)
+    u = l_u.to_numpy().reshape(-1, 1)
+    v = l_v.to_numpy().reshape(-1, 1)
     w = l_w.reshape(-1, 1)
     dirs = np.concatenate((u, v, w), axis=1)
 
@@ -226,17 +226,14 @@ def extract_dir_new(hits: DF, cells: DF, detector: dict) -> DF:
 
     l_u, l_v = l_u.to_numpy(), l_v.to_numpy()
 
-    _, g_theta, g_phi = np.vstack(cartesion_to_spherical(*list(g_matrix_all.T)))
-    cf_logger.debug("G calc")
-    _, l_theta, l_phi = cartesion_to_spherical(l_u, l_v, l_w)
-    cf_logger.debug("L calc")
+    _, g_theta, g_phi = np.vstack(cartesian_to_spherical(*list(g_matrix_all.T)))
+    _, l_theta, l_phi = cartesian_to_spherical(l_u, l_v, l_w)
     l_eta = theta_to_eta(l_theta)
     g_eta = theta_to_eta(g_theta)
 
     angles = np.vstack(
         [hit_ids, cell_counts, cell_vals, l_eta, l_phi, l_u, l_v, l_w, g_eta, g_phi]
     ).T
-    cf_logger.debug("Concated")
     df_angles = pd.DataFrame(
         angles,
         columns=[
@@ -252,7 +249,6 @@ def extract_dir_new(hits: DF, cells: DF, detector: dict) -> DF:
             "gphi",
         ],
     )
-    cf_logger.info("DF constructed")
 
     return df_angles
 
