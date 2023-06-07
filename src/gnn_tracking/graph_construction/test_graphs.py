@@ -9,7 +9,7 @@ def test_fixed_graph_construction(built_graphs):
 
     def _test_for_all(fct, values):
         for graph, value in zip(graphs, values):
-            assert fct(graph) == pytest.approx(value)
+            assert fct(graph.cpu()) == pytest.approx(value)
 
     _test_for_all(lambda g: len(g.x), [843, 750])
     _test_for_all(lambda g: g.x.sum().long(), [12274, -9555])

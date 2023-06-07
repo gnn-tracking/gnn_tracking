@@ -69,5 +69,5 @@ def test_get_all_track_graph_info(test_case: _TestCase):
 
 def test_ec_plot_integration(built_graphs):
     _, graph_builder = built_graphs
-    g = graph_builder.data_list[0]
+    g = graph_builder.data_list[0].to("cpu")
     get_all_graph_construction_stats(g)

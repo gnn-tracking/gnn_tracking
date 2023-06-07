@@ -9,7 +9,7 @@ from gnn_tracking.models.edge_classifier import ECForGraphTCN
 
 def test_ec_plot_integration(built_graphs):
     _, graph_builder = built_graphs
-    g = graph_builder.data_list[0]
+    g = graph_builder.data_list[0].cpu()
     node_indim = g.x.shape[1]
     edge_indim = g.edge_attr.shape[1]
     ec = ECForGraphTCN(
