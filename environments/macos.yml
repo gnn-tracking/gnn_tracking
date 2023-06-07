@@ -1,0 +1,17 @@
+name: gnn
+channels:
+  # These do NOT commute!
+  - pytorch
+  - ostrokach-forge
+  - conda-forge
+  - scikit-learn
+dependencies:
+  - python >= 3.10
+  - pytorch >= 2
+  - optuna
+  - wandb
+  - numpy
+  - pandas
+  - scikit-learn
+  - pip
+  - jupyter
