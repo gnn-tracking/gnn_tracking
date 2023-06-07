@@ -478,6 +478,7 @@ def _hinge_loss_components(
     r_emb_hinge: float,
     pt_thld: float,
     p_attr: float,
+    p_rep: float,
 ) -> tuple[T, T]:
     true_edge = (particle_id[edge_index[0]] == particle_id[edge_index[1]]) & (
         particle_id[edge_index[0]] > 0
@@ -487,7 +488,9 @@ def _hinge_loss_components(
     normalization = true_high_pt_edge.sum() + 1e-8
     return torch.sum(
         torch.pow(dists[true_high_pt_edge], p_attr)
-    ) / normalization, torch.sum(relu(r_emb_hinge - dists[~true_edge]) / normalization)
+    ) / normalization, torch.sum(
+        relu(r_emb_hinge - torch.pow(dists[~true_edge], p_rep)) / normalization
+    )
 
 
 class GraphConstructionHingeEmbeddingLoss(torch.nn.Module):
@@ -498,6 +501,7 @@ class GraphConstructionHingeEmbeddingLoss(torch.nn.Module):
         max_num_neighbors: int = 256,
         attr_pt_thld: float = 0.9,
         p_attr: float = 1,
+        p_rep: float = 1,
     ):
         """Loss for graph construction using metric learning.
 
@@ -506,12 +510,14 @@ class GraphConstructionHingeEmbeddingLoss(torch.nn.Module):
             max_num_neighbors: Maximum number of neighbors in radius graph building.
                 See https://github.com/rusty1s/pytorch_cluster#radius-graph
             p_attr: Power for the attraction term (default 1: linear loss)
+            p_rep: Power for the repulsion term (default 1: linear loss)
         """
         super().__init__()
         self.r_emb = r_emb
         self.max_num_neighbors = max_num_neighbors
         self.attr_pt_thld = attr_pt_thld
         self.p_attr = p_attr
+        self.p_rep = p_rep
 
     def _build_graph(self, x: T, batch: T, true_edges: T, pt: T) -> T:
         true_edge_mask = pt[true_edges[0]] > self.attr_pt_thld
@@ -539,6 +545,7 @@ class GraphConstructionHingeEmbeddingLoss(torch.nn.Module):
             pt=pt,
             pt_thld=self.attr_pt_thld,
             p_attr=self.p_attr,
+            p_rep=self.p_rep,
         )
         return {
             "attractive": attr,
