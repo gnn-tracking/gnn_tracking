@@ -11,6 +11,6 @@ dependencies:
   - pyg
   - optuna
   - numpy
-  - pandas < 2.0
+  - pandas
   - scikit-learn
   - pip

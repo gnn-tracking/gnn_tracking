@@ -15,7 +15,7 @@ dependencies:
   - optuna
   - wandb
   - numpy
-  - pandas < 2.0
+  - pandas
   - scikit-learn
   - pip
   - jupyter
