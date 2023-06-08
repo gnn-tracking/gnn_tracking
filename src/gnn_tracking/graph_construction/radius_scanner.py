@@ -57,39 +57,6 @@ class RSResults:
         self.df = df.sort_values("radius")
         self.targets = targets
 
-    @cached_property
-    def _spline(self):
-        return CubicSpline(self.df["radius"], self.df)
-
-    def _eval_spline(self, radius: float) -> dict[str, float]:
-        # Unclear why sometimes the spline returns a 2D array
-        _r = self._spline(radius).squeeze().tolist()
-        return dict(zip(self.df.columns, _r))
-
-    def _get_target_radius(self, target: float) -> float:
-        """Radius at which the 50%-segment fraction = target"""
-        if target > self.df["frac50"].max():
-            return float("nan")
-        bounds = (
-            self.df["radius"].min().item(),
-            self.df["radius"].max().item(),
-        )
-        initial_value = sum(bounds) / 2
-        return minimize(
-            lambda radius: np.abs(self._eval_spline(radius)["frac50"] - target),
-            x0=initial_value,
-            bounds=(bounds,),
-        ).x.item()
-
-    def _get_foms_at_target(self, target: float) -> dict[str, float]:
-        _nan_results = {k: float("nan") for k in self.df.columns}
-        if len(self.df) < 2:
-            return _nan_results
-        target_r = self._get_target_radius(target)
-        if math.isnan(target_r):
-            return _nan_results
-        return self._eval_spline(target_r)
-
     def get_foms(self) -> dict[str, float]:
         foms = {}
         for t in self.targets:
@@ -136,6 +103,39 @@ class RSResults:
         fig.legend()
         return ax
 
+    @cached_property
+    def _spline(self):
+        return CubicSpline(self.df["radius"], self.df)
+
+    def _eval_spline(self, radius: float) -> dict[str, float]:
+        # Unclear why sometimes the spline returns a 2D array
+        _r = self._spline(radius).squeeze().tolist()
+        return dict(zip(self.df.columns, _r))
+
+    def _get_target_radius(self, target: float) -> float:
+        """Radius at which the 50%-segment fraction = target"""
+        if target > self.df["frac50"].max():
+            return float("nan")
+        bounds = (
+            self.df["radius"].min().item(),
+            self.df["radius"].max().item(),
+        )
+        initial_value = sum(bounds) / 2
+        return minimize(
+            lambda radius: np.abs(self._eval_spline(radius)["frac50"] - target),
+            x0=initial_value,
+            bounds=(bounds,),
+        ).x.item()
+
+    def _get_foms_at_target(self, target: float) -> dict[str, float]:
+        _nan_results = {k: float("nan") for k in self.df.columns}
+        if len(self.df) < 2:
+            return _nan_results
+        target_r = self._get_target_radius(target)
+        if math.isnan(target_r):
+            return _nan_results
+        return self._eval_spline(target_r)
+
 
 class ComputationAborted(Exception):
     pass
@@ -181,6 +181,27 @@ class RadiusScanner:
         self._max_edges = max_edges
         self._targets = target_fracs
         self._results: dict[float, dict[str, float | int]] = {}
+
+    def __call__(self) -> RSResults:
+        """Run radius scan"""
+        t = Timer()
+        n_sampled = 0
+        while n_sampled < self._n_trials:
+            radius = float(self._suggest_radius())
+            if radius < 0:
+                break
+            try:
+                self._objective(radius)
+            except ComputationAborted:
+                continue
+            n_sampled += 1
+        elapsed = t()
+        self.logger.info("Finished radius scan in %ds.", elapsed)
+
+        return RSResults(
+            results=self._results,
+            targets=self._targets,
+        )
 
     def _objective_single_point_cloud(
         self, mo: dict[str, typing.Any], radius: float
@@ -300,24 +321,3 @@ class RadiusScanner:
         distances = search_space[1:] - search_space[:-1]
         max_distance = distances.max()
         return search_space[np.argmax(distances)] + max_distance / 2
-
-    def __call__(self) -> RSResults:
-        """Run radius scan"""
-        t = Timer()
-        n_sampled = 0
-        while n_sampled < self._n_trials:
-            radius = float(self._suggest_radius())
-            if radius < 0:
-                break
-            try:
-                self._objective(radius)
-            except ComputationAborted:
-                continue
-            n_sampled += 1
-        elapsed = t()
-        self.logger.info("Finished radius scan in %ds.", elapsed)
-
-        return RSResults(
-            results=self._results,
-            targets=self._targets,
-        )
