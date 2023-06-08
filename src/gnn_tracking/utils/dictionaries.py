@@ -36,3 +36,12 @@ def expand_grid(
         c.update({k: v for k, v in zip(grid.keys(), _c)})
         configs.append(c)
     return configs
+
+
+def pivot_record_list(records: list[dict]) -> dict:
+    """Transform list of key value pairs into dict of lists."""
+    keys = list(records[0].keys())
+    for record in records:
+        if not set(record.keys()) == set(keys):
+            raise ValueError("All records must have the same keys.")
+    return {k: [r[k] for r in records] for k in keys}
