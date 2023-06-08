@@ -5,6 +5,7 @@ import typing
 from functools import cached_property
 
 import numpy as np
+import pandas as pd
 from matplotlib import pyplot as plt
 from scipy.interpolate import CubicSpline
 from scipy.optimize import minimize
@@ -13,6 +14,7 @@ from torch_cluster import radius_graph
 from torch_geometric.data import Data
 
 from gnn_tracking.analysis.graphs import get_largest_segment_fracs
+from gnn_tracking.utils.dictionaries import pivot_record_list
 from gnn_tracking.utils.log import get_logger
 from gnn_tracking.utils.timing import Timer
 
@@ -39,74 +41,92 @@ def construct_graph(mo: dict[str, typing.Any], radius, max_num_neighbors=128) ->
 class RSResults:
     def __init__(
         self,
-        search_space: np.ndarray,
-        results: np.ndarray,
+        results: dict[float, dict[str, float]],
         targets: typing.Sequence[float],
     ):
         """This object holds the results of scanning the radius space. It performs
-        interpolation to get the FOMs.
+        interpolation to get the figures of merit (FOMs).
 
         Args:
-            search_space: The radii scanned
             results: The results of the scan: (50%-segment fraction, n_edges)
             targets: The targets 50%-segment fractions that we're interested in
         """
-        self.search_space = search_space
-        self.results = results
+        values = pivot_record_list(list(results.values()))
+        df = pd.DataFrame(values)
+        df["radius"] = list(results.keys())
+        self.df = df.sort_values("radius")
         self.targets = targets
 
     @cached_property
-    def _cs_r(self) -> CubicSpline:
-        """Cubic spline for 50%-segments"""
-        return CubicSpline(
-            self.search_space[np.isfinite(self.results[:, 0])],
-            self.results[np.isfinite(self.results[:, 0]), 0],
-        )
+    def _spline(self):
+        return CubicSpline(self.df["radius"], self.df)
 
-    @cached_property
-    def _cs_n_edges(self) -> CubicSpline:
-        """Cubic spline for number of edges"""
-        return CubicSpline(self.search_space, self.results[:, 1])
+    def _eval_spline(self, radius: float) -> dict[str, float]:
+        # Unclear why sometimes the spline returns a 2D array
+        _r = self._spline(radius).squeeze().tolist()
+        return dict(zip(self.df.columns, _r))
 
     def _get_target_radius(self, target: float) -> float:
         """Radius at which the 50%-segment fraction = target"""
-        if target > max(self.results[:, 0]):
+        if target > self.df["frac50"].max():
             return float("nan")
+        bounds = (
+            self.df["radius"].min().item(),
+            self.df["radius"].max().item(),
+        )
+        initial_value = sum(bounds) / 2
         return minimize(
-            lambda radius: np.abs(self._cs_r(radius) - target),
-            (self.search_space.min() + self.search_space.max()) / 2,
-            bounds=((self.search_space.min(), self.search_space.max()),),
-        ).x
+            lambda radius: np.abs(self._eval_spline(radius)["frac50"] - target),
+            x0=initial_value,
+            bounds=(bounds,),
+        ).x.item()
 
-    def _get_fom(self, target: float) -> tuple[float, float]:
-        if np.isfinite(self.search_space).sum() < 2:
-            return float("nan"), float("nan")
+    def _get_foms_at_target(self, target: float) -> dict[str, float]:
+        _nan_results = {k: float("nan") for k in self.df.columns}
+        if len(self.df) < 2:
+            return _nan_results
         target_r = self._get_target_radius(target)
         if math.isnan(target_r):
-            return float("nan"), float("nan")
-        return target_r, self._cs_n_edges(target_r).item()
+            return _nan_results
+        return self._eval_spline(target_r)
 
     def get_foms(self) -> dict[str, float]:
         foms = {}
         for t in self.targets:
-            r, n_edges = self._get_fom(t)
-            foms[f"n_edges_frac_segment50_{t*100:.0f}"] = n_edges
-            foms[f"n_edges_frac_segment50_{t*100:.0f}_r"] = r
-        idx_max_frac = self.results[:, 0].argmax()
-        foms["max_frac_segment50"] = self.results[idx_max_frac, 0]
-        foms["n_edges_max_frac_segment50"] = self.results[idx_max_frac, 1]
-        foms["max_frac_segment50_r"] = self.search_space[idx_max_frac]
+            fat = self._get_foms_at_target(t)
+            foms[f"n_edges_frac_segment50_{t*100:.0f}"] = fat["n_edges"]
+            foms[f"n_edges_frac_segment50_{t*100:.0f}_r"] = fat["radius"]
+            foms[f"frac75_at_frac_segment50_{t*100:.0f}"] = fat["frac75"]
+            foms[f"frac100_at_frac_segment50_{t*100:.0f}"] = fat["frac100"]
+        idx_max_frac50 = self.df["frac50"].argmax()
+        fat = self.df.iloc[idx_max_frac50]
+        foms["max_frac_segment50"] = fat["frac50"]
+        foms["n_edges_max_frac_segment50"] = fat["n_edges"]
+        foms["max_frac_segment50_r"] = fat["radius"]
+        foms["frac75_at_max_frac_segment50"] = fat["frac75"]
+        foms["frac100_at_max_frac_segment50"] = fat["frac100"]
         return foms
 
     def plot(self) -> plt.Axes:
         """Plot interpolation"""
-        xs = np.linspace(*self.search_space[[0, -1]], 1000)
+        bounds = (
+            self.df["radius"].min(),
+            self.df["radius"].max(),
+        )
+        xs = np.linspace(*bounds, 1000)
+        df = pd.DataFrame(pivot_record_list([self._eval_spline(x) for x in xs]))
         fig, ax = plt.subplots()
         ax2 = ax.twinx()
-        ax.plot(xs, self._cs_r(xs), marker="none", color="C0", label="50frac")
-        ax.plot(self.search_space, self.results[:, 0], "o", color="C0")
-        ax2.plot(xs, self._cs_n_edges(xs), marker="none", color="C1", label="n_edges")
-        ax2.plot(self.search_space, self.results[:, 1], "o", color="C1")
+        ax.plot("radius", "frac50", data=df, marker="none", color="C0", label="frac 50")
+        ax.plot("radius", "frac50", data=self.df, marker="o", color="C0")
+        ax2.plot("radius", "n_edges", data=df, marker="none", color="C1", label="edges")
+        ax2.plot("radius", "n_edges", data=self.df, marker="o", color="C1")
+        ax.plot("radius", "frac75", data=df, marker="none", color="C2", label="frac 75")
+        ax.plot("radius", "frac75", data=self.df, marker="o", color="C2")
+        ax.plot(
+            "radius", "frac100", data=df, marker="none", color="C3", label="frac 100"
+        )
+        ax.plot("radius", "frac100", data=self.df, marker="o", color="C3")
         for t in self.targets:
             ax.axhline(t, linestyle="--", lw=1, color="C0")
         for target in self.targets:
@@ -115,6 +135,10 @@ class RSResults:
             )
         fig.legend()
         return ax
+
+
+class ComputationAborted(Exception):
+    pass
 
 
 class RadiusScanner:
@@ -153,15 +177,14 @@ class RadiusScanner:
         self._radius_range = list(radius_range)
         self._max_num_neighbors = max_num_neighbors
         self._n_trials = n_trials
-        self._study = None
         self.logger = get_logger("RadiusHP")
         self._max_edges = max_edges
         self._targets = target_fracs
-        self._results: dict[float, tuple[float, int]] = {}
+        self._results: dict[float, dict[str, float | int]] = {}
 
-    def _objective_single(
+    def _objective_single_point_cloud(
         self, mo: dict[str, typing.Any], radius: float
-    ) -> tuple[float, int | float]:
+    ) -> dict[str, float | int]:
         """Construct graph for given point cloud and radius
 
         Returns:
@@ -169,17 +192,24 @@ class RadiusScanner:
             we exceed maximal number of edges.
         """
         if radius > self._radius_range[1]:
-            return float("nan"), float("nan")
+            raise ComputationAborted("Exceeded radius range")
         data = construct_graph(
             mo, radius=radius, max_num_neighbors=self._max_num_neighbors
         )
         if data.num_edges > self._max_edges:
             self._clip_radius_range(max_radius=radius, reason="too many edges")
-            return float("nan"), data.num_edges
-        r = (get_largest_segment_fracs(data) > 0.5).mean()
-        return r, data.num_edges
+            raise ComputationAborted("Too many edges")
+        frac50 = (get_largest_segment_fracs(data) > 0.5).mean().item()
+        frac75 = (get_largest_segment_fracs(data) > 0.75).mean().item()
+        frac100 = (get_largest_segment_fracs(data) == 1).mean().item()
+        return {
+            "frac50": frac50,
+            "frac75": frac75,
+            "frac100": frac100,
+            "n_edges": data.num_edges,
+        }
 
-    def _objective(self, radius: float) -> tuple[float, int | float]:
+    def _objective(self, radius: float) -> dict[str, float | int]:
         """Construct graphs for all validation point clouds at a given radius and
         averages the results.
 
@@ -187,26 +217,31 @@ class RadiusScanner:
             50%-segment fraction, number of edges. nan is returned for both if
             we exceed maximal number of edges.
         """
-        vals = []
-        for mo in self._model_output:
-            _v, _n_edges = self._objective_single(mo, radius)
-            if math.isnan(_v):
-                return float("nan"), float("nan")
-            vals.append((_v, _n_edges))
-        v, n_edges = np.array(vals).mean(axis=0)
-        self.logger.debug("Radius %f -> 50-segment: %f, edges: %f", radius, v, n_edges)
-        self._results[radius] = v, n_edges
+        vals = pivot_record_list(
+            [
+                self._objective_single_point_cloud(mo, radius)
+                for mo in self._model_output
+            ]
+        )
+        vals_avg = {k: np.array(v).mean().item() for k, v in vals.items()}
+        self.logger.debug(
+            "Radius %f -> 50-segment: %f, edges: %f",
+            radius,
+            vals_avg["frac50"],
+            vals_avg["n_edges"],
+        )
+        self._results[radius] = vals_avg
         self._update_search_range()
-        return v, n_edges
+        return vals_avg
 
     def _update_search_range(self):
         """Update search range based on all previous results"""
         for r in sorted(self._results):
-            v = self._results[r][0]
+            v = self._results[r]["frac50"]
             if v > max(self._targets):
                 self._clip_radius_range(max_radius=r, reason="overachieving")
             larger_rs = [_r for _r in sorted(self._results) if _r > r]
-            larger_r_vs = [self._results[_r][0] for _r in larger_rs]
+            larger_r_vs = [self._results[_r]["frac50"] for _r in larger_rs]
             if larger_r_vs and max(larger_r_vs) > v and v < min(self._targets):
                 self._clip_radius_range(min_radius=r, reason="underarchieving")
             if larger_r_vs and larger_r_vs[0] < v:
@@ -274,16 +309,15 @@ class RadiusScanner:
             radius = float(self._suggest_radius())
             if radius < 0:
                 break
-            v, _ = self._objective(radius)
-            if not math.isnan(v):
-                n_sampled += 1
+            try:
+                self._objective(radius)
+            except ComputationAborted:
+                continue
+            n_sampled += 1
         elapsed = t()
         self.logger.info("Finished radius scan in %ds.", elapsed)
 
-        search_space, results = self._get_arrays()
-
         return RSResults(
-            search_space=search_space,
-            results=results,
+            results=self._results,
             targets=self._targets,
         )
