@@ -17,7 +17,15 @@ from gnn_tracking.utils.log import get_logger
 from gnn_tracking.utils.timing import Timer
 
 
-def construct_graph(mo: dict[str, typing.Any], radius, max_num_neighbors=128):
+def construct_graph(mo: dict[str, typing.Any], radius, max_num_neighbors=128) -> Data:
+    """Construct radius graph
+
+    Args:
+        mo: Model output
+        radius: Radius for radius graph
+        max_num_neighbors: Maximum number of edges per node (after that: random
+            sampling)
+    """
     edge_index = radius_graph(mo["x"], radius, max_num_neighbors=max_num_neighbors)
     y: Tensor = (  # type: ignore
         mo["particle_id"][edge_index[0]] == mo["particle_id"][edge_index[1]]
@@ -35,26 +43,37 @@ class RSResults:
         results: np.ndarray,
         targets: typing.Sequence[float],
     ):
+        """This object holds the results of scanning the radius space. It performs
+        interpolation to get the FOMs.
+
+        Args:
+            search_space: The radii scanned
+            results: The results of the scan: (50%-segment fraction, n_edges)
+            targets: The targets 50%-segment fractions that we're interested in
+        """
         self.search_space = search_space
         self.results = results
         self.targets = targets
 
     @cached_property
-    def cs_r(self) -> CubicSpline:
+    def _cs_r(self) -> CubicSpline:
+        """Cubic spline for 50%-segments"""
         return CubicSpline(
             self.search_space[np.isfinite(self.results[:, 0])],
             self.results[np.isfinite(self.results[:, 0]), 0],
         )
 
     @cached_property
-    def cs_n_edges(self) -> CubicSpline:
+    def _cs_n_edges(self) -> CubicSpline:
+        """Cubic spline for number of edges"""
         return CubicSpline(self.search_space, self.results[:, 1])
 
-    def get_target_radius(self, target: float) -> float:
+    def _get_target_radius(self, target: float) -> float:
+        """Radius at which the 50%-segment fraction = target"""
         if target > max(self.results[:, 0]):
             return float("nan")
         return minimize(
-            lambda radius: np.abs(self.cs_r(radius) - target),
+            lambda radius: np.abs(self._cs_r(radius) - target),
             (self.search_space.min() + self.search_space.max()) / 2,
             bounds=((self.search_space.min(), self.search_space.max()),),
         ).x
@@ -62,10 +81,10 @@ class RSResults:
     def _get_fom(self, target: float) -> tuple[float, float]:
         if np.isfinite(self.search_space).sum() < 2:
             return float("nan"), float("nan")
-        target_r = self.get_target_radius(target)
+        target_r = self._get_target_radius(target)
         if math.isnan(target_r):
             return float("nan"), float("nan")
-        return target_r, self.cs_n_edges(target_r).item()
+        return target_r, self._cs_n_edges(target_r).item()
 
     def get_foms(self) -> dict[str, float]:
         foms = {}
@@ -80,17 +99,20 @@ class RSResults:
         return foms
 
     def plot(self) -> plt.Axes:
+        """Plot interpolation"""
         xs = np.linspace(*self.search_space[[0, -1]], 1000)
         fig, ax = plt.subplots()
         ax2 = ax.twinx()
-        ax.plot(xs, self.cs_r(xs), marker="none", color="C0", label="50frac")
+        ax.plot(xs, self._cs_r(xs), marker="none", color="C0", label="50frac")
         ax.plot(self.search_space, self.results[:, 0], "o", color="C0")
-        ax2.plot(xs, self.cs_n_edges(xs), marker="none", color="C1", label="n_edges")
+        ax2.plot(xs, self._cs_n_edges(xs), marker="none", color="C1", label="n_edges")
         ax2.plot(self.search_space, self.results[:, 1], "o", color="C1")
         for t in self.targets:
             ax.axhline(t, linestyle="--", lw=1, color="C0")
         for target in self.targets:
-            ax.axvline(self.get_target_radius(target), linestyle="--", lw=1, color="C0")
+            ax.axvline(
+                self._get_target_radius(target), linestyle="--", lw=1, color="C0"
+            )
         fig.legend()
         return ax
 
@@ -106,7 +128,13 @@ class RadiusScanner:
         target_fracs=(0.8, 0.9, 0.95),
         start_radii: list[float] | None = None,
     ):
-        """
+        """Scan different radii for the radius graph.
+
+        .. code-block:: python
+
+            rs = RadiusScanner(...)
+            rs_results = rs()
+            foms = rs_results.get_foms()
 
         Args:
             model_output:
@@ -134,6 +162,12 @@ class RadiusScanner:
     def _objective_single(
         self, mo: dict[str, typing.Any], radius: float
     ) -> tuple[float, int | float]:
+        """Construct graph for given point cloud and radius
+
+        Returns:
+            50%-segment fraction, number of edges. nan is returned for both if
+            we exceed maximal number of edges.
+        """
         if radius > self._radius_range[1]:
             return float("nan"), float("nan")
         data = construct_graph(
@@ -146,7 +180,13 @@ class RadiusScanner:
         return r, data.num_edges
 
     def _objective(self, radius: float) -> tuple[float, int | float]:
-        """Objective function for optuna."""
+        """Construct graphs for all validation point clouds at a given radius and
+        averages the results.
+
+        Returns:
+            50%-segment fraction, number of edges. nan is returned for both if
+            we exceed maximal number of edges.
+        """
         vals = []
         for mo in self._model_output:
             _v, _n_edges = self._objective_single(mo, radius)
@@ -160,6 +200,7 @@ class RadiusScanner:
         return v, n_edges
 
     def _update_search_range(self):
+        """Update search range based on all previous results"""
         for r in sorted(self._results):
             v = self._results[r][0]
             if v > max(self._targets):
@@ -177,6 +218,13 @@ class RadiusScanner:
         max_radius: float | None = None,
         reason="",
     ):
+        """Clip radius range to given values
+
+        Args:
+            min_radius: If not None, clip min radius to this value
+            max_radius: If not None, clip max radius to this value
+            reason: Reason for clipping
+        """
         if min_radius is not None and min_radius > self._radius_range[0]:
             self.logger.debug("Updated min radius to %f (%s)", min_radius, reason)
             self._radius_range[0] = min_radius
@@ -184,12 +232,14 @@ class RadiusScanner:
             self.logger.debug("Updated max radius to %f (%s)", max_radius, reason)
             self._radius_range[1] = max_radius
 
-    def _get_arrays(self):
+    def _get_arrays(self) -> tuple[np.ndarray, np.ndarray]:
+        """Get arrays of radii and results"""
         search_space = np.array(sorted(self._results))
         results = np.array([self._results[r] for r in search_space])
         return search_space, results
 
-    def _get_next_radius(self) -> float:
+    def _suggest_radius(self) -> float:
+        """Get next radius to evaluate"""
         if self._start_radii:
             return min(
                 max(self._radius_range[0], self._start_radii.pop()),
@@ -216,11 +266,12 @@ class RadiusScanner:
         max_distance = distances.max()
         return search_space[np.argmax(distances)] + max_distance / 2
 
-    def __call__(self):
+    def __call__(self) -> RSResults:
+        """Run radius scan"""
         t = Timer()
         n_sampled = 0
         while n_sampled < self._n_trials:
-            radius = float(self._get_next_radius())
+            radius = float(self._suggest_radius())
             if radius < 0:
                 break
             v, _ = self._objective(radius)
