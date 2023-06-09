@@ -35,6 +35,7 @@ def construct_graph(mo: dict[str, typing.Any], radius, max_num_neighbors=128) ->
     data = Data(x=mo["x"], edge_index=edge_index, y=y)
     data.pt = mo["particle_id"]
     data.particle_id = mo["particle_id"]
+    data.reconstructable = mo["reconstructable"]
     return data
 
 
@@ -100,7 +101,7 @@ class RSResults:
             ax.axvline(
                 self._get_target_radius(target), linestyle="--", lw=1, color="C0"
             )
-        fig.legend(loc="bottom right")
+        fig.legend(loc="lower right")
         return ax
 
     @cached_property
@@ -270,7 +271,7 @@ class RadiusScanner:
             larger_rs = [_r for _r in sorted(self._results) if _r > r]
             larger_r_vs = [self._results[_r]["frac50"] for _r in larger_rs]
             if larger_r_vs and max(larger_r_vs) > v and v < min(self._targets):
-                self._clip_radius_range(min_radius=r, reason="underarchieving")
+                self._clip_radius_range(min_radius=r, reason="underachieving")
             if larger_r_vs and larger_r_vs[0] < v:
                 self._clip_radius_range(max_radius=larger_rs[0], reason="decreasing")
 

@@ -146,7 +146,8 @@ class ECForGraphTCN(nn.Module):
             h_ec_0 = h_ec[edge_index[0]]
             h_ec_1 = h_ec[edge_index[1]]
             w_input = torch.cat([h_ec_0, h_ec_1, w_input], dim=1)
-        edge_weights = torch.sigmoid(self.W(w_input))
+        eps = 0.001
+        edge_weights = eps + (1 - 2 * eps) * torch.sigmoid(self.W(w_input))
         return {
             "W": edge_weights.squeeze(),
             "node_embedding": h_ec,

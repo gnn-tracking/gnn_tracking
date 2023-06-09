@@ -279,7 +279,10 @@ def get_largest_segment_fracs(data: Data, pt_thld=0.9, partitions=500) -> np.nda
     Returns:
         Array of fractions.
     """
-    basic_hit_mask = (data.pt > pt_thld) & (data.particle_id > 0)
+    print("2")
+    basic_hit_mask = (
+        (data.pt > pt_thld) & (data.particle_id > 0) & (data.reconstructable > 0)
+    )
     rdata = Data(
         edge_index=data.edge_index,
         particle_id=data.particle_id,
