@@ -7,7 +7,10 @@ import torch.nn
 from torch import Tensor as T
 from torch.nn import Linear, ModuleList, init
 from torch.nn.functional import normalize, relu
+from torch_cluster import knn_graph
 from torch_geometric.data import Data
+
+from gnn_tracking.utils.log import logger
 
 
 class GraphConstructionFCNN(torch.nn.Module):
@@ -57,3 +60,92 @@ class GraphConstructionFCNN(torch.nn.Module):
         x = self.decoder(relu(x))
         x *= self.latent_normalization
         return {"H": x}
+
+
+def knn_with_max_radius(x: T, k: int, max_radius: float | None = None) -> T:
+    """A version of kNN that excludes edges with a distance larger than a given radius.
+
+    Args:
+        x:
+        k: Number of neighbors
+        max_radius:
+
+    Returns:
+        edge index
+    """
+    edge_index = knn_graph(x, k=k)
+    if max_radius is not None:
+        dists = (x[edge_index[0]] - x[edge_index[1]]).norm(dim=-1)
+        edge_index = edge_index[:, dists < max_radius]
+    return edge_index
+
+
+class GCWithEF(torch.nn.Module):
+    def __init__(
+        self,
+        ml: torch.nn.Module,
+        ef: torch.nn.Module,
+        max_radius: float = 1,
+        max_num_neighbors: int = 256,
+        use_embedding_features=False,
+        ratio_of_false=None,
+        build_edge_features=False,
+    ):
+        super().__init__()
+        self._ml = ml
+        self._ef = ef
+        self._max_radius = max_radius
+        self._max_num_neighbors = max_num_neighbors
+        self._use_embedding_features = use_embedding_features
+        self._ratio_of_false = ratio_of_false
+        self._build_edge_features = build_edge_features
+        if build_edge_features and ratio_of_false:
+            logger.warning(
+                "Subsampling false edges. This might not make sense"
+                " for message passing."
+            )
+
+    def forward(self, data: Data):
+        mo = self._ml(data)
+        edge_index = knn_with_max_radius(
+            mo["H"], max_radius=self._max_radius, k=self._max_num_neighbors
+        )
+        y: T = (  # type: ignore
+            data.particle_id[edge_index[0]] == data.particle_id[edge_index[1]]
+        )
+        if not self._use_embedding_features:
+            x = data.x
+        else:
+            x = torch.cat((mo["H"], data.x), dim=1)
+        # print(edge_index.shape, )
+        if self._ratio_of_false and self.training:
+            num_true = y.sum()
+            num_false_to_keep = int(num_true * self._ratio_of_false)
+            false_edges = edge_index[:, ~y][:, :num_false_to_keep]
+            true_edges = edge_index[:, y]
+            edge_index = torch.cat((false_edges, true_edges), dim=1)
+            y = torch.cat(
+                (
+                    torch.zeros(false_edges.shape[1], device=y.device),
+                    torch.ones(true_edges.shape[1], device=y.device),
+                )
+            )
+        # print(false_edges.shape, true_edges.shape, edge_index.shape, y.shape)
+        edge_features = None
+        if self._build_edge_features:
+            edge_features = torch.cat((x[edge_index[0]], x[edge_index[1]]), dim=1)
+        graph = Data(
+            x=x,
+            edge_index=edge_index,
+            y=y,
+            pt=data.pt,
+            particle_id=data.particle_id,
+            sector=data.sector,
+            reconstructable=data.reconstructable,
+            edge_attr=edge_features,
+        )
+        assert len(graph.y) == graph.edge_index.shape[1]
+        return self._ef(graph) | {
+            "y": y.float(),
+            "edge_index": edge_index,
+        }
