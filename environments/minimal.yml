@@ -14,3 +14,4 @@ dependencies:
   - pandas
   - scikit-learn
   - pip
+  - pytorch-cluster
