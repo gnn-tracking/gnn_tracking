@@ -141,6 +141,10 @@ class ComputationAborted(Exception):
     pass
 
 
+class SearchSpaceExhausted(Exception):
+    pass
+
+
 class RadiusScanner:
     def __init__(
         self,
@@ -187,8 +191,9 @@ class RadiusScanner:
         t = Timer()
         n_sampled = 0
         while n_sampled < self._n_trials:
-            radius = float(self._suggest_radius())
-            if radius < 0:
+            try:
+                radius = float(self._suggest_radius())
+            except SearchSpaceExhausted:
                 break
             try:
                 self._objective(radius)
@@ -289,12 +294,6 @@ class RadiusScanner:
             self.logger.debug("Updated max radius to %f (%s)", max_radius, reason)
             self._radius_range[1] = max_radius
 
-    def _get_arrays(self) -> tuple[np.ndarray, np.ndarray]:
-        """Get arrays of radii and results"""
-        search_space = np.array(sorted(self._results))
-        results = np.array([self._results[r] for r in search_space])
-        return search_space, results
-
     def _suggest_radius(self) -> float:
         """Get next radius to evaluate"""
         if self._start_radii:
@@ -317,8 +316,9 @@ class RadiusScanner:
             # more than one
             return np.random.uniform(*self._radius_range)
         if (search_space[1:] / search_space[:-1]).max() < 1.05:
-            self.logger.warning("Already very finely sampled. Abort.")
-            return -1
+            _ = "Already very finely sampled. Abort."
+            self.logger.warning(_)
+            raise SearchSpaceExhausted(_)
         distances = search_space[1:] - search_space[:-1]
         max_distance = distances.max()
         return search_space[np.argmax(distances)] + max_distance / 2
