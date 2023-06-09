@@ -195,6 +195,12 @@ class TCNTrainer:
             except KeyError:
                 return None
 
+        def get_from_model_or_data(key: str) -> Tensor:
+            try:
+                return out.pop(key)
+            except KeyError:
+                return data[key]
+
         ec_hit_mask = out.get("ec_hit_mask", torch.full_like(data.pt, True)).bool()
         ec_edge_mask = out.get("ec_edge_mask", torch.full_like(data.y, True)).bool()
 
@@ -209,13 +215,13 @@ class TCNTrainer:
                 "ec_hit_mask": ec_hit_mask,
                 "ec_edge_mask": ec_edge_mask,
                 # -------- from data
-                "y": data.y,
+                "y": get_from_model_or_data("y"),
                 "particle_id": pid_field,
                 # fixme: One of these is wrong
                 "track_params": data.pt,
                 "pt": data.pt,
                 "reconstructable": data.reconstructable.long(),
-                "edge_index": data.edge_index,
+                "edge_index": get_from_model_or_data("edge_index"),
                 "sector": data.sector,
                 "node_features": data.x,
                 "batch": data.batch,
