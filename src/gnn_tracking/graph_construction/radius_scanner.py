@@ -85,22 +85,22 @@ class RSResults:
         fig, ax = plt.subplots()
         ax2 = ax.twinx()
         ax.plot("radius", "frac50", data=df, marker="none", color="C0", label="frac 50")
-        ax.plot("radius", "frac50", data=self.df, marker="o", color="C0")
+        ax.plot("radius", "frac50", data=self.df, marker="o", color="C0", ls="none")
         ax2.plot("radius", "n_edges", data=df, marker="none", color="C1", label="edges")
-        ax2.plot("radius", "n_edges", data=self.df, marker="o", color="C1")
+        ax2.plot("radius", "n_edges", data=self.df, marker="o", color="C1", ls="none")
         ax.plot("radius", "frac75", data=df, marker="none", color="C2", label="frac 75")
-        ax.plot("radius", "frac75", data=self.df, marker="o", color="C2")
+        ax.plot("radius", "frac75", data=self.df, marker="o", color="C2", ls="none")
         ax.plot(
             "radius", "frac100", data=df, marker="none", color="C3", label="frac 100"
         )
-        ax.plot("radius", "frac100", data=self.df, marker="o", color="C3")
+        ax.plot("radius", "frac100", data=self.df, marker="o", color="C3", ls="none")
         for t in self.targets:
             ax.axhline(t, linestyle="--", lw=1, color="C0")
         for target in self.targets:
             ax.axvline(
                 self._get_target_radius(target), linestyle="--", lw=1, color="C0"
             )
-        fig.legend()
+        fig.legend(loc="bottom right")
         return ax
 
     @cached_property
@@ -220,9 +220,10 @@ class RadiusScanner:
         if data.num_edges > self._max_edges:
             self._clip_radius_range(max_radius=radius, reason="too many edges")
             raise ComputationAborted("Too many edges")
-        frac50 = (get_largest_segment_fracs(data) > 0.5).mean().item()
-        frac75 = (get_largest_segment_fracs(data) > 0.75).mean().item()
-        frac100 = (get_largest_segment_fracs(data) == 1).mean().item()
+        lsfs = get_largest_segment_fracs(data)
+        frac50 = (lsfs > 0.5).mean().item()
+        frac75 = (lsfs > 0.75).mean().item()
+        frac100 = (lsfs == 1).mean().item()
         return {
             "frac50": frac50,
             "frac75": frac75,
