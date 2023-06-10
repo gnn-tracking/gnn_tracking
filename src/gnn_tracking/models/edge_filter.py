@@ -50,8 +50,8 @@ class EFDeepSet(torch.nn.Module):
         invariant_1 = torch.abs(xi - xj)
         invariant_2 = xi + xj
         invariant = torch.cat((invariant_1, invariant_2), dim=1)
-        w = sigmoid(self.aggregator(invariant)).squeeze()
-        print(w.shape)
+        epsilon = 1e-8
+        w = epsilon + (1 - 2 * epsilon) * sigmoid(self.aggregator(invariant)).squeeze()
         return {"W": w}
 
 

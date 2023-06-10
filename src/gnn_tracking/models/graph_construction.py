@@ -53,12 +53,14 @@ class GraphConstructionFCNN(torch.nn.Module):
             init.normal_(p.data, mean=0, std=math.sqrt(var))
 
     def forward(self, data: Data) -> dict[str, T]:
+        assert data.x.shape[1] == self.in_dim
         x = normalize(data.x, p=2.0, dim=1, eps=1e-12, out=None)
         x = self.encoder(x)
         for layer in self.layers:
             x = np.sqrt(self.beta) * layer(relu(x)) + np.sqrt(1 - self.beta) * x
         x = self.decoder(relu(x))
         x *= self.latent_normalization
+        assert x.shape[1] == self.out_dim
         return {"H": x}
 
 
@@ -80,17 +82,30 @@ def knn_with_max_radius(x: T, k: int, max_radius: float | None = None) -> T:
     return edge_index
 
 
-class GCWithEF(torch.nn.Module):
+class MLGraphConstruction(torch.nn.Module):
     def __init__(
         self,
         ml: torch.nn.Module,
-        ef: torch.nn.Module,
+        *,
+        ef: torch.nn.Module | None = None,
         max_radius: float = 1,
         max_num_neighbors: int = 256,
         use_embedding_features=False,
         ratio_of_false=None,
-        build_edge_features=False,
+        build_edge_features=True,
+        ef_threshold=None,
     ):
+        """
+
+        Args:
+            ml: Metric learning embedding
+            ef: Directly apply edge filter
+            max_radius:
+            max_num_neighbors:
+            use_embedding_features: Add embedding space features to node features
+            ratio_of_false: Subsample false edges
+            build_edge_features:
+        """
         super().__init__()
         self._ml = ml
         self._ef = ef
@@ -99,13 +114,16 @@ class GCWithEF(torch.nn.Module):
         self._use_embedding_features = use_embedding_features
         self._ratio_of_false = ratio_of_false
         self._build_edge_features = build_edge_features
+        self._ef_threshold = ef_threshold
+        if self._ef is not None and self._ef_threshold is None:
+            raise ValueError("ef_threshold must be set if ef is not None")
         if build_edge_features and ratio_of_false:
             logger.warning(
                 "Subsampling false edges. This might not make sense"
                 " for message passing."
             )
 
-    def forward(self, data: Data):
+    def forward(self, data: Data) -> Data:
         mo = self._ml(data)
         edge_index = knn_with_max_radius(
             mo["H"], max_radius=self._max_radius, k=self._max_num_neighbors
@@ -134,7 +152,10 @@ class GCWithEF(torch.nn.Module):
         edge_features = None
         if self._build_edge_features:
             edge_features = torch.cat((x[edge_index[0]], x[edge_index[1]]), dim=1)
-        graph = Data(
+        if self._ef is not None:
+            w = self._ef(edge_features)["W"]
+            edge_index = edge_index[:, w > self._ef_threshold]
+        return Data(
             x=x,
             edge_index=edge_index,
             y=y,
@@ -144,8 +165,3 @@ class GCWithEF(torch.nn.Module):
             reconstructable=data.reconstructable,
             edge_attr=edge_features,
         )
-        assert len(graph.y) == graph.edge_index.shape[1]
-        return self._ef(graph) | {
-            "y": y.float(),
-            "edge_index": edge_index,
-        }
