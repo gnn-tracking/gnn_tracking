@@ -95,7 +95,8 @@ class ECForGraphTCN(nn.Module):
             residual_kwargs = {}
         residual_kwargs["collect_hidden_edge_embeds"] = use_intermediate_edge_embeddings
         self.relu = nn.ReLU()
-
+        self.node_indim = node_indim
+        self.edge_indim = edge_indim
         self.ec_node_encoder = MLP(
             node_indim, interaction_node_dim, hidden_dim=hidden_dim, L=2, bias=False
         )
@@ -133,6 +134,8 @@ class ECForGraphTCN(nn.Module):
         * ``edge_embedding``: Last edge embedding (result of last interaction network)
         """
         x, edge_index, edge_attr = data.x, data.edge_index, data.edge_attr
+        assert x.shape[1] == self.node_indim, x.shape
+        assert edge_attr.shape[1] == self.edge_indim, edge_attr.shape
         h_ec = self.relu(self.ec_node_encoder(x))
         edge_attr_ec = self.relu(self.ec_edge_encoder(edge_attr))
         h_ec, edge_attr_ec, edge_attrs_ec = self.ec_resin(

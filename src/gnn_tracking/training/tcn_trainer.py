@@ -195,12 +195,6 @@ class TCNTrainer:
             except KeyError:
                 return None
 
-        def get_from_model_or_data(key: str) -> Tensor:
-            try:
-                return out.pop(key)
-            except KeyError:
-                return data[key]
-
         ec_hit_mask = out.get("ec_hit_mask", torch.full_like(data.pt, True)).bool()
         ec_edge_mask = out.get("ec_edge_mask", torch.full_like(data.y, True)).bool()
 
@@ -215,13 +209,13 @@ class TCNTrainer:
                 "ec_hit_mask": ec_hit_mask,
                 "ec_edge_mask": ec_edge_mask,
                 # -------- from data
-                "y": get_from_model_or_data("y"),
+                "y": data.y,
                 "particle_id": pid_field,
                 # fixme: One of these is wrong
                 "track_params": data.pt,
                 "pt": data.pt,
                 "reconstructable": data.reconstructable.long(),
-                "edge_index": get_from_model_or_data("edge_index"),
+                "edge_index": data.edge_index,
                 "sector": data.sector,
                 "node_features": data.x,
                 "batch": data.batch,
@@ -335,6 +329,9 @@ class TCNTrainer:
             return True
         return False
 
+    def data_preproc(self, data: Data) -> Data:
+        return data
+
     def train_step(self, *, max_batches: int | None = None) -> dict[str, float]:
         """
 
@@ -354,6 +351,7 @@ class TCNTrainer:
                 break
             try:
                 data = data.to(self.device)  # noqa: PLW2901
+                data = self.data_preproc(data)
                 model_output = self.evaluate_model(data)
                 batch_loss, batch_losses, loss_weights = self.get_batch_losses(
                     model_output
@@ -429,6 +427,7 @@ class TCNTrainer:
             if max_batches and _batch_idx > max_batches:
                 break
             data = data.to(self.device)  # noqa: PLW2901
+            data = self.data_preproc(data)
             model_output = self.evaluate_model(
                 data,
                 mask_pids_reco=False,
