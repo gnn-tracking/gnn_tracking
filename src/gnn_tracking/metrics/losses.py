@@ -24,16 +24,11 @@ def _binary_focal_loss(
     *,
     inpt: T,
     target: T,
-    mask: T,
     alpha: float,
     gamma: float,
     pos_weight: T,
 ) -> T:
     """Extracted function for JIT compilation."""
-    inpt = inpt[mask]
-    target = target[mask]
-    pos_weight = pos_weight[mask]
-
     probs_pos = inpt
     probs_neg = 1 - inpt
 
@@ -72,20 +67,9 @@ def binary_focal_loss(
     if pos_weight is None:
         pos_weight = torch.ones(inpt.shape[-1], device=inpt.device, dtype=inpt.dtype)
 
-    # Masking outliers
-    mask = ~(
-        torch.isclose(inpt, torch.Tensor([0.0]).to(inpt.device))
-        | torch.isclose(inpt, torch.Tensor([1.0]).to(inpt.device))
-    ).bool()
-    if not mask.all():
-        logger.warning(
-            "Masking %d/%d as outliers in focal loss", (~mask).sum(), len(mask)
-        )
-
     return _binary_focal_loss(
         inpt=inpt,
         target=target,
-        mask=mask,
         alpha=alpha,
         gamma=gamma,
         pos_weight=pos_weight,
@@ -108,7 +92,7 @@ def falsify_low_pt_edges(
         True classification with additional criteria applied
     """
     if math.isclose(pt_thld, 0.0):
-        return y
+        return y.long()
     assert edge_index is not None
     assert pt is not None
     # Because false edges are already falsified, we can
@@ -191,7 +175,7 @@ class HaughtyFocalLoss(torch.nn.Module):
         )
         return binary_focal_loss(
             inpt=w,
-            target=y,
+            target=y.long(),
             alpha=self._alpha,
             gamma=self._gamma,
             pos_weight=pos_weight,
