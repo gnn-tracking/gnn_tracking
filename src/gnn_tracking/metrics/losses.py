@@ -26,7 +26,7 @@ def _binary_focal_loss(
     target: T,
     alpha: float,
     gamma: float,
-    pos_weight: T,
+    pos_weight: T | float,
 ) -> T:
     """Extracted function for JIT compilation."""
     probs_pos = inpt
@@ -48,7 +48,7 @@ def binary_focal_loss(
     target: T,
     alpha: float = 0.25,
     gamma: float = 2.0,
-    pos_weight: T | None = None,
+    pos_weight: T | float = 1,
 ) -> T:
     """Binary Focal Loss, following https://arxiv.org/abs/1708.02002.
 
@@ -64,9 +64,7 @@ def binary_focal_loss(
     assert not torch.isnan(inpt).any()
     assert not torch.isnan(target).any()
 
-    if pos_weight is None:
-        pos_weight = torch.ones(inpt.shape[-1], device=inpt.device, dtype=inpt.dtype)
-
+    # JIT compilation does not support optional arguments
     return _binary_focal_loss(
         inpt=inpt,
         target=target,
