@@ -151,14 +151,20 @@ class MLGraphConstruction(torch.nn.Module):
         # print(false_edges.shape, true_edges.shape, edge_index.shape, y.shape)
         edge_features = None
         if self._build_edge_features:
-            edge_features = torch.cat((x[edge_index[0]], x[edge_index[1]]), dim=1)
+            edge_features = torch.cat(
+                (
+                    x[edge_index[0]] - x[edge_index[1]],
+                    x[edge_index[0]] + x[edge_index[1]],
+                ),
+                dim=1,
+            )
         if self._ef is not None:
             w = self._ef(edge_features)["W"]
             edge_index = edge_index[:, w > self._ef_threshold]
         return Data(
             x=x,
             edge_index=edge_index,
-            y=y,
+            y=y.long(),
             pt=data.pt,
             particle_id=data.particle_id,
             sector=data.sector,
