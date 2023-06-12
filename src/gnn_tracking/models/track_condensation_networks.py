@@ -13,6 +13,7 @@ from gnn_tracking.models.edge_classifier import ECForGraphTCN, PerfectEdgeClassi
 from gnn_tracking.models.interaction_network import InteractionNetwork as IN
 from gnn_tracking.models.mlp import MLP
 from gnn_tracking.models.resin import ResIN
+from gnn_tracking.utils.asserts import assert_feat_dim
 from gnn_tracking.utils.graph_masks import edge_subgraph
 
 
@@ -160,8 +161,9 @@ class ModularGraphTCN(nn.Module):
         node_enc_indim = node_indim
         edge_enc_indim = edge_indim
         if use_ec_embeddings_for_hc:
-            node_enc_indim += h_dim
-            edge_enc_indim += e_dim
+            ec_node_latent_dim, ec_edge_latent_dim = ec.latent_dim
+            node_enc_indim += ec_node_latent_dim
+            edge_enc_indim += ec_edge_latent_dim
         edge_enc_indim += int(feed_edge_weights)
 
         #: Node encoder network for track condenser
@@ -228,8 +230,12 @@ class ModularGraphTCN(nn.Module):
             _xs.append(data.ec_node_embedding)
         if self._feed_edge_weights:
             _edge_attrs.append(data.edge_weights)
-        h_hc = self.relu(self.hc_node_encoder(torch.cat(_xs, dim=1)))
-        edge_attr_hc = self.relu(self.hc_edge_encoder(torch.cat(_edge_attrs, dim=1)))
+        x = torch.cat(_xs, dim=1)
+        edge_attrs = torch.cat(_edge_attrs, dim=1)
+        assert_feat_dim(x, self.hc_node_encoder.in_dim)
+        assert_feat_dim(edge_attrs, self.hc_edge_encoder.in_dim)
+        h_hc = self.relu(self.hc_node_encoder(x))
+        edge_attr_hc = self.relu(self.hc_edge_encoder(edge_attrs))
 
         # Run the track condenser
         h_hc, _, _ = self.hc_in(h_hc, data.edge_index, edge_attr_hc)

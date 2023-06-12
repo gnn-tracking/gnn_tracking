@@ -23,6 +23,15 @@ class GraphConstructionFCNN(torch.nn.Module):
         depth: int,
         beta: float = 0.4,
     ):
+        """Metric learning embedding fully connected NN.
+
+        Args:
+            in_dim: Input dimension
+            hidden_dim: Hidden dimension
+            out_dim: Output dimension = embedding space
+            depth: Number of layers
+            beta: Strength of residual connections
+        """
         super().__init__()
         self.in_dim = in_dim
         self.hidden_dim = hidden_dim
@@ -95,13 +104,13 @@ class MLGraphConstruction(torch.nn.Module):
         build_edge_features=True,
         ef_threshold=None,
     ):
-        """
+        """Builds graph from embedding space.
 
         Args:
             ml: Metric learning embedding
             ef: Directly apply edge filter
-            max_radius:
-            max_num_neighbors:
+            max_radius: Maximum radius for kNN
+            max_num_neighbors: Number of neighbors for kNN
             use_embedding_features: Add embedding space features to node features
             ratio_of_false: Subsample false edges
             build_edge_features:
@@ -122,6 +131,15 @@ class MLGraphConstruction(torch.nn.Module):
                 "Subsampling false edges. This might not make sense"
                 " for message passing."
             )
+
+    @property
+    def out_dim(self) -> tuple[int, int]:
+        """Returns node, edge, output dims"""
+        node_dim = self._ml.in_dim
+        if self._use_embedding_features:
+            node_dim += self._ml.out_dim
+        edge_dim = 2 * node_dim if self._build_edge_features else 0
+        return node_dim, edge_dim
 
     def forward(self, data: Data) -> Data:
         mo = self._ml(data)
