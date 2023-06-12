@@ -8,6 +8,7 @@ from torch_geometric.data import Data
 from gnn_tracking.models.interaction_network import InteractionNetwork as IN
 from gnn_tracking.models.mlp import MLP
 from gnn_tracking.models.resin import ResIN
+from gnn_tracking.utils.asserts import assert_feat_dim
 
 
 class EdgeClassifier(nn.Module):
@@ -123,6 +124,9 @@ class ECForGraphTCN(nn.Module):
         self._use_intermediate_edge_embeddings = use_intermediate_edge_embeddings
         self._use_node_embedding = use_node_embedding
 
+        # node, edge dim of space before final MLP for w output
+        self.latent_dim = (interaction_node_dim, interaction_edge_dim)
+
     def forward(
         self,
         data: Data,
@@ -134,8 +138,8 @@ class ECForGraphTCN(nn.Module):
         * ``edge_embedding``: Last edge embedding (result of last interaction network)
         """
         x, edge_index, edge_attr = data.x, data.edge_index, data.edge_attr
-        assert x.shape[1] == self.node_indim, x.shape
-        assert edge_attr.shape[1] == self.edge_indim, edge_attr.shape
+        assert_feat_dim(x, self.node_indim)
+        assert_feat_dim(edge_attr, self.edge_indim)
         h_ec = self.relu(self.ec_node_encoder(x))
         edge_attr_ec = self.relu(self.ec_edge_encoder(edge_attr))
         h_ec, edge_attr_ec, edge_attrs_ec = self.ec_resin(
