@@ -90,12 +90,12 @@ def falsify_low_pt_edges(
         True classification with additional criteria applied
     """
     if math.isclose(pt_thld, 0.0):
-        return y.long()
+        return y
     assert edge_index is not None
     assert pt is not None
     # Because false edges are already falsified, we can
     # it's enough to check the first hit of the edge for its pt
-    return (y.bool() & (pt[edge_index[0, :]] > pt_thld)).long()
+    return y.bool() & (pt[edge_index[0, :]] > pt_thld)
 
 
 class FalsifyLowPtEdgeWeightLoss(torch.nn.Module, ABC):

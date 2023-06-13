@@ -20,6 +20,7 @@ def point_clouds_path(tmp_path_factory) -> Path:
         redo=False,
         measurement_mode=False,
         thld=0.9,
+        detector_config=trackml_test_data_dir / "detectors.csv.gz",
     )
     pc_builder.process()
     return out_path
