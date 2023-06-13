@@ -12,6 +12,7 @@ from pandas import DataFrame as DF
 from torch_geometric.data import Data
 from tqdm import tqdm
 
+from gnn_tracking.preprocessing.point_cloud_builder import DEFAULT_FEATURES
 from gnn_tracking.utils.log import get_logger, logger
 
 
@@ -83,10 +84,11 @@ class GraphBuilder:
         self.z0_max = z0_max
         self.dR_max = dR_max
         #: Name/meaning of the node features
-        self.feature_names = ["r", "phi", "z", "eta_rz", "u", "v", "charge_frac"]
+        self.feature_names = DEFAULT_FEATURES
         #: Scaling of node features
         self.feature_scale = np.array(
-            [1000.0, np.pi, 1000.0, 1, 1 / 1000.0, 1 / 1000.0, 1.0]
+            [1000.0, np.pi, 1000.0, 1, 1 / 1000.0, 1 / 1000.0]
+            + [1.0] * (len(DEFAULT_FEATURES) - 6)
         )
         self._data_list = []
         self.directed = directed
@@ -390,7 +392,7 @@ class GraphBuilder:
 
     def to_pyg_data(
         self,
-        point_cloud: DF,
+        point_cloud,
         edge_index: A,
         edge_attr: A,
         y: A,

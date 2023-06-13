@@ -31,7 +31,7 @@ def get_truth_edge_index(pids: np.ndarray) -> np.ndarray:
     return np.array(edges).T
 
 
-_DEFAULT_FEATURES = (
+DEFAULT_FEATURES = (
     "r",
     "phi",
     "z",
@@ -47,7 +47,7 @@ _DEFAULT_FEATURES = (
     "geta",
     "gphi",
 )
-_DEFAULT_FEATURE_SCALE = tuple(1 for _ in _DEFAULT_FEATURES)
+_DEFAULT_FEATURE_SCALE = tuple(1 for _ in DEFAULT_FEATURES)
 
 
 # TODO: In need of refactoring: load_point_clouds should be factored out (this should
@@ -72,7 +72,7 @@ class PointCloudBuilder:
         write_output: bool = True,
         log_level=logging.INFO,
         collect_data: bool = True,
-        feature_names: tuple = _DEFAULT_FEATURES,
+        feature_names: tuple = DEFAULT_FEATURES,
         feature_scale: tuple = _DEFAULT_FEATURE_SCALE,
         add_true_edges: bool = False,
     ):
@@ -114,6 +114,7 @@ class PointCloudBuilder:
 
         self.feature_names = list(feature_names)
         self.feature_scale = list(feature_scale)
+        assert len(self.feature_names) == len(self.feature_scale)
 
         suffix = "-hits.csv.gz"
         self.prefixes: list[str] = []
