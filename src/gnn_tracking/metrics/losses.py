@@ -26,7 +26,7 @@ def _binary_focal_loss(
     target: T,
     alpha: float,
     gamma: float,
-    pos_weight: T | float,
+    pos_weight: T,
 ) -> T:
     """Extracted function for JIT compilation."""
     probs_pos = inpt
@@ -48,7 +48,7 @@ def binary_focal_loss(
     target: T,
     alpha: float = 0.25,
     gamma: float = 2.0,
-    pos_weight: T | float = 1,
+    pos_weight: T = T([1]),  # noqa: B008
 ) -> T:
     """Binary Focal Loss, following https://arxiv.org/abs/1708.02002.
 
