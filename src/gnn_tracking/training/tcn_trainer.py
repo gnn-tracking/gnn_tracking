@@ -1,8 +1,6 @@
 import collections
 import logging
-import os
-from datetime import datetime
-from pathlib import Path, PurePath
+from pathlib import Path
 from typing import Any, Callable, DefaultDict
 
 import numpy as np
@@ -22,17 +20,9 @@ from gnn_tracking.metrics.binary_classification import (
 )
 from gnn_tracking.metrics.losses import loss_weight_type, unpack_loss_returns
 from gnn_tracking.postprocessing.clusterscanner import ClusterFctType
-from gnn_tracking.utils.device import guess_device
 from gnn_tracking.utils.loading import TrackingDataModule
 from gnn_tracking.utils.log import get_logger
 from gnn_tracking.utils.nomenclature import denote_pt
-
-#: Function type that can be used as hook for the training/test step in the
-#: `TCNTrainer` class. The function takes the trainer instance as first argument and
-#: a dictionary of losses/metrics as second argument.
-train_hook_type = Callable[["TCNTrainer", dict[str, Tensor]], None]
-test_hook_type = Callable[["TCNTrainer", dict[str, Tensor]], None]
-batch_hook_type = Callable[["TCNTrainer", int, int, dict[str, Tensor], Data], None]
 
 
 # The following abbreviations are used throughout the code:
@@ -48,7 +38,6 @@ class TCNTrainer(LightningModule):
         model: LightningModule,
         loss_functions: dict[str, tuple[LightningModule, loss_weight_type]],
         *,
-        device=None,
         lr: Any = 5e-4,
         optimizer: Callable = Adam,
         lr_scheduler: Callable | None = None,
@@ -78,15 +67,10 @@ class TCNTrainer(LightningModule):
                 clustering)
         """
         super().__init__()
+        # self.save_hyperparameters()
         self.logg = get_logger("TCNTrainer", level=logging.DEBUG)
-        # self.device = guess_device(device)
-        del device
-        self.logg.info("Using device %s", self.device)
-        for lf in loss_functions.values():
-            lf[0].to(self.device)
         #: Checkpoints are saved to this directory by default
         self.checkpoint_dir = Path(".")
-        print(model)
         self.model = model
 
         self.loss_functions = loss_functions
@@ -103,19 +87,8 @@ class TCNTrainer(LightningModule):
         # Current epoch
         self._epoch = 0
 
-        #: Hooks to be called after training epoch (please use `add_hook` to add them)
-        self._train_hooks = list[train_hook_type]()
-        #: Hooks to be called after testing (please use `add_hook` to add them)
-        self._test_hooks = list[test_hook_type]()
-        #: Hooks called after processing a batch (please use `add_hook` to add them)
-        self._batch_hooks = list[batch_hook_type]()
-
         #: Mapping of cluster function name to best parameter
         self._best_cluster_params: dict[str, dict[str, Any] | None] = {}
-
-        # output quantities
-        self.train_loss = list[pd.DataFrame]()
-        self.test_loss = list[pd.DataFrame]()
 
         #: Number of batches that are being used for the clustering functions and the
         #: evaluation of the related metrics.
@@ -136,32 +109,6 @@ class TCNTrainer(LightningModule):
 
         self._n_oom_errors_in_a_row = 0
 
-    def add_hook(
-        self, hook: train_hook_type | test_hook_type | batch_hook_type, called_at: str
-    ) -> None:
-        """Add a hook to training/test step
-
-        Args:
-            hook: Callable that takes a training model and a dictionary of tensors as
-                inputs
-            called_at: train or test
-
-        Returns:
-            None
-
-        Example:
-
-
-        """
-        if called_at == "train":
-            self._train_hooks.append(hook)
-        elif called_at == "test":
-            self._test_hooks.append(hook)
-        elif called_at == "batch":
-            self._batch_hooks.append(hook)
-        else:
-            raise ValueError("Invalid value for called_at")
-
     def evaluate_model(
         self,
         data: Data,
@@ -173,8 +120,6 @@ class TCNTrainer(LightningModule):
             data:
             mask_pids_reco: If True, mask out PIDs for non-reconstructables
         """
-        data = data.to(self.device)
-
         out = self.model(data)
 
         if mask_pids_reco:
@@ -279,20 +224,6 @@ class TCNTrainer(LightningModule):
             headers=["", "Metric", "Value", "Std"],
         )
         self.logg.info(report_str)
-
-    def _log_losses(
-        self,
-        batch_idx: int,
-        batch_loss,
-        batch_losses: dict[str, Tensor | float],
-        weights,
-    ) -> None:
-        ret = f"Epoch {self._epoch:>1} ({batch_idx:>5}/{len(self.train_loader)}): "
-        losses = {"Total": batch_loss.item()}
-        losses.update({k: batch_losses[k] * weights[k] for k in batch_losses})
-        ret += ", ".join(f"{k}={v:>10.5f}" for k, v in losses.items())
-        ret += " (weighted)"
-        self.logg.debug(ret)
 
     # noinspection PyMethodMayBeStatic
     def printed_results_filter(self, key: str) -> bool:
@@ -575,39 +506,6 @@ class TCNTrainer(LightningModule):
     #     self.save_checkpoint()
     #
     # noinspection PyMethodMayBeStatic
-    def get_checkpoint_name(self) -> str:
-        """Generate name of checkpoint file based on current time."""
-        now = datetime.now()
-        return f"{now:%y%m%d_%H%M%S}_model.pt"
-
-    def get_checkpoint_path(self, path: str | PurePath = "") -> Path:
-        """Get checkpoint path based on user input."""
-        if not path:
-            return self.checkpoint_dir / self.get_checkpoint_name()
-        if isinstance(path, str) and os.sep not in path:
-            return self.checkpoint_dir / path
-        return Path(path)
-
-    def save_checkpoint(self, path: str | PurePath = "") -> None:
-        """Save state of model, optimizer and more for later resuming of training."""
-        path = self.get_checkpoint_path(path)
-        self.logg.info("Saving checkpoint to %s", path)
-        torch.save(
-            {
-                "epoch": self._epoch,
-                "model_state_dict": self.model.state_dict(),
-                "optimizer_state_dict": self.optimizer.state_dict(),
-            },
-            path,
-        )
-
-    def load_checkpoint(self, path: str | PurePath, device=None) -> None:
-        """Resume training from checkpoint"""
-        device = guess_device(device)
-        checkpoint = torch.load(self.get_checkpoint_path(path), map_location=device)
-        self.model.load_state_dict(checkpoint["model_state_dict"])
-        self.optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
-        self._epoch = checkpoint["epoch"]
 
     def configure_optimizers(self) -> Any:
         return Adam(self.model.parameters(), lr=self.lr)
