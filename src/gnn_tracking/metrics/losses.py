@@ -1,13 +1,12 @@
 """This module contains loss functions for the GNN tracking model."""
 
-from __future__ import annotations
-
 import copy
 import math
 from abc import ABC, abstractmethod
 from typing import Any, Mapping, Protocol, Union
 
 import torch
+from pytorch_lightning import LightningModule
 from torch import Tensor
 from torch.linalg import norm
 from torch.nn.functional import binary_cross_entropy, mse_loss, relu
@@ -353,7 +352,7 @@ class LossFctType(Protocol):
     def __call__(self, *args: Any, **kwargs: Any) -> Tensor:
         ...
 
-    def to(self, device: torch.device) -> LossFctType:
+    def to(self, device: torch.device) -> "LossFctType":
         ...
 
 
@@ -475,7 +474,7 @@ def _hinge_loss_components(
     )
 
 
-class GraphConstructionHingeEmbeddingLoss(torch.nn.Module):
+class GraphConstructionHingeEmbeddingLoss(LightningModule):
     def __init__(
         self,
         *,

@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 import collections
 import logging
 import os
@@ -11,26 +9,23 @@ import numpy as np
 import pandas as pd
 import tabulate
 import torch
+from pytorch_lightning import LightningModule
+from pytorch_lightning.cli import LightningCLI
 from torch import Tensor
 from torch.optim import Adam
 from torch_geometric.data import Data
-from torch_geometric.loader import DataLoader
 
 from gnn_tracking.metrics.binary_classification import (
     BinaryClassificationStats,
     get_maximized_bcs,
     roc_auc_score,
 )
-from gnn_tracking.metrics.losses import (
-    LossFctType,
-    loss_weight_type,
-    unpack_loss_returns,
-)
+from gnn_tracking.metrics.losses import loss_weight_type, unpack_loss_returns
 from gnn_tracking.postprocessing.clusterscanner import ClusterFctType
 from gnn_tracking.utils.device import guess_device
+from gnn_tracking.utils.loading import TrackingDataModule
 from gnn_tracking.utils.log import get_logger
 from gnn_tracking.utils.nomenclature import denote_pt
-from gnn_tracking.utils.timing import Timer
 
 #: Function type that can be used as hook for the training/test step in the
 #: `TCNTrainer` class. The function takes the trainer instance as first argument and
@@ -47,12 +42,11 @@ batch_hook_type = Callable[["TCNTrainer", int, int, dict[str, Tensor], Data], No
 # Y: edge truth labels
 # L: hit truth labels
 # P: Track parameters
-class TCNTrainer:
+class TCNTrainer(LightningModule):
     def __init__(
         self,
-        model,
-        loaders: dict[str, DataLoader] | dict[str, list[Data]],
-        loss_functions: dict[str, tuple[LossFctType, loss_weight_type]],
+        model: LightningModule,
+        loss_functions: dict[str, tuple[LightningModule, loss_weight_type]],
         *,
         device=None,
         lr: Any = 5e-4,
@@ -68,8 +62,6 @@ class TCNTrainer:
 
         Args:
             model: The model to train
-            loaders: The data loaderes to use. The keys must be ``train``, ``test`` and
-                ``val``. The values can be either a `DataLoader` or a list of `Data`.
             loss_functions: Dictionary of loss functions and their weights, keyed by
                 loss name. The weights can be specified as (1) float (2) list of floats
                 (if the loss function returns a list of losses) or (3) dictionary of
@@ -85,18 +77,17 @@ class TCNTrainer:
                 during testing and report additional figures of merits (e.g.,
                 clustering)
         """
-        self.logger = get_logger("TCNTrainer", level=logging.DEBUG)
-        self.device = guess_device(device)
+        super().__init__()
+        self.logg = get_logger("TCNTrainer", level=logging.DEBUG)
+        # self.device = guess_device(device)
         del device
-        self.logger.info("Using device %s", self.device)
+        self.logg.info("Using device %s", self.device)
         for lf in loss_functions.values():
             lf[0].to(self.device)
         #: Checkpoints are saved to this directory by default
         self.checkpoint_dir = Path(".")
-        self.model = model.to(self.device)
-        self.train_loader = loaders.get("train", None)
-        self.test_loader = loaders.get("test", None)
-        self.val_loader = loaders.get("val", None)
+        print(model)
+        self.model = model
 
         self.loss_functions = loss_functions
 
@@ -104,7 +95,7 @@ class TCNTrainer:
             cluster_functions = {}
         self.clustering_functions = cluster_functions
 
-        self.optimizer = optimizer(self.model.parameters(), lr=lr)
+        self.lr = lr
         self._lr_scheduler = lr_scheduler(self.optimizer) if lr_scheduler else None
         #: Where to step the scheduler: Either epoch or batch
         self.lr_scheduler_step = "epoch"
@@ -142,6 +133,8 @@ class TCNTrainer:
         #: Threshold for edge classification in test step (does not
         #: affect training)
         self.ec_threshold = 0.5
+
+        self._n_oom_errors_in_a_row = 0
 
     def add_hook(
         self, hook: train_hook_type | test_hook_type | batch_hook_type, called_at: str
@@ -285,7 +278,7 @@ class TCNTrainer:
             floatfmt=".5f",
             headers=["", "Metric", "Value", "Std"],
         )
-        self.logger.info(report_str)
+        self.logg.info(report_str)
 
     def _log_losses(
         self,
@@ -299,7 +292,7 @@ class TCNTrainer:
         losses.update({k: batch_losses[k] * weights[k] for k in batch_losses})
         ret += ", ".join(f"{k}={v:>10.5f}" for k, v in losses.items())
         ret += " (weighted)"
-        self.logger.debug(ret)
+        self.logg.debug(ret)
 
     # noinspection PyMethodMayBeStatic
     def printed_results_filter(self, key: str) -> bool:
@@ -332,7 +325,7 @@ class TCNTrainer:
     def data_preproc(self, data: Data) -> Data:
         return data
 
-    def train_step(self, *, max_batches: int | None = None) -> dict[str, float]:
+    def training_step(self, batch, batch_idx: int) -> Tensor | None:
         """
 
         Args:
@@ -342,58 +335,26 @@ class TCNTrainer:
         Returns:
             Dictionary of losses
         """
-        self.model.train()
-        _losses = collections.defaultdict(list)
-        n_oom_errors_in_a_row = 0
-        assert self.train_loader is not None
-        for batch_idx, data in enumerate(self.train_loader):
-            if max_batches and batch_idx > max_batches:
-                break
-            try:
-                data = data.to(self.device)  # noqa: PLW2901
-                data = self.data_preproc(data)
-                model_output = self.evaluate_model(data)
-                batch_loss, batch_losses, loss_weights = self.get_batch_losses(
-                    model_output
+        try:
+            batch = self.data_preproc(batch)
+            model_output = self.evaluate_model(batch)
+            batch_loss, _, _ = self.get_batch_losses(model_output)
+        except RuntimeError as e:
+            if "out of memory" in str(e).casefold():
+                self._n_oom_errors_in_a_row += 1
+                self.logg.warning(
+                    "WARNING: ran out of memory (OOM), skipping batch. "
+                    "If this happens frequently, decrease the batch size. "
+                    "Will abort if we get 10 consecutive OOM errors."
                 )
-                self.optimizer.zero_grad(set_to_none=True)
-                batch_loss.backward()
-                self.optimizer.step()
-                if self._lr_scheduler is not None and self.lr_scheduler_step == "batch":
-                    self._lr_scheduler.step()
-            except RuntimeError as e:
-                if "out of memory" in str(e).casefold():
-                    n_oom_errors_in_a_row += 1
-                    self.logger.warning(
-                        "WARNING: ran out of memory (OOM), skipping batch. "
-                        "If this happens frequently, decrease the batch size. "
-                        "Will abort if we get 10 consecutive OOM errors."
-                    )
-                    if n_oom_errors_in_a_row > 10:
-                        raise
-                    continue
-                raise
+                if self._n_oom_errors_in_a_row > 10:
+                    raise
+                return None
             else:
-                n_oom_errors_in_a_row = 0
-
-            for hook in self._batch_hooks:
-                hook(self, self._epoch, batch_idx, model_output, data)
-
-            if (batch_idx % 10) == 0:
-                self._log_losses(batch_idx, batch_loss, batch_losses, loss_weights)
-
-            _losses["total"].append(batch_loss.item())
-            for key, loss in batch_losses.items():
-                _losses[f"{key}"].append(loss.item())
-                _losses[f"{key}_weighted"].append(loss.item() * loss_weights[key])
-
-        if self._lr_scheduler and self.lr_scheduler_step == "epoch":
-            self._lr_scheduler.step()
-        losses = {k: np.nanmean(v) for k, v in _losses.items()}
-        self.train_loss.append(pd.DataFrame(losses, index=[self._epoch]))
-        for hook in self._train_hooks:
-            hook(self, losses)
-        return losses
+                raise
+        else:
+            self._n_oom_errors_in_a_row = 0
+        return batch_loss
 
     @staticmethod
     def _edge_pt_mask(edge_index: Tensor, pt: Tensor, pt_min=0.0) -> Tensor:
@@ -565,54 +526,54 @@ class TCNTrainer:
             )
         return ret
 
-    def step(self, *, max_batches: int | None = None) -> dict[str, float]:
-        """Train one epoch and test
-
-        Args:
-            max_batches: See train_step
-        """
-        self._epoch += 1
-        timer = Timer()
-        train_losses = self.train_step(max_batches=max_batches)
-        train_time = timer()
-        if not self.skip_test_during_training:
-            test_results = self.test_step(max_batches=max_batches)
-        else:
-            test_results = {}
-        test_time = timer()
-        results = (
-            {
-                "_time_train": train_time,
-                "_time_test": test_time,
-            }
-            | {f"{k}_train": v for k, v in train_losses.items()}
-            | test_results
-        )
-        self._log_results(
-            results,
-            header=f"Results {self._epoch}: ",
-        )
-        return results
-
-    def train(self, epochs=1000, max_batches: int | None = None):
-        """Train the model.
-
-        Args:
-            epochs:
-            max_batches: See train_step.
-
-        Returns:
-
-        """
-        for _ in range(1, epochs + 1):
-            try:
-                self.step(max_batches=max_batches)
-            except KeyboardInterrupt:
-                self.logger.warning("Keyboard interrupt")
-                self.save_checkpoint()
-                raise
-        self.save_checkpoint()
-
+    # def step(self, *, max_batches: int | None = None) -> dict[str, float]:
+    #     """Train one epoch and test
+    #
+    #     Args:
+    #         max_batches: See train_step
+    #     """
+    #     self._epoch += 1
+    #     timer = Timer()
+    #     train_losses = self.training_step(max_batches=max_batches)
+    #     train_time = timer()
+    #     if not self.skip_test_during_training:
+    #         test_results = self.test_step(max_batches=max_batches)
+    #     else:
+    #         test_results = {}
+    #     test_time = timer()
+    #     results = (
+    #         {
+    #             "_time_train": train_time,
+    #             "_time_test": test_time,
+    #         }
+    #         | {f"{k}_train": v for k, v in train_losses.items()}
+    #         | test_results
+    #     )
+    #     self._log_results(
+    #         results,
+    #         header=f"Results {self._epoch}: ",
+    #     )
+    #     return results
+    #
+    # def train(self, epochs=1000, max_batches: int | None = None):
+    #     """Train the model.
+    #
+    #     Args:
+    #         epochs:
+    #         max_batches: See train_step.
+    #
+    #     Returns:
+    #
+    #     """
+    #     for _ in range(1, epochs + 1):
+    #         try:
+    #             self.step(max_batches=max_batches)
+    #         except KeyboardInterrupt:
+    #             self.logg.warning("Keyboard interrupt")
+    #             self.save_checkpoint()
+    #             raise
+    #     self.save_checkpoint()
+    #
     # noinspection PyMethodMayBeStatic
     def get_checkpoint_name(self) -> str:
         """Generate name of checkpoint file based on current time."""
@@ -630,7 +591,7 @@ class TCNTrainer:
     def save_checkpoint(self, path: str | PurePath = "") -> None:
         """Save state of model, optimizer and more for later resuming of training."""
         path = self.get_checkpoint_path(path)
-        self.logger.info("Saving checkpoint to %s", path)
+        self.logg.info("Saving checkpoint to %s", path)
         torch.save(
             {
                 "epoch": self._epoch,
@@ -647,3 +608,15 @@ class TCNTrainer:
         self.model.load_state_dict(checkpoint["model_state_dict"])
         self.optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
         self._epoch = checkpoint["epoch"]
+
+    def configure_optimizers(self) -> Any:
+        return Adam(self.model.parameters(), lr=self.lr)
+
+
+def cli_main():
+    # noinspection PyUnusedLocal
+    cli = LightningCLI(TCNTrainer, datamodule_class=TrackingDataModule)  # noqa F841
+
+
+if __name__ == "__main__":
+    cli_main()

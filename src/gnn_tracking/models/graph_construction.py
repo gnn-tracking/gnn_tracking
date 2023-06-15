@@ -1,9 +1,8 @@
-from __future__ import annotations
-
 import math
 
 import numpy as np
 import torch.nn
+from pytorch_lightning import LightningModule
 from torch import Tensor as T
 from torch.nn import Linear, ModuleList, init
 from torch.nn.functional import normalize, relu
@@ -13,7 +12,7 @@ from torch_geometric.data import Data
 from gnn_tracking.utils.log import logger
 
 
-class GraphConstructionFCNN(torch.nn.Module):
+class GraphConstructionFCNN(LightningModule):
     def __init__(
         self,
         *,
