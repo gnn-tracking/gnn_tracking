@@ -4,6 +4,8 @@ import itertools
 from copy import deepcopy
 from typing import Any, Sequence, TypeVar
 
+import torch
+
 _P = TypeVar("_P")
 
 
@@ -45,3 +47,16 @@ def pivot_record_list(records: list[dict]) -> dict:
         if not set(record.keys()) == set(keys):
             raise ValueError("All records must have the same keys.")
     return {k: [r[k] for r in records] for k in keys}
+
+
+def to_floats(inpt: Any) -> Any:
+    """Convert all tensors in a datastructure to floats.
+    Works on single tensors, lists, or dictionaries, nested or not.
+    """
+    if isinstance(inpt, dict):
+        return {k: to_floats(v) for k, v in inpt.items()}
+    elif isinstance(inpt, list):
+        return [to_floats(v) for v in inpt]
+    elif isinstance(inpt, torch.Tensor):
+        return inpt.float()
+    return inpt
