@@ -2,11 +2,12 @@ import collections
 import logging
 from typing import Any, Iterable
 
-import tabulate
 import torch
 from pytorch_lightning import LightningModule
 from pytorch_lightning.callbacks import RichProgressBar
 from pytorch_lightning.cli import LightningCLI, LRSchedulerCallable, OptimizerCallable
+from rich.console import Console
+from rich.table import Table
 from torch import Tensor
 from torch import Tensor as T
 from torch import nn
@@ -132,7 +133,7 @@ class TrackingModule(LightningModule):
         results: dict[str, Tensor | float],
         *,
         header: str = "",
-    ) -> str:
+    ) -> Table:
         """Log the losses
 
         Args:
@@ -142,29 +143,23 @@ class TrackingModule(LightningModule):
         Returns:
             None
         """
-        report_str = header
-        report_str += "\n"
-        non_error_keys: list[str] = sorted(
-            [
-                k
-                for k in results
-                if not k.endswith("_std")
-                if self.printed_results_filter(k)
-            ]
-        )
-        values = [results[k] for k in non_error_keys]
-        errors = [float(results.get(f"{k}_std", float("nan"))) for k in non_error_keys]
-        markers = [
-            "-->" if self.highlight_metric(key) else "" for key in non_error_keys
-        ]
-        annotated_table_items = zip(markers, non_error_keys, values, errors)
-        report_str += tabulate.tabulate(
-            annotated_table_items,
-            tablefmt="simple_outline",
-            floatfmt=".5f",
-            headers=["", "Metric", "Value", "Std"],
-        )
-        return report_str
+        table = Table(title=header)
+        table.add_column("Metric")
+        table.add_column("Value")
+        table.add_column("Error")
+
+        for k, v in results.items():
+            if not self.printed_results_filter(k):
+                continue
+            if k.endswith("_std"):
+                continue
+            style = None
+            if self.highlight_metric(k):
+                style = "bold"
+            err = results.get(f"{k}_std", float("nan"))
+            table.add_row(k, f"{v:.5f}", f"{err:.5f}", style=style)
+
+        return table
 
     # noinspection PyUnusedLocal
     # noinspection PyMethodMayBeStatic
@@ -181,12 +176,14 @@ class TrackingModule(LightningModule):
         """Should a metric be highlighted in the log output?"""
         return False
 
-    def on_train_epoch_start(self, *args, **kwargs) -> None:
+    def on_validation_end(self, *args, **kwargs) -> None:
         # Don't use on_validation_epoch_end, you'll be off by a linebreak
         metrics = self.trainer.callback_metrics
         if not metrics:
             return
-        print(self.format_results_table(metrics))
+        console = Console()
+        console.print("\n")
+        console.print(self.format_results_table(metrics, header="Validation"))
 
 
 def to_floats(inpt):
