@@ -4,10 +4,10 @@ from pathlib import Path
 from typing import Any, Callable, DefaultDict
 
 import numpy as np
-import pandas as pd
 import tabulate
 import torch
 from pytorch_lightning import LightningModule
+from pytorch_lightning.callbacks import RichProgressBar
 from pytorch_lightning.cli import LightningCLI
 from torch import Tensor
 from torch.optim import Adam
@@ -269,7 +269,8 @@ class TCNTrainer(LightningModule):
         try:
             batch = self.data_preproc(batch)
             model_output = self.evaluate_model(batch)
-            batch_loss, _, _ = self.get_batch_losses(model_output)
+            batch_loss, individual_losses, _ = self.get_batch_losses(model_output)
+            self.log_dict(individual_losses, prog_bar=True)
         except RuntimeError as e:
             if "out of memory" in str(e).casefold():
                 self._n_oom_errors_in_a_row += 1
@@ -362,9 +363,6 @@ class TCNTrainer(LightningModule):
             | {f"lw_{key}": f[1] for key, f in self.loss_functions.items()}
         )
 
-        self.test_loss.append(pd.DataFrame(metrics, index=[self._epoch]))
-        for hook in self._test_hooks:
-            hook(self, metrics)
         return metrics
 
     def _evaluate_cluster_metrics(
@@ -513,7 +511,11 @@ class TCNTrainer(LightningModule):
 
 def cli_main():
     # noinspection PyUnusedLocal
-    cli = LightningCLI(TCNTrainer, datamodule_class=TrackingDataModule)  # noqa F841
+    cli = LightningCLI(  # noqa F841
+        TCNTrainer,
+        datamodule_class=TrackingDataModule,
+        trainer_defaults=dict(callbacks=[RichProgressBar()]),
+    )
 
 
 if __name__ == "__main__":
