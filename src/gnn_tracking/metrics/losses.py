@@ -242,17 +242,18 @@ class PotentialLoss(torch.nn.Module):
         x: T,
         particle_id: T,
         reconstructable: T,
-        track_params: T,
-        ec_hit_mask: T,
+        pt: T,
+        ec_hit_mask: T | None = None,
         **kwargs,
     ) -> dict[str, T]:
+        if ec_hit_mask is None:
+            ec_hit_mask = torch.ones_like(particle_id, dtype=torch.bool)
         # If a post-EC node mask was applied in the model, then all model outputs
         # already include this mask, while everything gotten from the data
         # does not. Hence, we apply it here.
         particle_id = particle_id[ec_hit_mask]
         reconstructable = reconstructable[ec_hit_mask]
-        track_params = track_params[ec_hit_mask]
-        mask = (reconstructable > 0) & (track_params > self.pt_thld)
+        mask = (reconstructable > 0) & (pt > self.pt_thld)
         # If there are no hits left after masking, then we get a NaN loss.
         assert mask.sum() > 0, "No hits left after masking"
         return _condensation_loss(
@@ -494,6 +495,7 @@ class GraphConstructionHingeEmbeddingLoss(LightningModule):
             p_rep: Power for the repulsion term (default 1: linear loss)
         """
         super().__init__()
+        self.save_hyperparameters()
         self.r_emb = r_emb
         self.max_num_neighbors = max_num_neighbors
         self.attr_pt_thld = attr_pt_thld
