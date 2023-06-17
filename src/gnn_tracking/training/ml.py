@@ -7,23 +7,21 @@ from torch_geometric.data import Data
 from gnn_tracking.metrics.losses import GraphConstructionHingeEmbeddingLoss
 from gnn_tracking.training.base import TrackingModule
 from gnn_tracking.utils.dictionaries import to_floats
+from gnn_tracking.utils.lightning import save_sub_hyperparameters
 
 
 class MLModule(TrackingModule):
-    # noinspection PyUnusedLocal
     def __init__(
         self,
-        *,
-        loss_cfg: dict[str, Any] | None = None,
-        lw_repulsive: float = 1.0,
+        loss_fct: GraphConstructionHingeEmbeddingLoss,
+        lw_repulsive=1.0,
         **kwargs,
     ):
         super().__init__(**kwargs)
-        self.save_hyperparameters()
-        if loss_cfg is None:
-            loss_cfg = {}
-        self.loss_fct = GraphConstructionHingeEmbeddingLoss(**loss_cfg)
+        save_sub_hyperparameters(self, "loss_fct", loss_fct)
+        self.loss_fct = loss_fct
 
+    # noinspection PyUnusedLocal
     def get_losses(self, out: dict[str, Any], data: Data) -> tuple[T, dict[str, float]]:
         loss_dct = self.loss_fct(
             x=out["H"],

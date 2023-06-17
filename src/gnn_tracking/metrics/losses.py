@@ -6,6 +6,7 @@ from abc import ABC, abstractmethod
 from typing import Any, Mapping, Protocol, Union
 
 import torch
+from pytorch_lightning.core.mixins import HyperparametersMixin
 from torch import Tensor, nn
 from torch.linalg import norm
 from torch.nn.functional import binary_cross_entropy, mse_loss, relu
@@ -218,7 +219,7 @@ def _condensation_loss(
     }
 
 
-class PotentialLoss(torch.nn.Module):
+class PotentialLoss(torch.nn.Module, HyperparametersMixin):
     def __init__(self, q_min=0.01, radius_threshold=10.0, attr_pt_thld=0.9):
         """Potential/condensation loss (specific to object condensation approach).
 
@@ -229,6 +230,7 @@ class PotentialLoss(torch.nn.Module):
                 attractive loss [GeV]
         """
         super().__init__()
+        self.save_hyperparameters()
         self.q_min = q_min
         self.radius_threshold = radius_threshold
         self.pt_thld = attr_pt_thld
@@ -279,11 +281,12 @@ def _background_loss(*, beta: T, particle_id: T, sb: float) -> T:
     return loss
 
 
-class BackgroundLoss(torch.nn.Module):
+class BackgroundLoss(torch.nn.Module, HyperparametersMixin):
     def __init__(self, sb=0.1):
         super().__init__()
         #: Strength of noise suppression
         self.sb = sb
+        self.save_hyperparameters()
 
     # noinspection PyUnusedLocal
     def forward(self, *, beta: T, particle_id: T, ec_hit_mask: T, **kwargs) -> T:
@@ -474,7 +477,7 @@ def _hinge_loss_components(
     )
 
 
-class GraphConstructionHingeEmbeddingLoss(nn.Module):
+class GraphConstructionHingeEmbeddingLoss(nn.Module, HyperparametersMixin):
     def __init__(
         self,
         *,

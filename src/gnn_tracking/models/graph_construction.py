@@ -31,9 +31,10 @@ class GraphConstructionFCNN(MLModule):
             out_dim: Output dimension = embedding space
             depth: Number of layers
             beta: Strength of residual connections
-            **kwargs: See `MLModule`
         """
+
         super().__init__(**kwargs)
+        self.save_hyperparameters(ignore=["optimizer", "scheduler", "loss_fct"])
         self.in_dim = in_dim
         self.hidden_dim = hidden_dim
         self.out_dim = out_dim

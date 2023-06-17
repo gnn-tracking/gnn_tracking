@@ -4,8 +4,9 @@ init_args:
   out_dim: 8
   hidden_dim: 512
   depth: 5
-  loss_cfg:
-      p_attr: 2.
+  loss_fct:
+    class_path: gnn_tracking.metrics.losses.GraphConstructionHingeEmbeddingLoss
+    init_args: {}
   optimizer:
     class_path: torch.optim.Adam
     init_args:
