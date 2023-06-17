@@ -4,7 +4,7 @@ from typing import Any
 import torch
 from pytorch_lightning import LightningModule
 from pytorch_lightning.cli import LRSchedulerCallable, OptimizerCallable
-from rich import Console
+from rich.console import Console
 from rich.table import Table
 from torch import Tensor
 
@@ -40,13 +40,11 @@ from gnn_tracking.utils.log import get_logger
 class TrackingModule(LightningModule):
     def __init__(
         self,
-        model: LightningModule,
         optimizer: OptimizerCallable = torch.optim.Adam,
         scheduler: LRSchedulerCallable = torch.optim.lr_scheduler.ConstantLR,
     ):
         super().__init__()
         self.logg = get_logger("TM", level=logging.DEBUG)
-        self.model = model
         self.optimizer = optimizer
         self.scheduler = scheduler
 

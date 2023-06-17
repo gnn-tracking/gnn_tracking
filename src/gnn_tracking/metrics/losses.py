@@ -6,8 +6,7 @@ from abc import ABC, abstractmethod
 from typing import Any, Mapping, Protocol, Union
 
 import torch
-from pytorch_lightning import LightningModule
-from torch import Tensor
+from torch import Tensor, nn
 from torch.linalg import norm
 from torch.nn.functional import binary_cross_entropy, mse_loss, relu
 from torch_cluster import radius_graph
@@ -475,7 +474,7 @@ def _hinge_loss_components(
     )
 
 
-class GraphConstructionHingeEmbeddingLoss(LightningModule):
+class GraphConstructionHingeEmbeddingLoss(nn.Module):
     def __init__(
         self,
         *,
@@ -495,7 +494,6 @@ class GraphConstructionHingeEmbeddingLoss(LightningModule):
             p_rep: Power for the repulsion term (default 1: linear loss)
         """
         super().__init__()
-        self.save_hyperparameters()
         self.r_emb = r_emb
         self.max_num_neighbors = max_num_neighbors
         self.attr_pt_thld = attr_pt_thld

@@ -1,6 +1,5 @@
 from typing import Any
 
-from pytorch_lightning.callbacks import RichProgressBar
 from torch import Tensor
 from torch import Tensor as T
 from torch import nn
@@ -11,7 +10,6 @@ from gnn_tracking.metrics.binary_classification import (
     get_roc_auc_scores,
 )
 from gnn_tracking.training.base import TrackingModule
-from gnn_tracking.utils.loading import TrackingDataModule
 
 
 class ECModule(TrackingModule):
@@ -51,16 +49,3 @@ class ECModule(TrackingModule):
         metrics |= get_maximized_bcs(y=batch.y, output=out["w"])
         # todo: add graph analysis
         self.loc_dict(metrics, on_epoch=True)
-
-
-def cli_main():
-    # noinspection PyUnusedLocal
-    cli = LightningCLI(  # noqa F841
-        ECModule,
-        datamodule_class=TrackingDataModule,
-        trainer_defaults=dict(callbacks=[RichProgressBar(leave=True)]),
-    )
-
-
-if __name__ == "__main__":
-    cli_main()

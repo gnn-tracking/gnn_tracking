@@ -2,17 +2,17 @@ import math
 
 import numpy as np
 import torch.nn
-from pytorch_lightning import LightningModule
 from torch import Tensor as T
 from torch.nn import Linear, ModuleList, init
 from torch.nn.functional import normalize, relu
 from torch_cluster import knn_graph
 from torch_geometric.data import Data
 
+from gnn_tracking.training.ml import MLModule
 from gnn_tracking.utils.log import logger
 
 
-class GraphConstructionFCNN(LightningModule):
+class GraphConstructionFCNN(MLModule):
     def __init__(
         self,
         *,
@@ -21,6 +21,7 @@ class GraphConstructionFCNN(LightningModule):
         out_dim: int,
         depth: int,
         beta: float = 0.4,
+        **kwargs,
     ):
         """Metric learning embedding fully connected NN.
 
@@ -30,8 +31,9 @@ class GraphConstructionFCNN(LightningModule):
             out_dim: Output dimension = embedding space
             depth: Number of layers
             beta: Strength of residual connections
+            **kwargs: See `MLModule`
         """
-        super().__init__()
+        super().__init__(**kwargs)
         self.in_dim = in_dim
         self.hidden_dim = hidden_dim
         self.out_dim = out_dim

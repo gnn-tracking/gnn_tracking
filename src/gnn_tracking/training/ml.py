@@ -1,6 +1,5 @@
 from typing import Any
 
-from pytorch_lightning.callbacks import RichProgressBar
 from torch import Tensor
 from torch import Tensor as T
 from torch_geometric.data import Data
@@ -8,7 +7,6 @@ from torch_geometric.data import Data
 from gnn_tracking.metrics.losses import GraphConstructionHingeEmbeddingLoss
 from gnn_tracking.training.base import TrackingModule
 from gnn_tracking.utils.dictionaries import to_floats
-from gnn_tracking.utils.loading import TrackingDataModule
 
 
 class MLModule(TrackingModule):
@@ -16,13 +14,15 @@ class MLModule(TrackingModule):
     def __init__(
         self,
         *,
-        loss_fct: GraphConstructionHingeEmbeddingLoss,
+        loss_cfg: dict[str, Any] | None = None,
         lw_repulsive: float = 1.0,
         **kwargs,
     ):
         super().__init__(**kwargs)
-        self.save_hyperparameters("lw_repulsive")
-        self.loss_fct = loss_fct
+        self.save_hyperparameters()
+        if loss_cfg is None:
+            loss_cfg = {}
+        self.loss_fct = GraphConstructionHingeEmbeddingLoss(**loss_cfg)
 
     def get_losses(self, out: dict[str, Any], data: Data) -> tuple[T, dict[str, float]]:
         loss_dct = self.loss_fct(
@@ -41,14 +41,14 @@ class MLModule(TrackingModule):
         return loss, to_floats(loss_dct)
 
     def training_step(self, batch: Data, batch_idx: int) -> Tensor | None:
-        out = self.model(batch)
+        out = self.forward(batch)
         loss, loss_dct = self.get_losses(out, batch)
         self.log_dict(loss_dct, prog_bar=True, on_step=True)
         self.log("total", loss.float(), prog_bar=True, on_step=True)
         return loss
 
     def validation_step(self, batch: Data, bach_idx: int):
-        out = self.model(batch)
+        out = self.forward(batch)
         loss, loss_dct = self.get_losses(out, batch)
         self.log_dict(to_floats(loss_dct), on_epoch=True)
         self.log("total", loss.float(), on_epoch=True)
@@ -56,16 +56,3 @@ class MLModule(TrackingModule):
 
     def test_step(self, batch, batch_idx: int):
         self.validation_step(batch, batch_idx)
-
-
-def cli_main():
-    # noinspection PyUnusedLocal
-    cli = LightningCLI(  # noqa F841
-        MLModule,
-        datamodule_class=TrackingDataModule,
-        trainer_defaults=dict(callbacks=[RichProgressBar(leave=True)]),
-    )
-
-
-if __name__ == "__main__":
-    cli_main()

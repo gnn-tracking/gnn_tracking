@@ -1,8 +1,6 @@
 import collections
 from typing import Any
 
-from pytorch_lightning.callbacks import RichProgressBar
-from pytorch_lightning.cli import LightningCLI
 from torch import Tensor
 from torch_geometric.data import Data
 
@@ -10,7 +8,6 @@ from gnn_tracking.metrics.losses import BackgroundLoss, PotentialLoss
 from gnn_tracking.postprocessing.clusterscanner import ClusterFctType
 from gnn_tracking.training.base import TrackingModule
 from gnn_tracking.utils.dictionaries import to_floats
-from gnn_tracking.utils.loading import TrackingDataModule
 
 
 class TCModule(TrackingModule):
@@ -88,16 +85,3 @@ class TCModule(TrackingModule):
             f"best_dbscan_{param}": val
             for param, val in cluster_result.best_params.items()
         }
-
-
-def cli_main():
-    # noinspection PyUnusedLocal
-    cli = LightningCLI(  # noqa F841
-        TCModule,
-        datamodule_class=TrackingDataModule,
-        trainer_defaults=dict(callbacks=[RichProgressBar(leave=True)]),
-    )
-
-
-if __name__ == "__main__":
-    cli_main()
