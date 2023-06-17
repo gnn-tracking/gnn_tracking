@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 from gnn_tracking.analysis.edge_classification import (
     ThresholdTrackInfoPlot,
     collect_all_ec_stats,

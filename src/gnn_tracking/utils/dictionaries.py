@@ -1,5 +1,4 @@
-from __future__ import annotations
-
+import inspect
 import itertools
 from copy import deepcopy
 from typing import Any, Sequence, TypeVar
@@ -60,3 +59,10 @@ def to_floats(inpt: Any) -> Any:
     elif isinstance(inpt, torch.Tensor):
         return inpt.float()
     return inpt
+
+
+def separate_init_kwargs(kwargs: dict, cls: type) -> tuple[dict, dict]:
+    cls_argnames = inspect.signature(cls).parameters.keys()
+    cls_kwargs = {k: v for k, v in kwargs.items() if k in cls_argnames}
+    remaining_kwargs = {k: v for k, v in kwargs.items() if k not in cls_argnames}
+    return cls_kwargs, remaining_kwargs

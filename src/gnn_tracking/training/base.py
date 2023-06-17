@@ -6,7 +6,8 @@ from pytorch_lightning import LightningModule
 from pytorch_lightning.cli import LRSchedulerCallable, OptimizerCallable
 from rich.console import Console
 from rich.table import Table
-from torch import Tensor
+from torch import Tensor, nn
+from torch_geometric.data import Data
 
 from gnn_tracking.utils.log import get_logger
 
@@ -42,11 +43,18 @@ class TrackingModule(LightningModule):
         self,
         optimizer: OptimizerCallable = torch.optim.Adam,
         scheduler: LRSchedulerCallable = torch.optim.lr_scheduler.ConstantLR,
+        gc: nn.Module | None = None,
     ):
         super().__init__()
         self.logg = get_logger("TM", level=logging.DEBUG)
         self.optimizer = optimizer
         self.scheduler = scheduler
+        self.gc = gc
+
+    def data_preproc(self, data: Data) -> Data:
+        if self.gc is not None:
+            return self.gc(data)
+        return data
 
     def test_step(self, batch, batch_idx: int):
         return self.validation_step(batch, batch_idx)

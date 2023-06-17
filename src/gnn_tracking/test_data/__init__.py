@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 from importlib import resources
 from pathlib import Path
 

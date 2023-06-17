@@ -1,27 +1,30 @@
-from __future__ import annotations
-
 import math
 
 import numpy as np
 import torch
+from pytorch_lightning.core.mixins import HyperparametersMixin
 from torch import Tensor as T
 from torch.nn import Linear, ModuleList, init
 from torch.nn.functional import normalize, relu, sigmoid
 from torch_geometric.data import Data
 
 from gnn_tracking.models.mlp import MLP
+from gnn_tracking.training.ec import ECModule
+
+# todo: Need a lightning class for these
 
 
-class EFDeepSet(torch.nn.Module):
+class EFDeepSet(ECModule):
     def __init__(
         self,
         *,
         in_dim: int = 14,
         hidden_dim: int = 128,
         depth: int = 3,
+        **kwargs,
     ):
-        super().__init__()
-        self.in_dim = in_dim
+        super().__init__(**kwargs)
+        self.save_hyperparameters(ignore=["loss_fct", "optimizer", "scheduler"])
 
         self.node_encoder = MLP(
             input_size=in_dim,
@@ -55,7 +58,8 @@ class EFDeepSet(torch.nn.Module):
         return {"W": w}
 
 
-class EFMLP(torch.nn.Module):
+class EFMLP(ECModule):
+    # noinspection PyUnusedLocal
     def __init__(
         self,
         *,
@@ -63,11 +67,9 @@ class EFMLP(torch.nn.Module):
         hidden_dim: int,
         depth: int,
         beta: float = 0.4,
+        **kwargs,
     ):
-        super().__init__()
-        self.in_dim = in_dim
-        self.hidden_dim = hidden_dim
-        self.beta = beta
+        super().__init__(**kwargs)
 
         self.encoder = Linear(in_dim * 2, hidden_dim, bias=False)
         self.decoder = Linear(hidden_dim, 1, bias=False)
@@ -78,10 +80,10 @@ class EFMLP(torch.nn.Module):
         self.reset_parameters()
 
     def reset_parameters(self):
-        self._reset_layer_parameters(self.encoder, var=1 / (2 * self.in_dim))
+        self._reset_layer_parameters(self.encoder, var=1 / (2 * self.hparams.in_dim))
         for layer in self.layers:
-            self._reset_layer_parameters(layer, var=2 / self.hidden_dim)
-        self._reset_layer_parameters(self.decoder, var=2 / self.hidden_dim)
+            self._reset_layer_parameters(layer, var=2 / self.hparams.hidden_dim)
+        self._reset_layer_parameters(self.decoder, var=2 / self.hparams.hidden_dim)
 
     @staticmethod
     def _reset_layer_parameters(layer, var: float):
@@ -96,18 +98,21 @@ class EFMLP(torch.nn.Module):
         x = torch.cat((x[i], x[j]), dim=1)
         x = self.encoder(x)
         for layer in self.layers:
-            x = np.sqrt(self.beta) * layer(relu(x)) + np.sqrt(1 - self.beta) * x
+            x = (
+                np.sqrt(self.hparams.beta) * layer(relu(x))
+                + np.sqrt(1 - self.hparams.beta) * x
+            )
         x = 0.001 + 0.998 * sigmoid(self.decoder(relu(x))).squeeze()
         return {"W": x}
 
 
-class GeometricEF:
+class GeometricEF(torch.nn.Module, HyperparametersMixin):
+    # noinspection PyUnusedLocals
     def __init__(self, phi_slope_max, z0_max, dR_max):
-        self._phi_slope_max = phi_slope_max
-        self._z0_max = z0_max
-        self._dR_max = dR_max
+        super().__init__()
+        self.save_hyperparameters()
 
-    def __call__(self, data: Data):
+    def forward(self, data: Data):
         r = data.x[:, 0]
         phi = data.x[:, 1]
         z = data.x[:, 2]
@@ -122,7 +127,7 @@ class GeometricEF:
         phi_slope = dphi / dR
         z0 = z[i] - r[i] * dz / dr
         return (
-            (phi_slope.abs() < self._phi_slope_max)
-            & (z0.abs() < self._z0_max)
-            & (dR.abs() < self._dR_max)
+            (phi_slope.abs() < self.hparams.phi_slope_max)
+            & (z0.abs() < self.hparams.z0_max)
+            & (dR.abs() < self.hparams.dR_max)
         )

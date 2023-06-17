@@ -3,6 +3,7 @@ import math
 import numpy as np
 import torch.nn
 from torch import Tensor as T
+from torch import nn
 from torch.nn import Linear, ModuleList, init
 from torch.nn.functional import normalize, relu
 from torch_cluster import knn_graph
@@ -13,6 +14,7 @@ from gnn_tracking.utils.log import logger
 
 
 class GraphConstructionFCNN(MLModule):
+    # noinspection PyUnusedLocal
     def __init__(
         self,
         *,
@@ -35,27 +37,23 @@ class GraphConstructionFCNN(MLModule):
 
         super().__init__(**kwargs)
         self.save_hyperparameters(ignore=["optimizer", "scheduler", "loss_fct"])
-        self.in_dim = in_dim
-        self.hidden_dim = hidden_dim
-        self.out_dim = out_dim
-        self.beta = beta
 
-        self.encoder = Linear(in_dim, hidden_dim, bias=False)
-        self.decoder = Linear(hidden_dim, out_dim, bias=False)
+        self._encoder = Linear(in_dim, hidden_dim, bias=False)
+        self._decoder = Linear(hidden_dim, out_dim, bias=False)
 
-        self.layers = ModuleList(
+        self._layers = ModuleList(
             [Linear(hidden_dim, hidden_dim, bias=False) for _ in range(depth - 1)]
         )
-        self.latent_normalization = torch.nn.Parameter(
+        self._latent_normalization = torch.nn.Parameter(
             torch.Tensor([1.0]), requires_grad=True
         )
         self.reset_parameters()
 
     def reset_parameters(self):
-        self._reset_layer_parameters(self.encoder, var=1 / self.in_dim)
-        for layer in self.layers:
-            self._reset_layer_parameters(layer, var=2 / self.hidden_dim)
-        self._reset_layer_parameters(self.decoder, var=2 / self.hidden_dim)
+        self._reset_layer_parameters(self._encoder, var=1 / self.hparams.in_dim)
+        for layer in self._layers:
+            self._reset_layer_parameters(layer, var=2 / self.hparams.hidden_dim)
+        self._reset_layer_parameters(self._decoder, var=2 / self.hparams.hidden_dim)
 
     @staticmethod
     def _reset_layer_parameters(layer, var: float):
@@ -64,14 +62,17 @@ class GraphConstructionFCNN(MLModule):
             init.normal_(p.data, mean=0, std=math.sqrt(var))
 
     def forward(self, data: Data) -> dict[str, T]:
-        assert data.x.shape[1] == self.in_dim
+        assert data.x.shape[1] == self.hparams.in_dim
         x = normalize(data.x, p=2.0, dim=1, eps=1e-12, out=None)
-        x = self.encoder(x)
-        for layer in self.layers:
-            x = np.sqrt(self.beta) * layer(relu(x)) + np.sqrt(1 - self.beta) * x
-        x = self.decoder(relu(x))
-        x *= self.latent_normalization
-        assert x.shape[1] == self.out_dim
+        x = self._encoder(x)
+        for layer in self._layers:
+            x = (
+                np.sqrt(self.hparams.beta) * layer(relu(x))
+                + np.sqrt(1 - self.hparams.beta) * x
+            )
+        x = self._decoder(relu(x))
+        x *= self._latent_normalization
+        assert x.shape[1] == self.hparams.out_dim
         return {"H": x}
 
 
@@ -191,3 +192,28 @@ class MLGraphConstruction(torch.nn.Module):
             reconstructable=data.reconstructable,
             edge_attr=edge_features,
         )
+
+
+class MLGraphConstructionFromChkpt(nn.Module):
+    # noinspection PyUnusedLocal
+    def __init__(
+        self,
+        ml_chkpt_path: str,
+        max_radius: float = 1,
+        max_num_neighbors: int = 256,
+        ratio_of_false=None,
+        build_edge_features=True,
+    ):
+        super().__init__()
+        logger.debug("Restoring ML from %s", ml_chkpt_path)
+        ml = GraphConstructionFCNN.load_from_checkpoint(ml_chkpt_path)
+        self._gc = MLGraphConstruction(
+            ml=ml,
+            max_radius=max_radius,
+            max_num_neighbors=max_num_neighbors,
+            ratio_of_false=ratio_of_false,
+            build_edge_features=build_edge_features,
+        )
+
+    def forward(self, data: Data) -> Data:
+        return self._gc(data)
