@@ -9,7 +9,7 @@ from rich.table import Table
 from torch import Tensor, nn
 from torch_geometric.data import Data
 
-from gnn_tracking.utils.lightning import save_sub_hyperparameters
+from gnn_tracking.utils.lightning import obj_from_or_to_hparams
 from gnn_tracking.utils.log import get_logger
 
 # class SuppressOOMExceptions:
@@ -40,6 +40,7 @@ from gnn_tracking.utils.log import get_logger
 
 
 class TrackingModule(LightningModule):
+    # todo: Rename gc -> preproc
     def __init__(
         self,
         optimizer: OptimizerCallable = torch.optim.Adam,
@@ -48,11 +49,9 @@ class TrackingModule(LightningModule):
     ):
         super().__init__()
         self.logg = get_logger("TM", level=logging.DEBUG)
-        if gc is not None:
-            save_sub_hyperparameters(self, "gc", gc)
+        self.gc = obj_from_or_to_hparams(self, "gc", gc)
         self.optimizer = optimizer
         self.scheduler = scheduler
-        self.gc = gc
 
     def data_preproc(self, data: Data) -> Data:
         if self.gc is not None:

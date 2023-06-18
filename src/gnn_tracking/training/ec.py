@@ -10,6 +10,7 @@ from gnn_tracking.metrics.binary_classification import (
     get_roc_auc_scores,
 )
 from gnn_tracking.training.base import TrackingModule
+from gnn_tracking.utils.lightning import obj_from_or_to_hparams
 
 
 class ECModule(TrackingModule):
@@ -20,7 +21,9 @@ class ECModule(TrackingModule):
         **kwargs,
     ):
         super().__init__(**kwargs)
-        self.loss_fct = loss_fct
+        self.loss_fct = obj_from_or_to_hparams(
+            self, "loss_fct", loss_fct  # type: ignore
+        )
 
     def get_losses(self, out: dict[str, Any], data: Data) -> T:
         return self.loss_fct(

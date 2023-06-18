@@ -15,24 +15,51 @@ def save_sub_hyperparameters(
     """
     assert key not in self.hparams
     if isinstance(obj, dict):
-        hparams = obj
+        logger.warning("SSH got dict %s. That's unexpected.", obj)
+        sub_hparams = obj
     else:
-        hparams = dict(obj.hparams)
-    sub_hparams = {
-        "class_path": obj.__class__.__module__ + "." + obj.__class__.__name__,
-        "init_args": hparams,
-    }
+        sub_hparams = {
+            "class_path": obj.__class__.__module__ + "." + obj.__class__.__name__,
+            "init_args": dict(obj.hparams),
+        }
+    logger.debug("Saving hyperperameters %s", sub_hparams)
     self.save_hyperparameters({key: sub_hparams})
 
 
-def get_object_from_path(path: str) -> Any:
+def load_obj_from_hparams(hparams: dict[str, Any], key: str = "") -> Any:
+    """Load object from hyperparameters."""
+    if key:
+        hparams = hparams[key]
+    return get_object_from_path(hparams["class_path"], hparams["init_args"])
+
+
+def obj_from_or_to_hparams(
+    self: HyperparametersMixin, key: str, obj: HyperparametersMixin | dict
+) -> Any:
+    if obj is None:
+        return None
+    if isinstance(obj, dict):
+        logger.debug("Got %s, assuming I have to load", obj)
+        # Assume that we have to load
+        return load_obj_from_hparams(obj)
+    logger.debug(
+        "Got obj of type %s, assuming I have to save hyperparameters", type(obj)
+    )
+    save_sub_hyperparameters(self=self, key=key, obj=obj)
+    return obj
+
+
+def get_object_from_path(path: str, init_args: dict[str, Any] | None = None) -> Any:
     """Get object from path (string) to its code location."""
     module_name, _, class_name = path.rpartition(".")
     logger.debug("Getting class %s from module %s", class_name, module_name)
     if not module_name:
         raise ValueError("Please specify the full import path")
     module = importlib.import_module(module_name)
-    return getattr(module, class_name)
+    obj = getattr(module, class_name)
+    if init_args is not None:
+        return obj(**init_args)
+    return obj
 
 
 def get_model(class_path: str, chkpt_path: str = "") -> LightningModule | None:
@@ -49,6 +76,6 @@ def get_model(class_path: str, chkpt_path: str = "") -> LightningModule | None:
     model_class: type = get_object_from_path(class_path)
     assert issubclass(model_class, LightningModule)
     logger.debug("Loading checkpoint %s", chkpt_path)
-    model = model_class.load_from_checkpoint(chkpt_path)
+    model = model_class.load_from_checkpoint(chkpt_path, strict=False)
     logger.debug("Checkpoint loaded. Model ready to go.")
     return model

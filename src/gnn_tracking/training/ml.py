@@ -7,7 +7,7 @@ from torch_geometric.data import Data
 from gnn_tracking.metrics.losses import GraphConstructionHingeEmbeddingLoss
 from gnn_tracking.training.base import TrackingModule
 from gnn_tracking.utils.dictionaries import to_floats
-from gnn_tracking.utils.lightning import save_sub_hyperparameters
+from gnn_tracking.utils.lightning import obj_from_or_to_hparams
 
 
 class MLModule(TrackingModule):
@@ -18,8 +18,7 @@ class MLModule(TrackingModule):
         **kwargs,
     ):
         super().__init__(**kwargs)
-        save_sub_hyperparameters(self, "loss_fct", loss_fct)
-        self.loss_fct = loss_fct
+        self.loss_fct = obj_from_or_to_hparams(self, "loss_fct", loss_fct)
 
     # noinspection PyUnusedLocal
     def get_losses(self, out: dict[str, Any], data: Data) -> tuple[T, dict[str, float]]:

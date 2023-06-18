@@ -7,15 +7,14 @@ from typing import Any, Mapping, Protocol, Union
 
 import torch
 from pytorch_lightning.core.mixins import HyperparametersMixin
-from torch import Tensor, nn
+from torch import Tensor
+from torch import Tensor as T
+from torch import nn
 from torch.linalg import norm
 from torch.nn.functional import binary_cross_entropy, mse_loss, relu
 from torch_cluster import radius_graph
-from typing_extensions import TypeAlias
 
 from gnn_tracking.utils.log import logger
-
-T: TypeAlias = torch.Tensor
 
 
 @torch.jit.script
@@ -97,18 +96,18 @@ def falsify_low_pt_edges(
     return y.bool() & (pt[edge_index[0, :]] > pt_thld)
 
 
-class FalsifyLowPtEdgeWeightLoss(torch.nn.Module, ABC):
-    def __init__(self, *, pt_thld: float = 0.0, **kwargs):
+class FalsifyLowPtEdgeWeightLoss(torch.nn.Module, ABC, HyperparametersMixin):
+    def __init__(self, *, pt_thld: float = 0.0):
         """Add an option to falsify edges with low pt to edge classification losses."""
-        super().__init__(**kwargs)
-        self.pt_thld = pt_thld
+        super().__init__()
+        self.save_hyperparameters()
 
     # noinspection PyUnusedLocal
     def forward(
         self, *, w: T, y: T, edge_index: T | None = None, pt: T | None = None, **kwargs
     ) -> T:
         y = falsify_low_pt_edges(
-            y=y, edge_index=edge_index, pt=pt, pt_thld=self.pt_thld
+            y=y, edge_index=edge_index, pt=pt, pt_thld=self.hparams.pt_thld
         )
         return self._forward(y=y, w=w)
 
@@ -126,6 +125,7 @@ class EdgeWeightBCELoss(FalsifyLowPtEdgeWeightLoss):
 
 
 class EdgeWeightFocalLoss(FalsifyLowPtEdgeWeightLoss):
+    # noinspection PyUnusedLocal
     def __init__(
         self,
         *,
@@ -138,17 +138,15 @@ class EdgeWeightFocalLoss(FalsifyLowPtEdgeWeightLoss):
         See `binary_focal_loss` for details.
         """
         super().__init__(**kwargs)
-        self.alpha = alpha
-        self.gamma = gamma
-        self.pos_weight = pos_weight
+        self.save_hyperparameters()
 
     def _forward(self, *, w: T, y: T, **kwargs) -> T:
         return binary_focal_loss(
             inpt=w,
             target=y,
-            alpha=self.alpha,
-            gamma=self.gamma,
-            pos_weight=self.pos_weight,
+            alpha=self.hparams.alpha,
+            gamma=self.hparams.gamma,
+            pos_weight=self.hparams.pos_weight,
         )
 
 
