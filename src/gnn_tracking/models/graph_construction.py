@@ -2,6 +2,7 @@ import math
 
 import numpy as np
 import torch.nn
+from pytorch_lightning.core.mixins import HyperparametersMixin
 from torch import Tensor as T
 from torch import nn
 from torch.nn import Linear, ModuleList, init
@@ -10,6 +11,7 @@ from torch_cluster import knn_graph
 from torch_geometric.data import Data
 
 from gnn_tracking.training.ml import MLModule
+from gnn_tracking.utils.lightning import get_model
 from gnn_tracking.utils.log import logger
 
 
@@ -99,19 +101,19 @@ class MLGraphConstruction(torch.nn.Module):
         self,
         ml: torch.nn.Module,
         *,
-        ef: torch.nn.Module | None = None,
+        ec: torch.nn.Module | None = None,
         max_radius: float = 1,
         max_num_neighbors: int = 256,
         use_embedding_features=False,
         ratio_of_false=None,
         build_edge_features=True,
-        ef_threshold=None,
+        ec_threshold=None,
     ):
         """Builds graph from embedding space.
 
         Args:
             ml: Metric learning embedding
-            ef: Directly apply edge filter
+            ec: Directly apply edge filter
             max_radius: Maximum radius for kNN
             max_num_neighbors: Number of neighbors for kNN
             use_embedding_features: Add embedding space features to node features
@@ -120,13 +122,13 @@ class MLGraphConstruction(torch.nn.Module):
         """
         super().__init__()
         self._ml = ml
-        self._ef = ef
+        self._ef = ec
         self._max_radius = max_radius
         self._max_num_neighbors = max_num_neighbors
         self._use_embedding_features = use_embedding_features
         self._ratio_of_false = ratio_of_false
         self._build_edge_features = build_edge_features
-        self._ef_threshold = ef_threshold
+        self._ef_threshold = ec_threshold
         if self._ef is not None and self._ef_threshold is None:
             raise ValueError("ef_threshold must be set if ef is not None")
         if build_edge_features and ratio_of_false:
@@ -194,25 +196,38 @@ class MLGraphConstruction(torch.nn.Module):
         )
 
 
-class MLGraphConstructionFromChkpt(nn.Module):
+class MLGraphConstructionFromChkpt(nn.Module, HyperparametersMixin):
+    _DEFAULT_ML_CLASS_PATH = (
+        "gnn_tracking.models.graph_construction.GraphConstructionFCNN"
+    )
+
     # noinspection PyUnusedLocal
     def __init__(
         self,
-        ml_chkpt_path: str,
+        *,
+        ml_class_name: str = _DEFAULT_ML_CLASS_PATH,
+        ml_chkpt_path: str = "",
+        ec_class_name: str = None,
+        ec_chkpt_path: str | None = None,
         max_radius: float = 1,
         max_num_neighbors: int = 256,
         ratio_of_false=None,
         build_edge_features=True,
+        ec_thld: float | None = None,
     ):
+        """Wrapper around MLGraphConstruction but loads all modules from checkpoints."""
         super().__init__()
-        logger.debug("Restoring ML from %s", ml_chkpt_path)
-        ml = GraphConstructionFCNN.load_from_checkpoint(ml_chkpt_path)
+        self.save_hyperparameters()
+        ml = get_model(ml_class_name, ml_chkpt_path)
+        ec = get_model(ec_class_name, ec_chkpt_path)
         self._gc = MLGraphConstruction(
             ml=ml,
             max_radius=max_radius,
             max_num_neighbors=max_num_neighbors,
             ratio_of_false=ratio_of_false,
             build_edge_features=build_edge_features,
+            ec=ec,
+            ec_threshold=ec_thld,
         )
 
     def forward(self, data: Data) -> Data:
