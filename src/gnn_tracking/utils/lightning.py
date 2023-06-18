@@ -33,9 +33,7 @@ def load_obj_from_hparams(hparams: dict[str, Any], key: str = "") -> Any:
     return get_object_from_path(hparams["class_path"], hparams["init_args"])
 
 
-def obj_from_or_to_hparams(
-    self: HyperparametersMixin, key: str, obj: HyperparametersMixin | dict
-) -> Any:
+def obj_from_or_to_hparams(self: HyperparametersMixin, key: str, obj: Any) -> Any:
     if obj is None:
         return None
     if isinstance(obj, dict):
@@ -45,7 +43,7 @@ def obj_from_or_to_hparams(
     logger.debug(
         "Got obj of type %s, assuming I have to save hyperparameters", type(obj)
     )
-    save_sub_hyperparameters(self=self, key=key, obj=obj)
+    save_sub_hyperparameters(self=self, key=key, obj=obj)  # type: ignore
     return obj
 
 

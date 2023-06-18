@@ -8,6 +8,7 @@ from gnn_tracking.metrics.losses import BackgroundLoss, PotentialLoss
 from gnn_tracking.postprocessing.clusterscanner import ClusterFctType
 from gnn_tracking.training.base import TrackingModule
 from gnn_tracking.utils.dictionaries import to_floats
+from gnn_tracking.utils.lightning import obj_from_or_to_hparams
 
 
 class TCModule(TrackingModule):
@@ -26,9 +27,15 @@ class TCModule(TrackingModule):
         self.save_hyperparameters(
             ignore=["potential_loss", "background_loss", "cluster_scanner"]
         )
-        self.potential_loss = potential_loss
-        self.background_loss = background_loss
-        self.cluster_scanner = cluster_scanner
+        self.potential_loss = obj_from_or_to_hparams(
+            self, "potential_loss", potential_loss
+        )
+        self.background_loss = obj_from_or_to_hparams(
+            self, "background_loss", background_loss
+        )
+        self.cluster_scanner = obj_from_or_to_hparams(
+            self, "cluster_scanner", cluster_scanner
+        )
         self._cluster_scan_input = collections.defaultdict(list)
         self._best_cluster_params = {}
 

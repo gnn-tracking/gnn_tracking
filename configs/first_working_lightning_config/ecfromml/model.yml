@@ -2,7 +2,7 @@ class_path: gnn_tracking.models.edge_classifier.ECForGraphTCN
 init_args:
   node_indim: 14
   edge_indim: 28
-  gc:
+  peproc:
     class_path: gnn_tracking.models.graph_construction.MLGraphConstructionFromChkpt
     init_args:
       ml_chkpt_path: /Users/fuchur/Documents/22/git_sync/gnn_tracking/src/gnn_tracking/training/lightning_logs/version_91/checkpoints/epoch=0-step=5.ckpt

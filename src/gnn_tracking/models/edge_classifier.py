@@ -1,3 +1,5 @@
+"""Models for edge classification"""
+
 import numpy as np
 import torch
 from pytorch_lightning.core.mixins import HyperparametersMixin
@@ -118,30 +120,6 @@ class ECForGraphTCN(ECModule):
             "node_embedding": h_ec,
             "edge_embedding": edge_attr_ec,
         }
-
-
-# class ECForGraphTCNFromML(ECForGraphTCN, ECFromMLModule):
-
-# class ECForGraphTCNFromML(ECForGraphTCN, GraphFromMLMixin):
-#     def __init__(self,
-#         ml_chkpt_path: str,
-#         max_radius: float = 1,
-#         max_num_neighbors: int = 256,
-#         ratio_of_false=None,
-#         build_edge_features=True,
-#         **kwargs
-#     ):
-#         """Train an edge classifier on graphs that are generated on the fly
-#         based on a metric learning graph construction.
-#
-#         Required keyword arguments:
-#
-#         * See `ECForGraphTCN`
-#         * See `GraphFromMLMixin`
-#         """
-#         super(ECForGraphTCN, self).__init__(**kwargs)
-#         super(GraphFromMLMixin, self).__init__(ml_chkpt_path)
-#
 
 
 class PerfectEdgeClassification(nn.Module, HyperparametersMixin):

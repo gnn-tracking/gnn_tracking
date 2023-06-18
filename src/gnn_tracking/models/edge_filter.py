@@ -1,3 +1,7 @@
+"""Models for edge filtering (same as edge classification, but without message passing,
+i.e., making decisions solely based on edge features of the edge under consideration)
+"""
+
 import math
 
 import numpy as np
@@ -23,6 +27,7 @@ class EFDeepSet(ECModule):
         depth: int = 3,
         **kwargs,
     ):
+        """EdgeFilter based on the deep sets architecture"""
         super().__init__(**kwargs)
         self.save_hyperparameters(ignore=["loss_fct", "optimizer", "scheduler"])
 
@@ -69,6 +74,7 @@ class EFMLP(ECModule):
         beta: float = 0.4,
         **kwargs,
     ):
+        """EdgeFilter based on an MLP architecture."""
         super().__init__(**kwargs)
 
         self.encoder = Linear(in_dim * 2, hidden_dim, bias=False)
@@ -109,6 +115,7 @@ class EFMLP(ECModule):
 class GeometricEF(torch.nn.Module, HyperparametersMixin):
     # noinspection PyUnusedLocals
     def __init__(self, phi_slope_max, z0_max, dR_max):
+        """Edge filter with geometric cuts only (no learning required)."""
         super().__init__()
         self.save_hyperparameters()
 

@@ -1,3 +1,7 @@
+"""Pytorch lightning module with training and validation step for the metric learning
+approach to graph construction.
+"""
+
 from typing import Any
 
 from torch import Tensor
@@ -11,13 +15,18 @@ from gnn_tracking.utils.lightning import obj_from_or_to_hparams
 
 
 class MLModule(TrackingModule):
+    # noinspection PyUnusedLocals
     def __init__(
         self,
         loss_fct: GraphConstructionHingeEmbeddingLoss,
         lw_repulsive=1.0,
         **kwargs,
     ):
+        """Pytorch lightning module with training and validation step for the metric
+        learning approach to graph construction.
+        """
         super().__init__(**kwargs)
+        self.save_hyperparameters("lw_repulsive")
         self.loss_fct = obj_from_or_to_hparams(self, "loss_fct", loss_fct)
 
     # noinspection PyUnusedLocal
@@ -50,6 +59,3 @@ class MLModule(TrackingModule):
         self.log_dict(to_floats(loss_dct), on_epoch=True)
         self.log("total", loss.float(), on_epoch=True)
         # todo: add graph analysis
-
-    def test_step(self, batch, batch_idx: int):
-        self.validation_step(batch, batch_idx)

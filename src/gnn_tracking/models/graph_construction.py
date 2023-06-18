@@ -1,3 +1,5 @@
+"""Models for embeddings used for graph construction."""
+
 import math
 
 import numpy as np
@@ -112,7 +114,7 @@ class MLGraphConstruction(torch.nn.Module):
         """Builds graph from embedding space.
 
         Args:
-            ml: Metric learning embedding
+            ml: Metric learning embedding module
             ec: Directly apply edge filter
             max_radius: Maximum radius for kNN
             max_num_neighbors: Number of neighbors for kNN

@@ -1,3 +1,5 @@
+"""Lightning module for edge classifier training."""
+
 from typing import Any
 
 from torch import Tensor
@@ -20,10 +22,9 @@ class ECModule(TrackingModule):
         loss_fct: nn.Module,
         **kwargs,
     ):
+        """Lightning module for edge classifier training."""
         super().__init__(**kwargs)
-        self.loss_fct = obj_from_or_to_hparams(
-            self, "loss_fct", loss_fct  # type: ignore
-        )
+        self.loss_fct = obj_from_or_to_hparams(self, "loss_fct", loss_fct)
 
     def get_losses(self, out: dict[str, Any], data: Data) -> T:
         return self.loss_fct(
@@ -32,14 +33,14 @@ class ECModule(TrackingModule):
             pt=data.pt,
         )
 
-    def training_step(self, batch, batch_idx: int) -> Tensor | None:
+    def training_step(self, batch: Data, batch_idx: int) -> Tensor | None:
         batch = self.data_preproc(batch)
         out = self(batch)
         loss = self.get_losses(out, batch)
         self.log("total", loss.float(), prog_bar=True, on_step=True)
         return loss
 
-    def validation_step(self, batch, bach_idx: int):
+    def validation_step(self, batch: Data, bach_idx: int):
         batch = self.data_preproc(batch)
         out = self(batch)
         loss = self.get_losses(out, batch)
@@ -52,7 +53,3 @@ class ECModule(TrackingModule):
         metrics |= get_maximized_bcs(y=batch.y, output=out["W"])
         # todo: add graph analysis
         self.log_dict(metrics, on_epoch=True)
-
-
-class ECFromMLModule(ECModule):
-    pass

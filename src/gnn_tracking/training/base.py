@@ -1,3 +1,5 @@
+"""Base class used for all pytorch lightning modules."""
+
 import logging
 from typing import Any
 
@@ -40,25 +42,25 @@ from gnn_tracking.utils.log import get_logger
 
 
 class TrackingModule(LightningModule):
-    # todo: Rename gc -> preproc
     def __init__(
         self,
         optimizer: OptimizerCallable = torch.optim.Adam,
         scheduler: LRSchedulerCallable = torch.optim.lr_scheduler.ConstantLR,
-        gc: nn.Module | None = None,
+        preproc: nn.Module | None = None,
     ):
+        """Base class for all pytorch lightning modules in this project."""
         super().__init__()
         self.logg = get_logger("TM", level=logging.DEBUG)
-        self.gc = obj_from_or_to_hparams(self, "gc", gc)
+        self.preproc = obj_from_or_to_hparams(self, "preproc", preproc)
         self.optimizer = optimizer
         self.scheduler = scheduler
 
     def data_preproc(self, data: Data) -> Data:
-        if self.gc is not None:
-            return self.gc(data)
+        if self.preproc is not None:
+            return self.preproc(data)
         return data
 
-    def test_step(self, batch, batch_idx: int):
+    def test_step(self, batch: Data, batch_idx: int):
         return self.validation_step(batch, batch_idx)
 
     def configure_optimizers(self) -> Any:
@@ -105,7 +107,7 @@ class TrackingModule(LightningModule):
     # noinspection PyUnusedLocal
     # noinspection PyMethodMayBeStatic
     def printed_results_filter(self, key: str) -> bool:
-        """Should a metric be printed in the log output?
+        """Should a metric be printed in the log output for the val/test step?
 
         This is meant to be overridden by your personal trainer.
         """
@@ -114,7 +116,7 @@ class TrackingModule(LightningModule):
     # noinspection PyUnusedLocal
     # noinspection PyMethodMayBeStatic
     def highlight_metric(self, metric: str) -> bool:
-        """Should a metric be highlighted in the log output?"""
+        """Should a metric be highlighted in the log output for the val/test step?"""
         return False
 
     def on_validation_end(self, *args, **kwargs) -> None:
