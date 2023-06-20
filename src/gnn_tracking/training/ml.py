@@ -15,7 +15,7 @@ from gnn_tracking.utils.lightning import obj_from_or_to_hparams
 
 
 class MLModule(TrackingModule):
-    # noinspection PyUnusedLocals
+    # noinspection PyUnusedLocal
     def __init__(
         self,
         loss_fct: GraphConstructionHingeEmbeddingLoss,
@@ -47,14 +47,14 @@ class MLModule(TrackingModule):
         return loss, to_floats(loss_dct)
 
     def training_step(self, batch: Data, batch_idx: int) -> Tensor | None:
-        out = self.forward(batch)
+        out = self(batch)
         loss, loss_dct = self.get_losses(out, batch)
         self.log_dict(loss_dct, prog_bar=True, on_step=True)
         self.log("total", loss.float(), prog_bar=True, on_step=True)
         return loss
 
-    def validation_step(self, batch: Data, bach_idx: int):
-        out = self.forward(batch)
+    def validation_step(self, batch: Data, batch_idx: int):
+        out = self(batch)
         loss, loss_dct = self.get_losses(out, batch)
         self.log_dict(to_floats(loss_dct), on_epoch=True)
         self.log("total", loss.float(), on_epoch=True)

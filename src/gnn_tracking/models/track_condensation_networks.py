@@ -3,6 +3,7 @@
 
 import torch
 import torch.nn as nn
+from pytorch_lightning.core.mixins import HyperparametersMixin
 from torch import Tensor
 from torch_geometric.data import Data
 from torch_geometric.utils import remove_isolated_nodes
@@ -12,7 +13,6 @@ from gnn_tracking.models.edge_classifier import ECForGraphTCN, PerfectEdgeClassi
 from gnn_tracking.models.interaction_network import InteractionNetwork as IN
 from gnn_tracking.models.mlp import MLP
 from gnn_tracking.models.resin import ResIN
-from gnn_tracking.training.tc import TCModule
 from gnn_tracking.utils.asserts import assert_feat_dim
 from gnn_tracking.utils.graph_masks import edge_subgraph
 
@@ -398,7 +398,7 @@ class PerfectECGraphTCN(nn.Module):
         return self._gtcn.forward(data=data)
 
 
-class PreTrainedECGraphTCN(TCModule):
+class PreTrainedECGraphTCN(nn.Module, HyperparametersMixin):
     def __init__(
         self,
         ec,
@@ -429,16 +429,7 @@ class PreTrainedECGraphTCN(TCModule):
                 networks
         """
         super().__init__(**kwargs)
-        self.save_hyperparameters(
-            ignore=[
-                "potential_loss",
-                "background_loss",
-                "cluster_scanner",
-                "optimizer",
-                "scheduler",
-                "preproc",
-            ]
-        )
+        self.save_hyperparameters()
         hc_in = ResIN(
             node_dim=h_dim,
             edge_dim=e_dim,

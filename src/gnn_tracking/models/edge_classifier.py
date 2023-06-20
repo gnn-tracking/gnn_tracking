@@ -8,11 +8,10 @@ from torch_geometric.data import Data
 
 from gnn_tracking.models.mlp import MLP
 from gnn_tracking.models.resin import ResIN
-from gnn_tracking.training.ec import ECModule
 from gnn_tracking.utils.asserts import assert_feat_dim
 
 
-class ECForGraphTCN(ECModule):
+class ECForGraphTCN(nn.Module, HyperparametersMixin):
     def __init__(
         self,
         *,
@@ -55,9 +54,7 @@ class ECForGraphTCN(ECModule):
             residual_kwargs: Keyword arguments passed to `ResIN`
         """
         super().__init__(**kwargs)
-        self.save_hyperparameters(
-            ignore=["optimizer", "scheduler", "loss_fct", "preproc"]
-        )
+        self.save_hyperparameters()
         if residual_kwargs is None:
             residual_kwargs = {}
         residual_kwargs["collect_hidden_edge_embeds"] = use_intermediate_edge_embeddings

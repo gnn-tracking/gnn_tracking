@@ -5,7 +5,7 @@ from typing import Any
 import torch
 from pytorch_lightning import LightningModule
 from pytorch_lightning.core.mixins import HyperparametersMixin
-from torch import Tensor
+from torch import Tensor, nn
 from torchmetrics import Metric
 
 from gnn_tracking.utils.log import logger
@@ -64,7 +64,9 @@ def get_object_from_path(path: str, init_args: dict[str, Any] | None = None) -> 
     return obj
 
 
-def get_model(class_path: str, chkpt_path: str = "") -> LightningModule | None:
+def get_lightning_module(
+    class_path: str, chkpt_path: str = "", *, freeze: bool = True
+) -> LightningModule | None:
     """Get model (specified by `class_path`, a string) and
     load a checkpoint.
     """
@@ -78,9 +80,23 @@ def get_model(class_path: str, chkpt_path: str = "") -> LightningModule | None:
     model_class: type = get_object_from_path(class_path)
     assert issubclass(model_class, LightningModule)
     logger.debug("Loading checkpoint %s", chkpt_path)
-    model = model_class.load_from_checkpoint(chkpt_path, strict=False)
+    model = model_class.load_from_checkpoint(chkpt_path, strict=True)
     logger.debug("Checkpoint loaded. Model ready to go.")
+    if freeze:
+        model.freeze()
     return model
+
+
+def get_model(
+    class_path: str, chkpt_path: str = "", freeze: bool = True
+) -> nn.Module | None:
+    """Get torch model (specified by `class_path`, a string) and load a checkpoint.
+    Uses `get_lightning_module` to get the model.
+    """
+    lm = get_lightning_module(class_path, chkpt_path, freeze=freeze)
+    if lm is None:
+        return None
+    return lm.model
 
 
 class StandardError(Metric):

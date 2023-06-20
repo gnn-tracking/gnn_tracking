@@ -1,11 +1,15 @@
-class_path: gnn_tracking.models.track_condensation_networks.PreTrainedECGraphTCN
+class_path: gnn_tracking.training.tc.TCModule
 init_args:
-  node_indim: 14
-  edge_indim: 28
+  model:
+    class_path: gnn_tracking.models.track_condensation_networks.PreTrainedECGraphTCN
+    init_args:
+      node_indim: 14
+      edge_indim: 28
   preproc:
     class_path: gnn_tracking.models.graph_construction.MLGraphConstructionFromChkpt
     init_args:
-      ml_chkpt_path: /Users/fuchur/Documents/22/git_sync/gnn_tracking/src/gnn_tracking/training/lightning_logs/version_91/checkpoints/epoch=0-step=5.ckpt
+      ml_chkpt_path: /Users/fuchur/Documents/22/git_sync/gnn_tracking/src/gnn_tracking/training/lightning_logs/version_168/checkpoints/epoch=4-step=25.ckpt
+      ec_chkpt_path: /Users/fuchur/Documents/22/git_sync/gnn_tracking/src/gnn_tracking/training/lightning_logs/version_169/checkpoints/epoch=0-step=5.ckpt
   cluster_scanner:
     class_path: gnn_tracking.postprocessing.dbscanscanner.DBSCANHyperParamScanner
     init_args:

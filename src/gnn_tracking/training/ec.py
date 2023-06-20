@@ -41,7 +41,7 @@ class ECModule(TrackingModule):
         self.log("total", loss.float(), prog_bar=True, on_step=True)
         return loss
 
-    def validation_step(self, batch: Data, bach_idx: int):
+    def validation_step(self, batch: Data, batch_idx: int):
         batch = self.data_preproc(batch)
         out = self(batch)
         loss = self.get_losses(out, batch)

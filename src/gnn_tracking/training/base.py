@@ -41,38 +41,14 @@ from gnn_tracking.utils.log import get_logger
 # P: Track parameters
 
 
-class TrackingModule(LightningModule):
-    def __init__(
-        self,
-        optimizer: OptimizerCallable = torch.optim.Adam,
-        scheduler: LRSchedulerCallable = torch.optim.lr_scheduler.ConstantLR,
-        preproc: nn.Module | None = None,
-    ):
-        """Base class for all pytorch lightning modules in this project."""
-        super().__init__()
-        self.logg = get_logger("TM", level=logging.DEBUG)
-        self.preproc = obj_from_or_to_hparams(self, "preproc", preproc)
-        self.optimizer = optimizer
-        self.scheduler = scheduler
+class ImprovedLogLM(LightningModule):
+    def __init__(self, **kwargs):
+        """This subclass of `LightningModule` adds some convenience to logging,
+        e.g., logging of statistical uncertainties (batch-to-batch) and logging
+        of the validation metrics to the console after each validation epoch.
+        """
+        super().__init__(**kwargs)
         self._uncertainties = collections.defaultdict(StandardError)
-
-    def data_preproc(self, data: Data) -> Data:
-        if self.preproc is not None:
-            return self.preproc(data)
-        return data
-
-    def test_step(self, batch: Data, batch_idx: int):
-        return self.validation_step(batch, batch_idx)
-
-    def configure_optimizers(self) -> Any:
-        optimizer = self.optimizer(self.parameters())
-        scheduler = self.scheduler(optimizer)
-        return {
-            "optimizer": optimizer,
-            "lr_scheduler": scheduler,
-        }
-
-    # --- All things logging ---
 
     def log_dict_with_errors(self, dct: dict[str, float]) -> None:
         self.log_dict(
@@ -154,3 +130,39 @@ class TrackingModule(LightningModule):
                 metrics, header=f"Validation epoch={self.current_epoch}"
             )
         )
+
+
+class TrackingModule(ImprovedLogLM):
+    def __init__(
+        self,
+        model: nn.Module,
+        optimizer: OptimizerCallable = torch.optim.Adam,
+        scheduler: LRSchedulerCallable = torch.optim.lr_scheduler.ConstantLR,
+        preproc: nn.Module | None = None,
+    ):
+        """Base class for all pytorch lightning modules in this project."""
+        super().__init__()
+        self.model = obj_from_or_to_hparams(self, "model", model)
+        self.logg = get_logger("TM", level=logging.DEBUG)
+        self.preproc = obj_from_or_to_hparams(self, "preproc", preproc)
+        self.optimizer = optimizer
+        self.scheduler = scheduler
+
+    def forward(self, data: Data) -> Tensor:
+        return self.model.forward(data)
+
+    def data_preproc(self, data: Data) -> Data:
+        if self.preproc is not None:
+            return self.preproc(data)
+        return data
+
+    def test_step(self, batch: Data, batch_idx: int):
+        return self.validation_step(batch, batch_idx)
+
+    def configure_optimizers(self) -> Any:
+        optimizer = self.optimizer(self.parameters())
+        scheduler = self.scheduler(optimizer)
+        return {
+            "optimizer": optimizer,
+            "lr_scheduler": scheduler,
+        }

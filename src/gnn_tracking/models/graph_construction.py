@@ -12,12 +12,11 @@ from torch.nn.functional import normalize, relu
 from torch_cluster import knn_graph
 from torch_geometric.data import Data
 
-from gnn_tracking.training.ml import MLModule
 from gnn_tracking.utils.lightning import get_model
 from gnn_tracking.utils.log import logger
 
 
-class GraphConstructionFCNN(MLModule):
+class GraphConstructionFCNN(nn.Module, HyperparametersMixin):
     # noinspection PyUnusedLocal
     def __init__(
         self,
@@ -27,7 +26,6 @@ class GraphConstructionFCNN(MLModule):
         out_dim: int,
         depth: int,
         beta: float = 0.4,
-        **kwargs,
     ):
         """Metric learning embedding fully connected NN.
 
@@ -39,8 +37,8 @@ class GraphConstructionFCNN(MLModule):
             beta: Strength of residual connections
         """
 
-        super().__init__(**kwargs)
-        self.save_hyperparameters(ignore=["optimizer", "scheduler", "loss_fct"])
+        super().__init__()
+        self.save_hyperparameters()
 
         self._encoder = Linear(in_dim, hidden_dim, bias=False)
         self._decoder = Linear(hidden_dim, out_dim, bias=False)
@@ -98,7 +96,7 @@ def knn_with_max_radius(x: T, k: int, max_radius: float | None = None) -> T:
     return edge_index
 
 
-class MLGraphConstruction(torch.nn.Module):
+class MLGraphConstruction(nn.Module):
     def __init__(
         self,
         ml: torch.nn.Module,
@@ -199,15 +197,11 @@ class MLGraphConstruction(torch.nn.Module):
 
 
 class MLGraphConstructionFromChkpt(nn.Module, HyperparametersMixin):
-    _DEFAULT_ML_CLASS_PATH = (
-        "gnn_tracking.models.graph_construction.GraphConstructionFCNN"
-    )
-
     # noinspection PyUnusedLocal
     def __init__(
         self,
         *,
-        ml_class_name: str = _DEFAULT_ML_CLASS_PATH,
+        ml_class_name: str = "gnn_tracking.training.ml.MLModule",
         ml_chkpt_path: str = "",
         ec_class_name: str = None,
         ec_chkpt_path: str | None = None,
@@ -216,6 +210,8 @@ class MLGraphConstructionFromChkpt(nn.Module, HyperparametersMixin):
         ratio_of_false=None,
         build_edge_features=True,
         ec_thld: float | None = None,
+        ml_freeze: bool = True,
+        ec_freeze: bool = True,
     ):
         """Wrapper around MLGraphConstruction but loads all modules from checkpoints."""
         super().__init__()
