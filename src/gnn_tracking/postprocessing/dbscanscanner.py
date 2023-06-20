@@ -22,6 +22,7 @@ class DBSCANHyperParamScanner(HyperparametersMixin):
         min_samples_range: tuple[int, int] = (1, 3),
         n_trials: int = 10,
         n_jobs: int = 1,
+        guide="trk.double_majority_pt0.9",
     ):
         """Class to scan hyperparameters of DBSCAN.
 
@@ -46,7 +47,7 @@ class DBSCANHyperParamScanner(HyperparametersMixin):
         chps = ClusterHyperParamScanner(
             algorithm=dbscan,
             suggest=suggest,
-            guide="v_measure",
+            guide=self.hparams.guide,
             metrics=common_metrics,
             **kwargs,
         )

@@ -1,5 +1,5 @@
 """Base class used for all pytorch lightning modules."""
-
+import collections
 import logging
 from typing import Any
 
@@ -11,7 +11,7 @@ from rich.table import Table
 from torch import Tensor, nn
 from torch_geometric.data import Data
 
-from gnn_tracking.utils.lightning import obj_from_or_to_hparams
+from gnn_tracking.utils.lightning import StandardError, obj_from_or_to_hparams
 from gnn_tracking.utils.log import get_logger
 
 # class SuppressOOMExceptions:
@@ -54,6 +54,7 @@ class TrackingModule(LightningModule):
         self.preproc = obj_from_or_to_hparams(self, "preproc", preproc)
         self.optimizer = optimizer
         self.scheduler = scheduler
+        self._errors = collections.defaultdict(StandardError)
 
     def data_preproc(self, data: Data) -> Data:
         if self.preproc is not None:
@@ -72,6 +73,26 @@ class TrackingModule(LightningModule):
         }
 
     # --- All things logging ---
+
+    def log_dict_with_errors(self, dct) -> None:
+        self.log_dict(
+            dct,
+            on_epoch=True,
+        )
+        for k, v in dct.items():
+            if f"{k}_std" in dct:
+                continue
+            self._errors[k](torch.Tensor([v]))
+
+    def _log_errors(self):
+        for k, v in self._errors.items():
+            self.log(k + "_std", v.compute(), on_epoch=True)
+
+    def on_training_epoch_end(self, *args):
+        self._log_errors()
+
+    def on_validation_epoch_end(self) -> None:
+        self._log_errors()
 
     def format_results_table(
         self,
@@ -92,6 +113,7 @@ class TrackingModule(LightningModule):
         table.add_column("Metric")
         table.add_column("Value", justify="right")
         table.add_column("Error", justify="right")
+        results = dict(sorted(results.items()))  # type: ignore
         for k, v in results.items():
             if not self.printed_results_filter(k):
                 continue

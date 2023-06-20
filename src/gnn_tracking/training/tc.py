@@ -54,7 +54,8 @@ class TCModule(TrackingModule):
         self._cluster_scan_input = collections.defaultdict(list)
         self._best_cluster_params = {}
 
-    def is_last_val_batch(self, batch_idx):
+    def is_last_val_batch(self, batch_idx: int) -> bool:
+        """Are we validating the last batch of the validation set?"""
         return batch_idx == self.trainer.num_val_batches[0] - 1
 
     def get_losses(
@@ -84,24 +85,26 @@ class TCModule(TrackingModule):
     def training_step(self, data: Data, batch_idx: int) -> Tensor:
         out = self(self.preproc(data))
         loss, loss_dct = self.get_losses(out, data)
-        self.log_dict(to_floats(loss_dct), prog_bar=True, on_step=True)
-        self.log("total", loss.float(), prog_bar=True, on_step=True)
+        self.log_dict(loss_dct, prog_bar=True, on_step=True)
         return loss
 
     def validation_step(self, data: Data, batch_idx: int) -> None:
         out = self(self.preproc(data))
         loss, metrics = self.get_losses(out, data)
         metrics |= self._evaluate_cluster_metrics(out, data, batch_idx)
-        self.log_dict(dict(sorted(metrics.items())), on_epoch=True)  # type: ignore
+        self.log_dict_with_errors(metrics)
 
     def _evaluate_cluster_metrics(
         self, out: dict[str, Any], data: Data, batch_idx: int
     ) -> dict[str, float]:
+        """Evaluate cluster metrics.
+
+        The cluster metrics need to be evaluated all at once, so we save the
+        required inputs to CPU memory until the last validation batch and
+        then evaluate the metrics.
+        """
         if self.cluster_scanner is None:
             return {}
-        # The cluster metrics need to be evaluated all at once, so we save the
-        # required inputs to CPU memory until the last validation batch and
-        # then evaluate the metrics.
         self._save_cluster_input(out, data)
         if not self.is_last_val_batch(batch_idx):
             return {}

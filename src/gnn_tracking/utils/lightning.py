@@ -1,8 +1,12 @@
 import importlib
+import math
 from typing import Any
 
+import torch
 from pytorch_lightning import LightningModule
 from pytorch_lightning.core.mixins import HyperparametersMixin
+from torch import Tensor
+from torchmetrics import Metric
 
 from gnn_tracking.utils.log import logger
 
@@ -77,3 +81,21 @@ def get_model(class_path: str, chkpt_path: str = "") -> LightningModule | None:
     model = model_class.load_from_checkpoint(chkpt_path, strict=False)
     logger.debug("Checkpoint loaded. Model ready to go.")
     return model
+
+
+class StandardError(Metric):
+    def __init__(
+        self,
+    ):
+        """A torch metric that computes the standard error.
+        This is necessary, because LightningModule.log doesn't take custom
+        reduce functions.
+        """
+        super().__init__()
+        self.add_state("values", default=torch.tensor([]), dist_reduce_fx="cat")
+
+    def update(self, x: Tensor):
+        self.values = torch.cat((self.values, x))
+
+    def compute(self):
+        return torch.std(self.values) / math.sqrt(len(self.values))
