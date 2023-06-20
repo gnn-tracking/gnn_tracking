@@ -55,7 +55,9 @@ class ECForGraphTCN(ECModule):
             residual_kwargs: Keyword arguments passed to `ResIN`
         """
         super().__init__(**kwargs)
-        self.save_hyperparameters(ignore=["optimizer", "scheduler", "loss_fct", "gc"])
+        self.save_hyperparameters(
+            ignore=["optimizer", "scheduler", "loss_fct", "preproc"]
+        )
         if residual_kwargs is None:
             residual_kwargs = {}
         residual_kwargs["collect_hidden_edge_embeds"] = use_intermediate_edge_embeddings

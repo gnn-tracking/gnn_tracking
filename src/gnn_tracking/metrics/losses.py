@@ -287,10 +287,12 @@ class BackgroundLoss(torch.nn.Module, HyperparametersMixin):
         self.save_hyperparameters()
 
     # noinspection PyUnusedLocal
-    def forward(self, *, beta: T, particle_id: T, ec_hit_mask: T, **kwargs) -> T:
-        return _background_loss(
-            beta=beta, particle_id=particle_id[ec_hit_mask], sb=self.sb
-        )
+    def forward(
+        self, *, beta: T, particle_id: T, ec_hit_mask: T | None = None, **kwargs
+    ) -> T:
+        if ec_hit_mask is not None:
+            particle_id = particle_id[ec_hit_mask]
+        return _background_loss(beta=beta, particle_id=particle_id, sb=self.sb)
 
 
 class ObjectLoss(torch.nn.Module):

@@ -1,4 +1,4 @@
-class_path: gnn_tracking.models.edge_classifier.ECForGraphTCN
+class_path: gnn_tracking.models.track_condensation_networks.PreTrainedECGraphTCN
 init_args:
   node_indim: 14
   edge_indim: 28
@@ -6,9 +6,10 @@ init_args:
     class_path: gnn_tracking.models.graph_construction.MLGraphConstructionFromChkpt
     init_args:
       ml_chkpt_path: /Users/fuchur/Documents/22/git_sync/gnn_tracking/src/gnn_tracking/training/lightning_logs/version_91/checkpoints/epoch=0-step=5.ckpt
-  loss_fct:
-    class_path: gnn_tracking.metrics.losses.EdgeWeightBCELoss
-    init_args: {}
+  cluster_scanner:
+    class_path: gnn_tracking.postprocessing.dbscanscanner.DBSCANHyperParamScanner
+    init_args:
+      n_trials: 1
   optimizer:
     class_path: torch.optim.Adam
     init_args:

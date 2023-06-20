@@ -90,8 +90,8 @@ class TrackingModule(LightningModule):
         """
         table = Table(title=header)
         table.add_column("Metric")
-        table.add_column("Value")
-        table.add_column("Error")
+        table.add_column("Value", justify="right")
+        table.add_column("Error", justify="right")
         for k, v in results.items():
             if not self.printed_results_filter(k):
                 continue
@@ -99,7 +99,7 @@ class TrackingModule(LightningModule):
                 continue
             style = None
             if self.highlight_metric(k):
-                style = "bold"
+                style = "bright_magenta bold"
             err = results.get(f"{k}_std", float("nan"))
             table.add_row(k, f"{v:.5f}", f"{err:.5f}", style=style)
         return table
@@ -126,4 +126,8 @@ class TrackingModule(LightningModule):
             return
         console = Console()
         console.print("\n")
-        console.print(self.format_results_table(metrics, header="Validation"))
+        console.print(
+            self.format_results_table(
+                metrics, header=f"Validation epoch={self.current_epoch}"
+            )
+        )

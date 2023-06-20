@@ -20,10 +20,11 @@ class ECModule(TrackingModule):
         self,
         *,
         loss_fct: nn.Module,
+        preproc: nn.Module,
         **kwargs,
     ):
         """Lightning module for edge classifier training."""
-        super().__init__(**kwargs)
+        super().__init__(preproc=preproc, **kwargs)
         self.loss_fct = obj_from_or_to_hparams(self, "loss_fct", loss_fct)
 
     def get_losses(self, out: dict[str, Any], data: Data) -> T:

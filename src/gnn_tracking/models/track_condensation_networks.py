@@ -12,6 +12,7 @@ from gnn_tracking.models.edge_classifier import ECForGraphTCN, PerfectEdgeClassi
 from gnn_tracking.models.interaction_network import InteractionNetwork as IN
 from gnn_tracking.models.mlp import MLP
 from gnn_tracking.models.resin import ResIN
+from gnn_tracking.training.tc import TCModule
 from gnn_tracking.utils.asserts import assert_feat_dim
 from gnn_tracking.utils.graph_masks import edge_subgraph
 
@@ -200,26 +201,30 @@ class ModularGraphTCN(nn.Module):
         self,
         data: Data,
     ) -> dict[str, Tensor]:
-        ec_result = self.ec(data)
-        # Assign all EC  output to the data object, so that the cuts
-        # will be applied automatically when we call `data.subgraph(...)` etc.
-        data.edge_weights = ec_result["W"].reshape((-1, 1))
-        data.ec_node_embedding = ec_result.get("node_embedding", None)
-        data.ec_edge_embedding = ec_result.get("edge_embedding", None)
-        edge_weights_unmasked = data.edge_weights.squeeze()
-        edge_mask = (data.edge_weights > self.threshold).squeeze()
-        data = edge_subgraph(data, edge_mask)
+        edge_weights_unmasked = None
+        edge_mask = None
+        hit_mask = None
+        if self.ec is not None:
+            ec_result = self.ec(data)
+            # Assign all EC  output to the data object, so that the cuts
+            # will be applied automatically when we call `data.subgraph(...)` etc.
+            data.edge_weights = ec_result["W"].reshape((-1, 1))
+            data.ec_node_embedding = ec_result.get("node_embedding", None)
+            data.ec_edge_embedding = ec_result.get("edge_embedding", None)
+            edge_weights_unmasked = data.edge_weights.squeeze()
+            edge_mask = (data.edge_weights > self.threshold).squeeze()
+            data = edge_subgraph(data, edge_mask)
 
-        if self._mask_orphan_nodes:
-            # Edge features do not need to be updated since there
-            # are no loops (not affected by labeling)
-            data.edge_index, _, hit_mask = remove_isolated_nodes(data.edge_index)
-            for key, value in data:
-                data[key] = value[hit_mask] if data.is_node_attr(key) else data[key]
-        else:
-            hit_mask = torch.ones(
-                data.num_nodes, dtype=torch.bool, device=data.x.device
-            )
+            if self._mask_orphan_nodes:
+                # Edge features do not need to be updated since there
+                # are no loops (not affected by labeling)
+                data.edge_index, _, hit_mask = remove_isolated_nodes(data.edge_index)
+                for key, value in data:
+                    data[key] = value[hit_mask] if data.is_node_attr(key) else data[key]
+            else:
+                hit_mask = torch.ones(
+                    data.num_nodes, dtype=torch.bool, device=data.x.device
+                )
 
         # Get the encoded inputs for the track condenser
         _edge_attrs = [data.edge_attr]
@@ -393,7 +398,7 @@ class PerfectECGraphTCN(nn.Module):
         return self._gtcn.forward(data=data)
 
 
-class PreTrainedECGraphTCN(nn.Module):
+class PreTrainedECGraphTCN(TCModule):
     def __init__(
         self,
         ec,
@@ -423,7 +428,17 @@ class PreTrainedECGraphTCN(nn.Module):
             alpha_hc: strength of residual connection for multi-layer interaction
                 networks
         """
-        super().__init__()
+        super().__init__(**kwargs)
+        self.save_hyperparameters(
+            ignore=[
+                "potential_loss",
+                "background_loss",
+                "cluster_scanner",
+                "optimizer",
+                "scheduler",
+                "preproc",
+            ]
+        )
         hc_in = ResIN(
             node_dim=h_dim,
             edge_dim=e_dim,
@@ -432,6 +447,7 @@ class PreTrainedECGraphTCN(nn.Module):
             alpha=alpha_hc,
             n_layers=L_hc,
         )
+        # todo: Be able to configure ModularGraphTCN
         self._gtcn = ModularGraphTCN(
             ec=ec,
             hc_in=hc_in,
@@ -441,7 +457,6 @@ class PreTrainedECGraphTCN(nn.Module):
             e_dim=e_dim,
             h_outdim=h_outdim,
             hidden_dim=hidden_dim,
-            **kwargs,
         )
 
     def forward(
