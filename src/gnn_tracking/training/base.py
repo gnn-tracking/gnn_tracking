@@ -54,7 +54,7 @@ class TrackingModule(LightningModule):
         self.preproc = obj_from_or_to_hparams(self, "preproc", preproc)
         self.optimizer = optimizer
         self.scheduler = scheduler
-        self._errors = collections.defaultdict(StandardError)
+        self._uncertainties = collections.defaultdict(StandardError)
 
     def data_preproc(self, data: Data) -> Data:
         if self.preproc is not None:
@@ -74,7 +74,7 @@ class TrackingModule(LightningModule):
 
     # --- All things logging ---
 
-    def log_dict_with_errors(self, dct) -> None:
+    def log_dict_with_errors(self, dct: dict[str, float]) -> None:
         self.log_dict(
             dct,
             on_epoch=True,
@@ -82,13 +82,14 @@ class TrackingModule(LightningModule):
         for k, v in dct.items():
             if f"{k}_std" in dct:
                 continue
-            self._errors[k](torch.Tensor([v]))
+            self._uncertainties[k](torch.Tensor([v]))
 
-    def _log_errors(self):
-        for k, v in self._errors.items():
+    def _log_errors(self) -> None:
+        for k, v in self._uncertainties.items():
             self.log(k + "_std", v.compute(), on_epoch=True)
 
-    def on_training_epoch_end(self, *args):
+    # noinspection PyUnusedLocal
+    def on_training_epoch_end(self, *args) -> None:
         self._log_errors()
 
     def on_validation_epoch_end(self) -> None:
