@@ -13,8 +13,6 @@ from gnn_tracking.utils.log import logger
 
 # noinspection PyAbstractClass
 class TrackingDataset(Dataset):
-    """Dataloader that works with both point cloud and graphs."""
-
     def __init__(
         self,
         in_dir: str | os.PathLike | list[str] | list[os.PathLike],
@@ -23,6 +21,15 @@ class TrackingDataset(Dataset):
         stop=None,
         sector: int | None = None,
     ):
+        """Dataset for tracking applications
+
+        Args:
+            in_dir: Directory or list of directories containing the data files
+            start: Index of the first file to be considered (with files from the
+                in dirs considered in order)
+            stop: Index of the last file to be considered
+            sector: If not None, only files with this sector number will be considered
+        """
         super().__init__()
         self._processed_paths = self._get_paths(
             in_dir, start=start, stop=stop, sector=sector
@@ -85,13 +92,14 @@ class TrackingDataModule(LightningDataModule):
         test: dict | None = None,
         cpus: int = 1,
     ):
-        """
+        """This subclass of `LightningDataModule` configures all data for the
+        ML pipeline.
 
         Args:
-            train:
-            val:
-            test:
-            cpus:
+            train: Config dictionary for training data (see below)
+            val: Config dictionary for validation data (see below)
+            test: Config dictionary for test data (see below)
+            cpus: Number of CPUs to use for loading data.
 
 
         The following keys are available for each config dictionary:
@@ -113,7 +121,7 @@ class TrackingDataModule(LightningDataModule):
             "val": val,
             "test": test,
         }
-        self._datasets = {}
+        self.datasets = {}
         self._cpus = cpus
 
     def _get_dataset(self, key) -> TrackingDataset:
@@ -129,26 +137,26 @@ class TrackingDataModule(LightningDataModule):
 
     def setup(self, stage: str) -> None:
         if stage == "fit":
-            self._datasets["train"] = self._get_dataset("train")
-            self._datasets["val"] = self._get_dataset("val")
+            self.datasets["train"] = self._get_dataset("train")
+            self.datasets["val"] = self._get_dataset("val")
         elif stage == "test":
-            self._datasets["test"] = self._get_dataset("test")
+            self.datasets["test"] = self._get_dataset("test")
         else:
             _ = f"Unknown stage '{stage}'"
             raise ValueError(_)
 
     def _get_dataloader(self, key):
         sampler = None
-        dataset = self._datasets[key]
+        dataset = self.datasets[key]
         n_samples = len(dataset)
-        if key == "train" and len(self._datasets[key]):
+        if key == "train" and len(self.datasets[key]):
             max_sample_size = self._configs[key].get("max_sample_size", None)
             n_samples = (
                 min(n_samples, max_sample_size) if max_sample_size else n_samples
             )
             replacement = (max_sample_size > len(dataset)) if max_sample_size else False
             sampler = RandomSampler(
-                self._datasets[key],
+                self.datasets[key],
                 replacement=replacement,
                 num_samples=max_sample_size,
             )
@@ -168,3 +176,27 @@ class TrackingDataModule(LightningDataModule):
 
     def test_dataloader(self):
         return self._get_dataloader("test")
+
+
+class TestTrackingDataModule(LightningDataModule):
+    def __init__(self, graphs: list[Data]):
+        """Version of `TrackingDataLoader` only used for testing purposes."""
+        super().__init__()
+        self.graphs = graphs
+        self.datasets = {
+            "train": [graphs[0]],
+            "val": [graphs[1]],
+            "test": [graphs[1]],
+        }
+
+    def setup(self, stage: str) -> None:
+        pass
+
+    def train_dataloader(self):
+        return DataLoader(self.datasets["train"])
+
+    def val_dataloader(self):
+        return DataLoader(self.datasets["val"])
+
+    def test_dataloader(self):
+        return self.datasets["test"]

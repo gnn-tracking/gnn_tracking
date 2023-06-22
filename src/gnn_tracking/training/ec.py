@@ -13,6 +13,7 @@ from gnn_tracking.metrics.binary_classification import (
 )
 from gnn_tracking.training.base import TrackingModule
 from gnn_tracking.utils.lightning import obj_from_or_to_hparams
+from gnn_tracking.utils.oom import tolerate_some_oom_errors
 
 
 class ECModule(TrackingModule):
@@ -34,6 +35,7 @@ class ECModule(TrackingModule):
             pt=data.pt,
         )
 
+    @tolerate_some_oom_errors
     def training_step(self, batch: Data, batch_idx: int) -> Tensor | None:
         batch = self.data_preproc(batch)
         out = self(batch)

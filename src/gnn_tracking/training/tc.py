@@ -11,6 +11,7 @@ from gnn_tracking.postprocessing.dbscanscanner import DBSCANHyperParamScanner
 from gnn_tracking.training.base import TrackingModule
 from gnn_tracking.utils.dictionaries import to_floats
 from gnn_tracking.utils.lightning import obj_from_or_to_hparams
+from gnn_tracking.utils.oom import tolerate_some_oom_errors
 
 
 class TCModule(TrackingModule):
@@ -61,16 +62,20 @@ class TCModule(TrackingModule):
     def get_losses(
         self, out: dict[str, Any], data: Data
     ) -> tuple[Tensor, dict[str, float]]:
+        print(out)
+        print(out["ec_hit_mask"].sum(), (~out["ec_hit_mask"]).sum())
         losses = self.potential_loss(
             x=out["H"],
             particle_id=data.particle_id,
             beta=out["B"],
             pt=data.pt,
             reconstructable=data.reconstructable,
+            ec_hit_mask=out.get("ec_hit_mask", None),
         )
         losses["background"] = self.background_loss(
             beta=out["B"],
             particle_id=data.particle_id,
+            ec_hit_mask=out.get("ec_hit_mask", None),
         )
         lws = {
             "attractive": 1.0,
@@ -82,14 +87,15 @@ class TCModule(TrackingModule):
         losses["total"] = loss
         return loss, to_floats(losses)
 
+    @tolerate_some_oom_errors
     def training_step(self, data: Data, batch_idx: int) -> Tensor:
-        out = self(self.preproc(data))
+        out = self(self.data_preproc(data))
         loss, loss_dct = self.get_losses(out, data)
         self.log_dict(loss_dct, prog_bar=True, on_step=True)
         return loss
 
     def validation_step(self, data: Data, batch_idx: int) -> None:
-        out = self(self.preproc(data))
+        out = self(self.data_preproc(data))
         loss, metrics = self.get_losses(out, data)
         metrics |= self._evaluate_cluster_metrics(out, data, batch_idx)
         self.log_dict_with_errors(metrics)

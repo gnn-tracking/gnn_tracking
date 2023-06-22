@@ -11,26 +11,9 @@ from rich.table import Table
 from torch import Tensor, nn
 from torch_geometric.data import Data
 
+from gnn_tracking.utils.dictionaries import to_floats
 from gnn_tracking.utils.lightning import StandardError, obj_from_or_to_hparams
 from gnn_tracking.utils.log import get_logger
-
-# class SuppressOOMExceptions:
-#     def __init__(self, trainer):
-#         self._trainer = trainer
-#
-#     def __enter__(self):
-#         ...
-#
-#     def __exit__(self, exc_type, exc_value, traceback):
-#         if exc_type == RuntimeError and "out of memory" in str(exc_value):
-#             self._trainer.logg.warning(
-#                 "WARNING: ran out of memory (OOM), skipping batch. "
-#                 "If this happens frequently, decrease the batch size. "
-#                 "Will abort if we get 10 consecutive OOM errors."
-#             )
-#             self._trainer._n_oom_errors_in_a_row += 1
-#             return self._trainer._n_oom_errors_in_a_row < 10
-#         return False
 
 # The following abbreviations are used throughout the code:
 # W: edge weights
@@ -51,6 +34,12 @@ class ImprovedLogLM(LightningModule):
         self._uncertainties = collections.defaultdict(StandardError)
 
     def log_dict_with_errors(self, dct: dict[str, float]) -> None:
+        """Log a dictionary of values with their statistical uncertainties.
+
+        This method only starts calculating the uncertainties. To log them,
+        `_log_errors` needs to be called at the end of the train/val/test epoch
+        (done with the hooks configured in this class).
+        """
         self.log_dict(
             dct,
             on_epoch=True,
@@ -61,6 +50,9 @@ class ImprovedLogLM(LightningModule):
             self._uncertainties[k](torch.Tensor([v]))
 
     def _log_errors(self) -> None:
+        """Log the uncertainties calculated in `log_dict_with_errors`.
+        Needs to be called at the end of the train/val/test epoch.
+        """
         for k, v in self._uncertainties.items():
             self.log(k + "_std", v.compute(), on_epoch=True)
 
@@ -71,16 +63,19 @@ class ImprovedLogLM(LightningModule):
     def on_validation_epoch_end(self) -> None:
         self._log_errors()
 
+    def on_test_epoch_end(self) -> None:
+        self._log_errors()
+
     def format_results_table(
         self,
-        results: dict[str, Tensor | float],
+        results: dict[str, float],
         *,
         header: str = "",
     ) -> Table:
-        """Log the losses
+        """Format a dictionary of results as a rich table.
 
         Args:
-            results:
+            results: Dictionary of results
             header: Header to prepend to the log message
 
         Returns:
@@ -119,7 +114,6 @@ class ImprovedLogLM(LightningModule):
         return False
 
     def on_validation_end(self, *args, **kwargs) -> None:
-        # Don't use on_validation_epoch_end, you'll be off by a linebreak
         metrics = self.trainer.callback_metrics
         if not metrics:
             return
@@ -127,7 +121,7 @@ class ImprovedLogLM(LightningModule):
         console.print("\n")
         console.print(
             self.format_results_table(
-                metrics, header=f"Validation epoch={self.current_epoch}"
+                to_floats(metrics), header=f"Validation epoch={self.current_epoch}"
             )
         )
 
@@ -136,6 +130,7 @@ class TrackingModule(ImprovedLogLM):
     def __init__(
         self,
         model: nn.Module,
+        *,
         optimizer: OptimizerCallable = torch.optim.Adam,
         scheduler: LRSchedulerCallable = torch.optim.lr_scheduler.ConstantLR,
         preproc: nn.Module | None = None,
@@ -152,6 +147,7 @@ class TrackingModule(ImprovedLogLM):
         return self.model.forward(data)
 
     def data_preproc(self, data: Data) -> Data:
+        print("preproc", data)
         if self.preproc is not None:
             return self.preproc(data)
         return data

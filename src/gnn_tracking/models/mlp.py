@@ -1,7 +1,8 @@
 import torch.nn as nn
+from pytorch_lightning.core.mixins import HyperparametersMixin
 
 
-class MLP(nn.Module):
+class MLP(nn.Module, HyperparametersMixin):
     def __init__(
         self,
         input_size: int,
@@ -25,6 +26,7 @@ class MLP(nn.Module):
             include_last_activation: Include activation function for the last layer?
         """
         super().__init__()
+        self.save_hyperparameters()
         if hidden_dim is None:
             hidden_dim = max(input_size, output_size)
         layers = [nn.Linear(input_size, hidden_dim, bias=bias)]
@@ -36,8 +38,6 @@ class MLP(nn.Module):
         if include_last_activation:
             layers.append(nn.ReLU())
         self.layers = nn.ModuleList(layers)
-        self.in_dim = input_size
-        self.out_dim = output_size
 
     def reset_parameters(self):
         for layer in self.layers:

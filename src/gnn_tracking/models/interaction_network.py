@@ -1,4 +1,5 @@
 import torch
+from pytorch_lightning.core.mixins import HyperparametersMixin
 from torch import Tensor as T
 from torch_geometric.nn import MessagePassing
 
@@ -6,7 +7,7 @@ from gnn_tracking.models.mlp import MLP
 
 
 # noinspection PyAbstractClass
-class InteractionNetwork(MessagePassing):
+class InteractionNetwork(MessagePassing, HyperparametersMixin):
     def __init__(
         self,
         *,
@@ -31,6 +32,7 @@ class InteractionNetwork(MessagePassing):
             aggr: How to aggregate the messages
         """
         super().__init__(aggr=aggr, flow="source_to_target")
+        self.save_hyperparameters()
         self.relational_model = MLP(
             2 * node_indim + edge_indim,
             edge_outdim,

@@ -245,13 +245,13 @@ class PotentialLoss(torch.nn.Module, HyperparametersMixin):
         ec_hit_mask: T | None = None,
         **kwargs,
     ) -> dict[str, T]:
-        if ec_hit_mask is None:
-            ec_hit_mask = torch.ones_like(particle_id, dtype=torch.bool)
-        # If a post-EC node mask was applied in the model, then all model outputs
-        # already include this mask, while everything gotten from the data
-        # does not. Hence, we apply it here.
-        particle_id = particle_id[ec_hit_mask]
-        reconstructable = reconstructable[ec_hit_mask]
+        if ec_hit_mask is not None:
+            # If a post-EC node mask was applied in the model, then all model outputs
+            # already include this mask, while everything gotten from the data
+            # does not. Hence, we apply it here.
+            particle_id = particle_id[ec_hit_mask]
+            reconstructable = reconstructable[ec_hit_mask]
+            pt = pt[ec_hit_mask]
         mask = (reconstructable > 0) & (pt > self.pt_thld)
         # If there are no hits left after masking, then we get a NaN loss.
         assert mask.sum() > 0, "No hits left after masking"
@@ -478,6 +478,7 @@ def _hinge_loss_components(
 
 
 class GraphConstructionHingeEmbeddingLoss(nn.Module, HyperparametersMixin):
+    # noinspection PyUnusedLocal
     def __init__(
         self,
         *,
@@ -497,20 +498,16 @@ class GraphConstructionHingeEmbeddingLoss(nn.Module, HyperparametersMixin):
             p_rep: Power for the repulsion term (default 1: linear loss)
         """
         super().__init__()
-        self.r_emb = r_emb
-        self.max_num_neighbors = max_num_neighbors
-        self.attr_pt_thld = attr_pt_thld
-        self.p_attr = p_attr
-        self.p_rep = p_rep
+        self.save_hyperparameters()
 
     def _build_graph(self, x: T, batch: T, true_edges: T, pt: T) -> T:
-        true_edge_mask = pt[true_edges[0]] > self.attr_pt_thld
+        true_edge_mask = pt[true_edges[0]] > self.hparams.attr_pt_thld
         near_edges = radius_graph(
             x,
-            r=self.r_emb,
+            r=self.hparams.r_emb,
             batch=batch,
             loop=False,
-            max_num_neighbors=self.max_num_neighbors,
+            max_num_neighbors=self.hparams.max_num_neighbors,
         )
         return torch.unique(
             torch.cat([true_edges[:, true_edge_mask], near_edges], dim=-1), dim=-1
@@ -525,11 +522,11 @@ class GraphConstructionHingeEmbeddingLoss(nn.Module, HyperparametersMixin):
             x=x,
             edge_index=edge_index,
             particle_id=particle_id,
-            r_emb_hinge=self.r_emb,
+            r_emb_hinge=self.hparams.r_emb,
             pt=pt,
-            pt_thld=self.attr_pt_thld,
-            p_attr=self.p_attr,
-            p_rep=self.p_rep,
+            pt_thld=self.hparams.attr_pt_thld,
+            p_attr=self.hparams.p_attr,
+            p_rep=self.hparams.p_rep,
         )
         return {
             "attractive": attr,

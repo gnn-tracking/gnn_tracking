@@ -26,7 +26,6 @@ class ECForGraphTCN(nn.Module, HyperparametersMixin):
         use_intermediate_edge_embeddings: bool = True,
         use_node_embedding: bool = True,
         residual_kwargs: dict | None = None,
-        **kwargs,
     ):
         """Edge classification step to be used for Graph Track Condensor network
         (Graph TCN)
@@ -53,7 +52,7 @@ class ECForGraphTCN(nn.Module, HyperparametersMixin):
                 EC
             residual_kwargs: Keyword arguments passed to `ResIN`
         """
-        super().__init__(**kwargs)
+        super().__init__()
         self.save_hyperparameters()
         if residual_kwargs is None:
             residual_kwargs = {}

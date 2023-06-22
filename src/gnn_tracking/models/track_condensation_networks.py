@@ -6,7 +6,7 @@ import torch.nn as nn
 from pytorch_lightning.core.mixins import HyperparametersMixin
 from torch import Tensor
 from torch_geometric.data import Data
-from torch_geometric.utils import remove_isolated_nodes
+from torch_geometric.utils import index_to_mask
 
 from gnn_tracking.models.dynamic_edge_conv import DynamicEdgeConv
 from gnn_tracking.models.edge_classifier import ECForGraphTCN, PerfectEdgeClassification
@@ -114,7 +114,8 @@ class PointCloudTCN(nn.Module):
         return {"W": None, "H": h_out, "B": beta.squeeze(), "P": None}
 
 
-class ModularGraphTCN(nn.Module):
+class ModularGraphTCN(nn.Module, HyperparametersMixin):
+    # noinspection PyUnusedLocals
     def __init__(
         self,
         *,
@@ -151,6 +152,7 @@ class ModularGraphTCN(nn.Module):
                 also the dimensions used in the EC.
         """
         super().__init__()
+        self.save_hyperparameters(ignore=["ec", "hc_in"])
         self.relu = nn.ReLU()
 
         #: Edge classification network
@@ -192,10 +194,6 @@ class ModularGraphTCN(nn.Module):
         #     node_hidden_dim=hidden_dim,
         #     edge_hidden_dim=hidden_dim,
         # )
-        self._feed_edge_weights = feed_edge_weights
-        self.threshold = ec_threshold
-        self._mask_orphan_nodes = mask_orphan_nodes
-        self._use_ec_embeddings_for_hc = use_ec_embeddings_for_hc
 
     def forward(
         self,
@@ -212,15 +210,15 @@ class ModularGraphTCN(nn.Module):
             data.ec_node_embedding = ec_result.get("node_embedding", None)
             data.ec_edge_embedding = ec_result.get("edge_embedding", None)
             edge_weights_unmasked = data.edge_weights.squeeze()
-            edge_mask = (data.edge_weights > self.threshold).squeeze()
+            edge_mask = (data.edge_weights > self.hparams.ec_threshold).squeeze()
             data = edge_subgraph(data, edge_mask)
 
-            if self._mask_orphan_nodes:
+            if self.hparams.mask_orphan_nodes:
                 # Edge features do not need to be updated since there
                 # are no loops (not affected by labeling)
-                data.edge_index, _, hit_mask = remove_isolated_nodes(data.edge_index)
-                for key, value in data:
-                    data[key] = value[hit_mask] if data.is_node_attr(key) else data[key]
+                connected_nodes = data.edge_index.flatten().unique()
+                hit_mask = index_to_mask(connected_nodes, size=data.num_nodes)
+                data = data.subgraph(connected_nodes)
             else:
                 hit_mask = torch.ones(
                     data.num_nodes, dtype=torch.bool, device=data.x.device
@@ -229,17 +227,19 @@ class ModularGraphTCN(nn.Module):
         # Get the encoded inputs for the track condenser
         _edge_attrs = [data.edge_attr]
         _xs = [data.x]
-        if self._use_ec_embeddings_for_hc:
+        if self.hparams.use_ec_embeddings_for_hc:
             assert data.ec_edge_embedding is not None
             assert data.ec_node_embedding is not None
+            print("de", data.ec_node_embedding.shape)
+            print("ea", data.x.shape)
             _edge_attrs.append(data.ec_edge_embedding)
             _xs.append(data.ec_node_embedding)
-        if self._feed_edge_weights:
+        if self.hparams.feed_edge_weights:
             _edge_attrs.append(data.edge_weights)
         x = torch.cat(_xs, dim=1)
         edge_attrs = torch.cat(_edge_attrs, dim=1)
-        assert_feat_dim(x, self.hc_node_encoder.in_dim)
-        assert_feat_dim(edge_attrs, self.hc_edge_encoder.in_dim)
+        assert_feat_dim(x, self.hc_node_encoder.hparams.input_size)
+        assert_feat_dim(edge_attrs, self.hc_edge_encoder.hparams.input_size)
         h_hc = self.relu(self.hc_node_encoder(x))
         edge_attr_hc = self.relu(self.hc_edge_encoder(edge_attrs))
 
@@ -262,7 +262,7 @@ class ModularGraphTCN(nn.Module):
         }
 
 
-class GraphTCN(nn.Module):
+class GraphTCN(nn.Module, HyperparametersMixin):
     def __init__(
         self,
         node_indim: int,
@@ -298,6 +298,7 @@ class GraphTCN(nn.Module):
             **kwargs: Additional keyword arguments passed to `ModularGraphTCN`
         """
         super().__init__()
+        self.save_hyperparameters()
         ec = ECForGraphTCN(
             node_indim=node_indim,
             edge_indim=edge_indim,
@@ -335,7 +336,7 @@ class GraphTCN(nn.Module):
         return self._gtcn.forward(data=data)
 
 
-class PerfectECGraphTCN(nn.Module):
+class PerfectECGraphTCN(nn.Module, HyperparametersMixin):
     def __init__(
         self,
         *,
@@ -370,6 +371,7 @@ class PerfectECGraphTCN(nn.Module):
             **kwargs: Passed to `ModularGraphTCN`
         """
         super().__init__()
+        self.save_hyperparameters()
         ec = PerfectEdgeClassification(tpr=ec_tpr, tnr=ec_tnr)
         hc_in = ResIN(
             node_dim=h_dim,
@@ -411,7 +413,10 @@ class PreTrainedECGraphTCN(nn.Module, HyperparametersMixin):
         hidden_dim=40,
         L_hc=3,
         alpha_hc: float = 0.5,
-        **kwargs,
+        feed_edge_weights=False,
+        ec_threshold=0.5,
+        mask_orphan_nodes=False,
+        use_ec_embeddings_for_hc=False,
     ):
         """GraphTCN for the use with a pre-trained edge classifier
 
@@ -428,8 +433,8 @@ class PreTrainedECGraphTCN(nn.Module, HyperparametersMixin):
             alpha_hc: strength of residual connection for multi-layer interaction
                 networks
         """
-        super().__init__(**kwargs)
-        self.save_hyperparameters()
+        super().__init__()
+        self.save_hyperparameters(ignore=["ec"])
         hc_in = ResIN(
             node_dim=h_dim,
             edge_dim=e_dim,
@@ -438,7 +443,6 @@ class PreTrainedECGraphTCN(nn.Module, HyperparametersMixin):
             alpha=alpha_hc,
             n_layers=L_hc,
         )
-        # todo: Be able to configure ModularGraphTCN
         self._gtcn = ModularGraphTCN(
             ec=ec,
             hc_in=hc_in,
@@ -448,6 +452,10 @@ class PreTrainedECGraphTCN(nn.Module, HyperparametersMixin):
             e_dim=e_dim,
             h_outdim=h_outdim,
             hidden_dim=hidden_dim,
+            feed_edge_weights=feed_edge_weights,
+            ec_threshold=ec_threshold,
+            mask_orphan_nodes=mask_orphan_nodes,
+            use_ec_embeddings_for_hc=use_ec_embeddings_for_hc,
         )
 
     def forward(

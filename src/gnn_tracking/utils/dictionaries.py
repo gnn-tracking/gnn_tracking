@@ -57,7 +57,7 @@ def to_floats(inpt: Any) -> Any:
     elif isinstance(inpt, list):
         return [to_floats(v) for v in inpt]
     elif isinstance(inpt, torch.Tensor):
-        return inpt.float()
+        return float(inpt)
     return inpt
 
 
