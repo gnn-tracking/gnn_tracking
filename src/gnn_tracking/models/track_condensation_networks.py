@@ -36,8 +36,8 @@ class INConvBlock(nn.Module):
         for _ in range(L):
             layers.append(
                 IN(
-                    h_dim,
-                    e_dim,
+                    node_indim=h_dim,
+                    edge_indim=e_dim,
                     node_outdim=h_dim,
                     edge_outdim=e_dim,
                     node_hidden_dim=hidden_dim,
