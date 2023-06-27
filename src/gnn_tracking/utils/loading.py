@@ -1,13 +1,11 @@
-from __future__ import annotations
-
 import itertools
 import os
 from pathlib import Path
-from typing import Any
 
 import torch
+from pytorch_lightning import LightningDataModule
 from torch.utils.data import RandomSampler
-from torch_geometric.data import Data, Dataset, InMemoryDataset
+from torch_geometric.data import Data, Dataset
 from torch_geometric.loader import DataLoader
 
 from gnn_tracking.utils.log import logger
@@ -15,8 +13,6 @@ from gnn_tracking.utils.log import logger
 
 # noinspection PyAbstractClass
 class TrackingDataset(Dataset):
-    """Dataloader that works with both point cloud and graphs."""
-
     def __init__(
         self,
         in_dir: str | os.PathLike | list[str] | list[os.PathLike],
@@ -25,6 +21,15 @@ class TrackingDataset(Dataset):
         stop=None,
         sector: int | None = None,
     ):
+        """Dataset for tracking applications
+
+        Args:
+            in_dir: Directory or list of directories containing the data files
+            start: Index of the first file to be considered (with files from the
+                in dirs considered in order)
+            stop: Index of the last file to be considered
+            sector: If not None, only files with this sector number will be considered
+        """
         super().__init__()
         self._processed_paths = self._get_paths(
             in_dir, start=start, stop=stop, sector=sector
@@ -78,61 +83,120 @@ class TrackingDataset(Dataset):
         return torch.load(self._processed_paths[idx])
 
 
-# noinspection PyAbstractClass
-class InMemoryTrackingDataset(InMemoryDataset, TrackingDataset):
-    pass
+class TrackingDataModule(LightningDataModule):
+    def __init__(
+        self,
+        *,
+        train: dict | None = None,
+        val: dict | None = None,
+        test: dict | None = None,
+        cpus: int = 1,
+    ):
+        """This subclass of `LightningDataModule` configures all data for the
+        ML pipeline.
+
+        Args:
+            train: Config dictionary for training data (see below)
+            val: Config dictionary for validation data (see below)
+            test: Config dictionary for test data (see below)
+            cpus: Number of CPUs to use for loading data.
 
 
-def get_loaders(
-    ds_dct: dict[str, list[Data] | Dataset],
-    *,
-    batch_size=1,
-    cpus=1,
-    other_batch_size=1,
-    max_sample_size: int | None = None,
-) -> dict[str, DataLoader]:
-    """Get data loaders from a dictionary of lists of input graph.
+        The following keys are available for each config dictionary:
 
-    Args:
-        ds_dct: Mapping from dataset name (e.g., train/test/val) to list of graphs
-            Special options apply to the 'train' key.
-        batch_size: Batch size for training data loaders
-        other_batch_size: Batch size for data loaders other than training
-        cpus: Number of CPUs for data loaders
-        max_sample_size: Maximum size of samples to load for 'train' per epoch.
-            If None, all.
-            This doesn't mean that the data loader will only load this many samples.
-            Rather, this only affects the number of samples that are loaded per
-            epoch.
+        - `dirs`: List of dirs to load from (required)
+        - `start=0`: Index of first file to load
+        - `stop=None`: Index of last file to load
+        - `sector=None`: Sector to load from (if None, load all sectors)
+        - `batch_size=1`: Batch size
 
-    Returns:
-        Dictionary of data loaders
-    """
+        Training has the following additional keys:
 
-    def get_params(key: str) -> dict[str, Any]:
+        - `max_sample_size=None`: Maximum number of samples to load for each epoch
+            (if None, load all samples)
+        """
+        super().__init__()
+        self._configs = {
+            "train": train,
+            "val": val,
+            "test": test,
+        }
+        self.datasets = {}
+        self._cpus = cpus
+
+    def _get_dataset(self, key) -> TrackingDataset:
+        config = self._configs[key]
+        if config is None:
+            raise ValueError(f"DataLoaderConfig for key {key} is None.")
+        return TrackingDataset(
+            in_dir=config["dirs"],
+            start=config.get("start", 0),
+            stop=config.get("stop", None),
+            sector=config.get("sector", None),
+        )
+
+    def setup(self, stage: str) -> None:
+        if stage == "fit":
+            self.datasets["train"] = self._get_dataset("train")
+            self.datasets["val"] = self._get_dataset("val")
+        elif stage == "test":
+            self.datasets["test"] = self._get_dataset("test")
+        else:
+            _ = f"Unknown stage '{stage}'"
+            raise ValueError(_)
+
+    def _get_dataloader(self, key):
         sampler = None
-        shuffle = key == "train"
-        if key == "train" and len(ds_dct[key]):
-            replacement = (
-                (max_sample_size > len(ds_dct[key])) if max_sample_size else False
+        dataset = self.datasets[key]
+        n_samples = len(dataset)
+        if key == "train" and len(self.datasets[key]):
+            max_sample_size = self._configs[key].get("max_sample_size", None)
+            n_samples = (
+                min(n_samples, max_sample_size) if max_sample_size else n_samples
             )
+            replacement = (max_sample_size > len(dataset)) if max_sample_size else False
             sampler = RandomSampler(
-                ds_dct[key],
+                self.datasets[key],
                 replacement=replacement,
                 num_samples=max_sample_size,
             )
-            shuffle = None
-        return {
-            "batch_size": batch_size if key == "train" else other_batch_size,
-            "num_workers": max(1, min(len(ds_dct[key]), cpus)),
-            "sampler": sampler,
-            "pin_memory": True,
-            "shuffle": shuffle,
+        return DataLoader(
+            dataset,
+            batch_size=self._configs[key].get("batch_size", 1),
+            num_workers=max(1, min(n_samples, self._cpus)),
+            sampler=sampler,
+            pin_memory=True,
+        )
+
+    def train_dataloader(self):
+        return self._get_dataloader("train")
+
+    def val_dataloader(self):
+        return self._get_dataloader("val")
+
+    def test_dataloader(self):
+        return self._get_dataloader("test")
+
+
+class TestTrackingDataModule(LightningDataModule):
+    def __init__(self, graphs: list[Data]):
+        """Version of `TrackingDataLoader` only used for testing purposes."""
+        super().__init__()
+        self.graphs = graphs
+        self.datasets = {
+            "train": [graphs[0]],
+            "val": [graphs[1]],
+            "test": [graphs[1]],
         }
 
-    loaders = {}
-    for key, ds in ds_dct.items():
-        params = get_params(key)
-        logger.debug("Parameters for data loader '%s': %s", key, params)
-        loaders[key] = DataLoader(ds, **params)
-    return loaders
+    def setup(self, stage: str) -> None:
+        pass
+
+    def train_dataloader(self):
+        return DataLoader(self.datasets["train"])
+
+    def val_dataloader(self):
+        return DataLoader(self.datasets["val"])
+
+    def test_dataloader(self):
+        return self.datasets["test"]

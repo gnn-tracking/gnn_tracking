@@ -1,56 +1,17 @@
-from __future__ import annotations
+"""Models for edge classification"""
 
 import numpy as np
 import torch
+from pytorch_lightning.core.mixins import HyperparametersMixin
 from torch import Tensor, nn
 from torch_geometric.data import Data
 
-from gnn_tracking.models.interaction_network import InteractionNetwork as IN
 from gnn_tracking.models.mlp import MLP
 from gnn_tracking.models.resin import ResIN
 from gnn_tracking.utils.asserts import assert_feat_dim
 
 
-class EdgeClassifier(nn.Module):
-    def __init__(
-        self,
-        node_indim,
-        edge_indim,
-        L=4,
-        node_latentdim=8,
-        edge_latentdim=12,
-        r_hidden_size=32,
-        o_hidden_size=32,
-    ):
-        super().__init__()
-        self.node_encoder = MLP(node_indim, node_latentdim, 64, L=1)
-        self.edge_encoder = MLP(edge_indim, edge_latentdim, 64, L=1)
-        gnn_layers = []
-        for _l in range(L):
-            # fixme: Wrong parameters?
-            gnn_layers.append(
-                IN(
-                    node_latentdim,
-                    edge_latentdim,
-                    node_outdim=node_latentdim,
-                    edge_outdim=edge_latentdim,
-                    edge_hidden_dim=r_hidden_size,
-                    node_hidden_dim=o_hidden_size,
-                )
-            )
-        self.gnn_layers = nn.ModuleList(gnn_layers)
-        self.W = MLP(edge_latentdim, 1, 32, L=2)
-
-    def forward(self, x: Tensor, edge_index: Tensor, edge_attr: Tensor) -> Tensor:
-        node_latent = self.node_encoder(x)
-        edge_latent = self.edge_encoder(edge_attr)
-        for layer in self.gnn_layers:
-            node_latent, edge_latent = layer(node_latent, edge_index, edge_latent)
-        edge_weights = torch.sigmoid(self.W(edge_latent))
-        return edge_weights
-
-
-class ECForGraphTCN(nn.Module):
+class ECForGraphTCN(nn.Module, HyperparametersMixin):
     def __init__(
         self,
         *,
@@ -92,12 +53,11 @@ class ECForGraphTCN(nn.Module):
             residual_kwargs: Keyword arguments passed to `ResIN`
         """
         super().__init__()
+        self.save_hyperparameters()
         if residual_kwargs is None:
             residual_kwargs = {}
         residual_kwargs["collect_hidden_edge_embeds"] = use_intermediate_edge_embeddings
         self.relu = nn.ReLU()
-        self.node_indim = node_indim
-        self.edge_indim = edge_indim
         self.ec_node_encoder = MLP(
             node_indim, interaction_node_dim, hidden_dim=hidden_dim, L=2, bias=False
         )
@@ -121,8 +81,6 @@ class ECForGraphTCN(nn.Module):
         if use_node_embedding:
             w_input_dim += interaction_node_dim * 2
         self.W = MLP(input_size=w_input_dim, output_size=1, hidden_dim=hidden_dim, L=3)
-        self._use_intermediate_edge_embeddings = use_intermediate_edge_embeddings
-        self._use_node_embedding = use_node_embedding
 
         # node, edge dim of space before final MLP for w output
         self.latent_dim = (interaction_node_dim, interaction_edge_dim)
@@ -138,8 +96,8 @@ class ECForGraphTCN(nn.Module):
         * ``edge_embedding``: Last edge embedding (result of last interaction network)
         """
         x, edge_index, edge_attr = data.x, data.edge_index, data.edge_attr
-        assert_feat_dim(x, self.node_indim)
-        assert_feat_dim(edge_attr, self.edge_indim)
+        assert_feat_dim(x, self.hparams.node_indim)
+        assert_feat_dim(edge_attr, self.hparams.edge_indim)
         h_ec = self.relu(self.ec_node_encoder(x))
         edge_attr_ec = self.relu(self.ec_edge_encoder(edge_attr))
         h_ec, edge_attr_ec, edge_attrs_ec = self.ec_resin(
@@ -147,9 +105,9 @@ class ECForGraphTCN(nn.Module):
         )
 
         w_input = edge_attr_ec
-        if self._use_intermediate_edge_embeddings:
+        if self.hparams.use_intermediate_edge_embeddings:
             w_input = torch.cat(edge_attrs_ec, dim=1)
-        if self._use_node_embedding:
+        if self.hparams.use_node_embedding:
             h_ec_0 = h_ec[edge_index[0]]
             h_ec_1 = h_ec[edge_index[1]]
             w_input = torch.cat([h_ec_0, h_ec_1, w_input], dim=1)
@@ -162,7 +120,7 @@ class ECForGraphTCN(nn.Module):
         }
 
 
-class PerfectEdgeClassification(nn.Module):
+class PerfectEdgeClassification(nn.Module, HyperparametersMixin):
     def __init__(self, tpr=1.0, tnr=1.0, false_below_pt=0.0):
         """An edge classifier that is perfect because it uses the truth information.
         If TPR or TNR is not 1.0, noise is added to the truth information.
@@ -179,6 +137,7 @@ class PerfectEdgeClassification(nn.Module):
                 This is not counted towards the TPR/TNR but applied afterwards.
         """
         super().__init__()
+        self.save_hyperparameters()
         assert 0.0 <= tpr <= 1.0
         self.tpr = tpr
         assert 0.0 <= tnr <= 1.0

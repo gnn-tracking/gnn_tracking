@@ -1,19 +1,23 @@
-from __future__ import annotations
+"""Models for embeddings used for graph construction."""
 
 import math
 
 import numpy as np
 import torch.nn
+from pytorch_lightning.core.mixins import HyperparametersMixin
 from torch import Tensor as T
+from torch import nn
 from torch.nn import Linear, ModuleList, init
 from torch.nn.functional import normalize, relu
 from torch_cluster import knn_graph
 from torch_geometric.data import Data
 
+from gnn_tracking.utils.lightning import get_model
 from gnn_tracking.utils.log import logger
 
 
-class GraphConstructionFCNN(torch.nn.Module):
+class GraphConstructionFCNN(nn.Module, HyperparametersMixin):
+    # noinspection PyUnusedLocal
     def __init__(
         self,
         *,
@@ -32,28 +36,26 @@ class GraphConstructionFCNN(torch.nn.Module):
             depth: Number of layers
             beta: Strength of residual connections
         """
+
         super().__init__()
-        self.in_dim = in_dim
-        self.hidden_dim = hidden_dim
-        self.out_dim = out_dim
-        self.beta = beta
+        self.save_hyperparameters()
 
-        self.encoder = Linear(in_dim, hidden_dim, bias=False)
-        self.decoder = Linear(hidden_dim, out_dim, bias=False)
+        self._encoder = Linear(in_dim, hidden_dim, bias=False)
+        self._decoder = Linear(hidden_dim, out_dim, bias=False)
 
-        self.layers = ModuleList(
+        self._layers = ModuleList(
             [Linear(hidden_dim, hidden_dim, bias=False) for _ in range(depth - 1)]
         )
-        self.latent_normalization = torch.nn.Parameter(
+        self._latent_normalization = torch.nn.Parameter(
             torch.Tensor([1.0]), requires_grad=True
         )
         self.reset_parameters()
 
     def reset_parameters(self):
-        self._reset_layer_parameters(self.encoder, var=1 / self.in_dim)
-        for layer in self.layers:
-            self._reset_layer_parameters(layer, var=2 / self.hidden_dim)
-        self._reset_layer_parameters(self.decoder, var=2 / self.hidden_dim)
+        self._reset_layer_parameters(self._encoder, var=1 / self.hparams.in_dim)
+        for layer in self._layers:
+            self._reset_layer_parameters(layer, var=2 / self.hparams.hidden_dim)
+        self._reset_layer_parameters(self._decoder, var=2 / self.hparams.hidden_dim)
 
     @staticmethod
     def _reset_layer_parameters(layer, var: float):
@@ -62,14 +64,17 @@ class GraphConstructionFCNN(torch.nn.Module):
             init.normal_(p.data, mean=0, std=math.sqrt(var))
 
     def forward(self, data: Data) -> dict[str, T]:
-        assert data.x.shape[1] == self.in_dim
+        assert data.x.shape[1] == self.hparams.in_dim
         x = normalize(data.x, p=2.0, dim=1, eps=1e-12, out=None)
-        x = self.encoder(x)
-        for layer in self.layers:
-            x = np.sqrt(self.beta) * layer(relu(x)) + np.sqrt(1 - self.beta) * x
-        x = self.decoder(relu(x))
-        x *= self.latent_normalization
-        assert x.shape[1] == self.out_dim
+        x = self._encoder(x)
+        for layer in self._layers:
+            x = (
+                np.sqrt(self.hparams.beta) * layer(relu(x))
+                + np.sqrt(1 - self.hparams.beta) * x
+            )
+        x = self._decoder(relu(x))
+        x *= self._latent_normalization
+        assert x.shape[1] == self.hparams.out_dim
         return {"H": x}
 
 
@@ -91,24 +96,24 @@ def knn_with_max_radius(x: T, k: int, max_radius: float | None = None) -> T:
     return edge_index
 
 
-class MLGraphConstruction(torch.nn.Module):
+class MLGraphConstruction(nn.Module):
     def __init__(
         self,
         ml: torch.nn.Module,
         *,
-        ef: torch.nn.Module | None = None,
+        ec: torch.nn.Module | None = None,
         max_radius: float = 1,
         max_num_neighbors: int = 256,
         use_embedding_features=False,
         ratio_of_false=None,
         build_edge_features=True,
-        ef_threshold=None,
+        ec_threshold=None,
     ):
         """Builds graph from embedding space.
 
         Args:
-            ml: Metric learning embedding
-            ef: Directly apply edge filter
+            ml: Metric learning embedding module
+            ec: Directly apply edge filter
             max_radius: Maximum radius for kNN
             max_num_neighbors: Number of neighbors for kNN
             use_embedding_features: Add embedding space features to node features
@@ -117,13 +122,13 @@ class MLGraphConstruction(torch.nn.Module):
         """
         super().__init__()
         self._ml = ml
-        self._ef = ef
+        self._ef = ec
         self._max_radius = max_radius
         self._max_num_neighbors = max_num_neighbors
         self._use_embedding_features = use_embedding_features
         self._ratio_of_false = ratio_of_false
         self._build_edge_features = build_edge_features
-        self._ef_threshold = ef_threshold
+        self._ef_threshold = ec_threshold
         if self._ef is not None and self._ef_threshold is None:
             raise ValueError("ef_threshold must be set if ef is not None")
         if build_edge_features and ratio_of_false:
@@ -189,3 +194,39 @@ class MLGraphConstruction(torch.nn.Module):
             reconstructable=data.reconstructable,
             edge_attr=edge_features,
         )
+
+
+class MLGraphConstructionFromChkpt(nn.Module, HyperparametersMixin):
+    # noinspection PyUnusedLocal
+    def __init__(
+        self,
+        *,
+        ml_class_name: str = "gnn_tracking.training.ml.MLModule",
+        ml_chkpt_path: str = "",
+        ec_class_name: str = None,
+        ec_chkpt_path: str | None = None,
+        max_radius: float = 1,
+        max_num_neighbors: int = 256,
+        ratio_of_false=None,
+        build_edge_features=True,
+        ec_thld: float | None = None,
+        ml_freeze: bool = True,
+        ec_freeze: bool = True,
+    ):
+        """Wrapper around MLGraphConstruction but loads all modules from checkpoints."""
+        super().__init__()
+        self.save_hyperparameters()
+        ml = get_model(ml_class_name, ml_chkpt_path)
+        ec = get_model(ec_class_name, ec_chkpt_path)
+        self._gc = MLGraphConstruction(
+            ml=ml,
+            max_radius=max_radius,
+            max_num_neighbors=max_num_neighbors,
+            ratio_of_false=ratio_of_false,
+            build_edge_features=build_edge_features,
+            ec=ec,
+            ec_threshold=ec_thld,
+        )
+
+    def forward(self, data: Data) -> Data:
+        return self._gc(data)

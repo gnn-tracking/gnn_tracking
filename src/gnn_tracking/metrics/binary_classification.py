@@ -1,9 +1,8 @@
 """This class collects figures of merit for binary classification"""
 
 
-from __future__ import annotations
-
 from functools import cached_property
+from typing import Iterable
 
 import numpy as np
 import torch
@@ -11,7 +10,6 @@ from torchmetrics.classification import BinaryAUROC
 
 from gnn_tracking.utils.device import guess_device
 from gnn_tracking.utils.log import logger
-from gnn_tracking.utils.types import assert_int
 
 
 class BinaryClassificationStats:
@@ -29,9 +27,8 @@ class BinaryClassificationStats:
         Returns:
             accuracy, TPR, TNR
         """
-        assert_int(y)
         self._output = output
-        self._y = y
+        self._y = y.int()
         self._thld = thld
 
     @cached_property
@@ -215,3 +212,54 @@ def roc_auc_score(
     except ValueError as e:
         logger.error(e)
         return float("nan")
+
+
+def get_roc_auc_scores(true, predicted, max_fprs: Iterable[float | None]):
+    """Calculate ROC AUC scores for a given set of maximum FPRs."""
+    metrics = {}
+    if None in max_fprs:
+        metrics["roc_auc"] = roc_auc_score(y_true=true, y_score=predicted)
+    for max_fpr in max_fprs:
+        if max_fpr is None:
+            continue
+        metrics[f"roc_auc_{max_fpr}FPR"] = roc_auc_score(
+            y_true=true,
+            y_score=predicted,
+            max_fpr=max_fpr,
+        )
+    return metrics
+
+
+# Also add this to EC metrics
+# | get_maximized_bcs(output=predicted, y=true)
+
+
+# def get_binary_classification_metrics_at_thld(
+#     *, edge_index: T, pt: T, w: T, y: T, pt_min: float, thld: float
+# ) -> dict[str, float]:
+#     """Evaluate edge classification metrics for a given pt threshold and
+#     EC threshold.
+#
+#     Args:
+#         pt_min: pt threshold: We discard all edges where both nodes have
+#             `pt <= pt_min` before evaluating any metric.
+#         thld: EC threshold
+#
+#     Returns:
+#         Dictionary of metrics
+#     """
+#     pt_a = pt[edge_index[0]]
+#     pt_b = pt[edge_index[1]]
+#     edge_pt_mask = (pt_a > pt_min) | (pt_b > pt_min)
+#
+#     predicted = w[edge_pt_mask]
+#     true = y[edge_pt_mask].long()
+#
+#     bcs = BinaryClassificationStats(
+#         output=predicted,
+#         y=true,
+#         thld=thld,
+#     )
+#     metrics = bcs.get_all()
+#     return {denote_pt(k, pt_min): v for k, v in metrics.items()}
+#

@@ -22,8 +22,6 @@ repos:
           [
             "--profile",
             "black",
-            "-a",
-            "from __future__ import annotations",
             "--append-only",
           ]
         exclude: "^slurm/.*"

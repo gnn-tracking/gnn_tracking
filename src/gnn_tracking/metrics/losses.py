@@ -1,22 +1,20 @@
 """This module contains loss functions for the GNN tracking model."""
 
-from __future__ import annotations
-
 import copy
 import math
 from abc import ABC, abstractmethod
 from typing import Any, Mapping, Protocol, Union
 
 import torch
+from pytorch_lightning.core.mixins import HyperparametersMixin
 from torch import Tensor
+from torch import Tensor as T
+from torch import nn
 from torch.linalg import norm
 from torch.nn.functional import binary_cross_entropy, mse_loss, relu
 from torch_cluster import radius_graph
-from typing_extensions import TypeAlias
 
 from gnn_tracking.utils.log import logger
-
-T: TypeAlias = torch.Tensor
 
 
 @torch.jit.script
@@ -63,6 +61,7 @@ def binary_focal_loss(
     assert 0 <= alpha <= 1
     assert not torch.isnan(inpt).any()
     assert not torch.isnan(target).any()
+    assert pos_weight is not None
 
     # JIT compilation does not support optional arguments
     return _binary_focal_loss(
@@ -98,18 +97,18 @@ def falsify_low_pt_edges(
     return y.bool() & (pt[edge_index[0, :]] > pt_thld)
 
 
-class FalsifyLowPtEdgeWeightLoss(torch.nn.Module, ABC):
-    def __init__(self, *, pt_thld: float = 0.0, **kwargs):
+class FalsifyLowPtEdgeWeightLoss(torch.nn.Module, ABC, HyperparametersMixin):
+    def __init__(self, *, pt_thld: float = 0.0):
         """Add an option to falsify edges with low pt to edge classification losses."""
-        super().__init__(**kwargs)
-        self.pt_thld = pt_thld
+        super().__init__()
+        self.save_hyperparameters()
 
     # noinspection PyUnusedLocal
     def forward(
         self, *, w: T, y: T, edge_index: T | None = None, pt: T | None = None, **kwargs
     ) -> T:
         y = falsify_low_pt_edges(
-            y=y, edge_index=edge_index, pt=pt, pt_thld=self.pt_thld
+            y=y, edge_index=edge_index, pt=pt, pt_thld=self.hparams.pt_thld
         )
         return self._forward(y=y, w=w)
 
@@ -127,6 +126,7 @@ class EdgeWeightBCELoss(FalsifyLowPtEdgeWeightLoss):
 
 
 class EdgeWeightFocalLoss(FalsifyLowPtEdgeWeightLoss):
+    # noinspection PyUnusedLocal
     def __init__(
         self,
         *,
@@ -139,17 +139,17 @@ class EdgeWeightFocalLoss(FalsifyLowPtEdgeWeightLoss):
         See `binary_focal_loss` for details.
         """
         super().__init__(**kwargs)
-        self.alpha = alpha
-        self.gamma = gamma
-        self.pos_weight = pos_weight
+        if pos_weight is None:
+            pos_weight = T([1.0])
+        self.save_hyperparameters()
 
     def _forward(self, *, w: T, y: T, **kwargs) -> T:
         return binary_focal_loss(
             inpt=w,
             target=y,
-            alpha=self.alpha,
-            gamma=self.gamma,
-            pos_weight=self.pos_weight,
+            alpha=self.hparams.alpha,
+            gamma=self.hparams.gamma,
+            pos_weight=self.hparams.pos_weight,
         )
 
 
@@ -201,6 +201,7 @@ def _condensation_loss(
     q = torch.arctanh(beta) ** 2 + q_min
     assert not torch.isnan(q).any(), "q contains NaNs"
     alphas = torch.argmax(q[:, None] * pid_masks, dim=0)
+
     # n_pids x n_outdim
     x_alphas = x[alphas]
     # 1 x n_pids
@@ -220,7 +221,7 @@ def _condensation_loss(
     }
 
 
-class PotentialLoss(torch.nn.Module):
+class PotentialLoss(torch.nn.Module, HyperparametersMixin):
     def __init__(self, q_min=0.01, radius_threshold=10.0, attr_pt_thld=0.9):
         """Potential/condensation loss (specific to object condensation approach).
 
@@ -231,6 +232,7 @@ class PotentialLoss(torch.nn.Module):
                 attractive loss [GeV]
         """
         super().__init__()
+        self.save_hyperparameters()
         self.q_min = q_min
         self.radius_threshold = radius_threshold
         self.pt_thld = attr_pt_thld
@@ -243,17 +245,18 @@ class PotentialLoss(torch.nn.Module):
         x: T,
         particle_id: T,
         reconstructable: T,
-        track_params: T,
-        ec_hit_mask: T,
+        pt: T,
+        ec_hit_mask: T | None = None,
         **kwargs,
     ) -> dict[str, T]:
-        # If a post-EC node mask was applied in the model, then all model outputs
-        # already include this mask, while everything gotten from the data
-        # does not. Hence, we apply it here.
-        particle_id = particle_id[ec_hit_mask]
-        reconstructable = reconstructable[ec_hit_mask]
-        track_params = track_params[ec_hit_mask]
-        mask = (reconstructable > 0) & (track_params > self.pt_thld)
+        if ec_hit_mask is not None:
+            # If a post-EC node mask was applied in the model, then all model outputs
+            # already include this mask, while everything gotten from the data
+            # does not. Hence, we apply it here.
+            particle_id = particle_id[ec_hit_mask]
+            reconstructable = reconstructable[ec_hit_mask]
+            pt = pt[ec_hit_mask]
+        mask = (reconstructable > 0) & (pt > self.pt_thld)
         # If there are no hits left after masking, then we get a NaN loss.
         assert mask.sum() > 0, "No hits left after masking"
         return _condensation_loss(
@@ -280,17 +283,20 @@ def _background_loss(*, beta: T, particle_id: T, sb: float) -> T:
     return loss
 
 
-class BackgroundLoss(torch.nn.Module):
+class BackgroundLoss(torch.nn.Module, HyperparametersMixin):
     def __init__(self, sb=0.1):
         super().__init__()
         #: Strength of noise suppression
         self.sb = sb
+        self.save_hyperparameters()
 
     # noinspection PyUnusedLocal
-    def forward(self, *, beta: T, particle_id: T, ec_hit_mask: T, **kwargs) -> T:
-        return _background_loss(
-            beta=beta, particle_id=particle_id[ec_hit_mask], sb=self.sb
-        )
+    def forward(
+        self, *, beta: T, particle_id: T, ec_hit_mask: T | None = None, **kwargs
+    ) -> T:
+        if ec_hit_mask is not None:
+            particle_id = particle_id[ec_hit_mask]
+        return _background_loss(beta=beta, particle_id=particle_id, sb=self.sb)
 
 
 class ObjectLoss(torch.nn.Module):
@@ -353,7 +359,7 @@ class LossFctType(Protocol):
     def __call__(self, *args: Any, **kwargs: Any) -> Tensor:
         ...
 
-    def to(self, device: torch.device) -> LossFctType:
+    def to(self, device: torch.device) -> "LossFctType":
         ...
 
 
@@ -475,7 +481,8 @@ def _hinge_loss_components(
     )
 
 
-class GraphConstructionHingeEmbeddingLoss(torch.nn.Module):
+class GraphConstructionHingeEmbeddingLoss(nn.Module, HyperparametersMixin):
+    # noinspection PyUnusedLocal
     def __init__(
         self,
         *,
@@ -495,20 +502,16 @@ class GraphConstructionHingeEmbeddingLoss(torch.nn.Module):
             p_rep: Power for the repulsion term (default 1: linear loss)
         """
         super().__init__()
-        self.r_emb = r_emb
-        self.max_num_neighbors = max_num_neighbors
-        self.attr_pt_thld = attr_pt_thld
-        self.p_attr = p_attr
-        self.p_rep = p_rep
+        self.save_hyperparameters()
 
     def _build_graph(self, x: T, batch: T, true_edges: T, pt: T) -> T:
-        true_edge_mask = pt[true_edges[0]] > self.attr_pt_thld
+        true_edge_mask = pt[true_edges[0]] > self.hparams.attr_pt_thld
         near_edges = radius_graph(
             x,
-            r=self.r_emb,
+            r=self.hparams.r_emb,
             batch=batch,
             loop=False,
-            max_num_neighbors=self.max_num_neighbors,
+            max_num_neighbors=self.hparams.max_num_neighbors,
         )
         return torch.unique(
             torch.cat([true_edges[:, true_edge_mask], near_edges], dim=-1), dim=-1
@@ -523,11 +526,11 @@ class GraphConstructionHingeEmbeddingLoss(torch.nn.Module):
             x=x,
             edge_index=edge_index,
             particle_id=particle_id,
-            r_emb_hinge=self.r_emb,
+            r_emb_hinge=self.hparams.r_emb,
             pt=pt,
-            pt_thld=self.attr_pt_thld,
-            p_attr=self.p_attr,
-            p_rep=self.p_rep,
+            pt_thld=self.hparams.attr_pt_thld,
+            p_attr=self.hparams.p_attr,
+            p_rep=self.hparams.p_rep,
         )
         return {
             "attractive": attr,

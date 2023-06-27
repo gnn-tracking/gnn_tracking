@@ -1,6 +1,5 @@
 """Utility functions for dealing with colors in plotting"""
 
-from __future__ import annotations
 
 import colorsys
 

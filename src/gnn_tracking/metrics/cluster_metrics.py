@@ -2,7 +2,6 @@
 algorithm for tracking.
 """
 
-from __future__ import annotations
 
 import functools
 from collections import Counter

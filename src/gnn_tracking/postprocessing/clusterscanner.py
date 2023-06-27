@@ -1,7 +1,4 @@
-from __future__ import annotations
-
 import collections
-from abc import ABC, abstractmethod
 from collections import defaultdict
 from typing import Any, Callable, Iterable, Mapping, Protocol
 
@@ -49,32 +46,6 @@ class OptunaClusterScanResult(ClusterScanResult):
         return trials_df["value"].to_numpy()
 
 
-class AbstractClusterHyperParamScanner(ABC):
-    """Abstract base class for classes that implement hyperparameter scanning of
-    clustering algorithms.
-    """
-
-    def __init__(self):
-        self.logger = get_logger("ClusterHP")
-
-    @abstractmethod
-    def _scan(
-        self,
-        start_params: dict[str, Any] | None = None,
-        **kwargs,
-    ) -> ClusterScanResult:
-        pass
-
-    def scan(
-        self, start_params: dict[str, Any] | None = None, **kwargs
-    ) -> ClusterScanResult:
-        if start_params is not None:
-            self.logger.debug("Starting from params: %s", start_params)
-        self.logger.info("Starting hyperparameter scan for clustering")
-        with timing("Clustering hyperparameter scan & metric evaluation", self.logger):
-            return self._scan(start_params=start_params, **kwargs)
-
-
 class ClusterAlgorithmType(Protocol):
     """Type of a clustering algorithm."""
 
@@ -111,7 +82,9 @@ def get_majority_sector(sectors: np.ndarray) -> int:
     return chosen_sector
 
 
-class ClusterHyperParamScanner(AbstractClusterHyperParamScanner):
+# todo: Could simplify this implementation if we pass around DataFrames rather than
+#   lots of numpy arrays
+class ClusterHyperParamScanner:
     def __init__(
         self,
         *,
@@ -144,7 +117,7 @@ class ClusterHyperParamScanner(AbstractClusterHyperParamScanner):
             reconstructable: Whether each hit belongs to a reconstructable true track
             guide: Name of expensive metric that is taken as a figure of merit
                 for the overall performance. If the corresponding metric function
-                returns a dict, the key should be key.subkey.
+                returns a dict, the key should be `key.subkey`.
             metrics: Dictionary of metrics to evaluate. Each metric is a function that
                 takes truth and predicted labels as numpy arrays and returns a float.
             sectors: List of 1D arrays of sector indices (answering which sector each
@@ -186,7 +159,7 @@ class ClusterHyperParamScanner(AbstractClusterHyperParamScanner):
             study = chps.scan(n_trials=100)
             print(study.best_params)
         """
-        super().__init__()
+        self.logger = get_logger("ClusterHP")
         self._algorithm = algorithm
         self._suggest = suggest
         self._data: list[np.ndarray] = data
@@ -246,7 +219,7 @@ class ClusterHyperParamScanner(AbstractClusterHyperParamScanner):
 
     def _evaluate_metrics(
         self, cluster_params: dict[str, Any], metrics: Iterable[str], all_labels=None
-    ) -> ClusterHyperParamScanner._EvaluatedMetrics:
+    ) -> "ClusterHyperParamScanner._EvaluatedMetrics":
         if all_labels is None:
             all_labels = []
         foms = defaultdict(list)
@@ -370,19 +343,18 @@ class ClusterHyperParamScanner(AbstractClusterHyperParamScanner):
         )
         return result
 
+    def scan(
+        self, start_params: dict[str, Any] | None = None, **kwargs
+    ) -> ClusterScanResult:
+        if start_params is not None:
+            self.logger.debug("Starting from params: %s", start_params)
+        self.logger.info("Starting hyperparameter scan for clustering")
+        with timing("Clustering hyperparameter scan & metric evaluation", self.logger):
+            return self._scan(start_params=start_params, **kwargs)
+
 
 class ClusterFctType(Protocol):
     """Type of a clustering scanner function"""
-
-    #: Maps the keys from `TCNTrainer.evaluate_model` to the inputs to `__call__`
-    required_model_outputs = {
-        "x": "graphs",
-        "particle_id": "truth",
-        "sector": "sectors",
-        "pt": "pts",
-        "reconstructable": "reconstructable",
-        "ec_hit_mask": "node_mask",
-    }
 
     def __call__(
         self,

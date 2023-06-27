@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 import logging
 
 from gnn_tracking.utils.log import get_logger, logger

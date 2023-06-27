@@ -1,20 +1,17 @@
-from __future__ import annotations
-
 from dataclasses import dataclass
-from functools import partial
 from typing import Any
 
 import pytest
+from pytorch_lightning import Trainer
 
-from gnn_tracking.metrics.losses import BackgroundLoss, EdgeWeightBCELoss, PotentialLoss
 from gnn_tracking.models.edge_classifier import ECForGraphTCN
 from gnn_tracking.models.track_condensation_networks import (
     GraphTCN,
     PerfectECGraphTCN,
     PreTrainedECGraphTCN,
 )
-from gnn_tracking.postprocessing.dbscanscanner import dbscan_scan
-from gnn_tracking.training.tcn_trainer import TCNTrainer
+from gnn_tracking.training.tc import TCModule
+from gnn_tracking.utils.loading import TestTrackingDataModule
 from gnn_tracking.utils.seeds import fix_seeds
 
 
@@ -95,22 +92,7 @@ def test_train(tmp_path, built_graphs, t: TestTrainCase) -> None:
     graphs = graph_builder.data_list
     n_graphs = len(graphs)
     assert n_graphs == 2
-
-    loaders = {
-        "train": [graphs[0]],
-        "test": [graphs[1]],
-        "val": [graphs[1]],
-    }
-
-    q_min, sb = 0.01, 0.1
-    loss_functions = {
-        "edge": (EdgeWeightBCELoss(), 1.0),
-        "potential": (
-            PotentialLoss(q_min=q_min),
-            {"attractive": 1.0, "repulsive": 1.0},
-        ),
-        "background": (BackgroundLoss(sb=sb), 1.0),
-    }
+    dm = TestTrackingDataModule(graphs)
 
     # set up a model and trainer
     if t.model == "graphtcn":
@@ -152,15 +134,10 @@ def test_train(tmp_path, built_graphs, t: TestTrainCase) -> None:
     else:
         raise ValueError(f"Unknown model type {t.model}")
 
-    trainer = TCNTrainer(
+    lmodel = TCModule(
         model=model,
-        loaders=loaders,
-        loss_functions=loss_functions,
-        lr=0.0001,
-        cluster_functions={"dbscan": partial(dbscan_scan, n_trials=1)},  # type: ignore
     )
-    trainer.checkpoint_dir = tmp_path
-
-    trainer.step(max_batches=1)
-    trainer.save_checkpoint("model.pt")
-    trainer.load_checkpoint("model.pt")
+    print(lmodel.hparams)
+    # Avoid testing with TPS
+    trainer = Trainer(max_steps=1, accelerator="cpu")
+    trainer.fit(lmodel, datamodule=dm)

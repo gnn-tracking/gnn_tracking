@@ -6,7 +6,6 @@
 you will need administrator rights).
 """
 
-from __future__ import annotations
 
 # std
 import site

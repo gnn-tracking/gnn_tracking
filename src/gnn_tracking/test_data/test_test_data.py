@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 from gnn_tracking.test_data import (
     test_data_dir,
     trackml_test_data_dir,
