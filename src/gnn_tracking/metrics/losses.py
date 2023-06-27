@@ -198,6 +198,7 @@ def _condensation_loss(
     q = torch.arctanh(beta) ** 2 + q_min
     assert not torch.isnan(q).any(), "q contains NaNs"
     alphas = torch.argmax(q[:, None] * pid_masks, dim=0)
+
     # n_pids x n_outdim
     x_alphas = x[alphas]
     # 1 x n_pids

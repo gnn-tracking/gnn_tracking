@@ -147,7 +147,6 @@ class TrackingModule(ImprovedLogLM):
         return self.model.forward(data)
 
     def data_preproc(self, data: Data) -> Data:
-        print("preproc", data)
         if self.preproc is not None:
             return self.preproc(data)
         return data

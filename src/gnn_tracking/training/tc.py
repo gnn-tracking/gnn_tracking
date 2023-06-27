@@ -62,8 +62,6 @@ class TCModule(TrackingModule):
     def get_losses(
         self, out: dict[str, Any], data: Data
     ) -> tuple[Tensor, dict[str, float]]:
-        print(out)
-        print(out["ec_hit_mask"].sum(), (~out["ec_hit_mask"]).sum())
         losses = self.potential_loss(
             x=out["H"],
             particle_id=data.particle_id,
@@ -89,13 +87,15 @@ class TCModule(TrackingModule):
 
     @tolerate_some_oom_errors
     def training_step(self, data: Data, batch_idx: int) -> Tensor:
-        out = self(self.data_preproc(data))
+        data = self.data_preproc(data)
+        out = self(data)
         loss, loss_dct = self.get_losses(out, data)
         self.log_dict(loss_dct, prog_bar=True, on_step=True)
         return loss
 
     def validation_step(self, data: Data, batch_idx: int) -> None:
-        out = self(self.data_preproc(data))
+        data = self.data_preproc(data)
+        out = self(data)
         loss, metrics = self.get_losses(out, data)
         metrics |= self._evaluate_cluster_metrics(out, data, batch_idx)
         self.log_dict_with_errors(metrics)
