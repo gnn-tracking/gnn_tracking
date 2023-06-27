@@ -10,7 +10,6 @@ from torchmetrics.classification import BinaryAUROC
 
 from gnn_tracking.utils.device import guess_device
 from gnn_tracking.utils.log import logger
-from gnn_tracking.utils.types import assert_int
 
 
 class BinaryClassificationStats:
@@ -28,9 +27,8 @@ class BinaryClassificationStats:
         Returns:
             accuracy, TPR, TNR
         """
-        assert_int(y)
         self._output = output
-        self._y = y
+        self._y = y.int()
         self._thld = thld
 
     @cached_property

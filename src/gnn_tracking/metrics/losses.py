@@ -61,6 +61,7 @@ def binary_focal_loss(
     assert 0 <= alpha <= 1
     assert not torch.isnan(inpt).any()
     assert not torch.isnan(target).any()
+    assert pos_weight is not None
 
     # JIT compilation does not support optional arguments
     return _binary_focal_loss(
@@ -138,6 +139,8 @@ class EdgeWeightFocalLoss(FalsifyLowPtEdgeWeightLoss):
         See `binary_focal_loss` for details.
         """
         super().__init__(**kwargs)
+        if pos_weight is None:
+            pos_weight = T([1.0])
         self.save_hyperparameters()
 
     def _forward(self, *, w: T, y: T, **kwargs) -> T:

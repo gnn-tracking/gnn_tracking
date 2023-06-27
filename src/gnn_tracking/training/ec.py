@@ -21,11 +21,10 @@ class ECModule(TrackingModule):
         self,
         *,
         loss_fct: nn.Module,
-        preproc: nn.Module,
         **kwargs,
     ):
         """Lightning module for edge classifier training."""
-        super().__init__(preproc=preproc, **kwargs)
+        super().__init__(**kwargs)
         self.loss_fct = obj_from_or_to_hparams(self, "loss_fct", loss_fct)
 
     def get_losses(self, out: dict[str, Any], data: Data) -> T:
@@ -56,3 +55,6 @@ class ECModule(TrackingModule):
         metrics |= get_maximized_bcs(y=batch.y, output=out["W"])
         # todo: add graph analysis
         self.log_dict(dict(sorted(metrics.items())), on_epoch=True)
+
+    def highlight_metric(self, metric: str) -> bool:
+        return "max_mcc" in metric
