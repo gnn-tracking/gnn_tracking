@@ -305,11 +305,14 @@ def test_fix_cluster_metrics():
         0.5,
         0.9,
     ]
+    pts = rng.uniform(0, 3, size=n_samples)[truth]
+    reconstructable = rng.choice([True, False], size=n_particles)[truth]
+    print(truth.sum(), predicted.sum(), pts.sum(), reconstructable.sum())
     r = tracking_metrics(
         truth=truth,
         predicted=predicted,
-        pts=rng.uniform(0, 3, size=n_samples)[truth],
-        reconstructable=rng.choice([True, False], size=n_particles)[truth],
+        pts=pts,
+        reconstructable=reconstructable,
         pt_thlds=pt_thlds,
         predicted_count_thld=3,
     )
