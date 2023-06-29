@@ -11,7 +11,7 @@
 ## Install it
 
 ```bash
-micromamba env create --name gnn --file default.yml
+micromamba create --name gnn --file default.yml
 ```
 
 ## MacOS
