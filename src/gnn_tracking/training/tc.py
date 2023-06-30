@@ -121,6 +121,7 @@ class TCModule(TrackingModule):
             epoch=self.current_epoch,
             start_params=self._best_cluster_params,
         )
+        self._cluster_scan_input.clear()
         metrics = cluster_result.metrics
         self._best_cluster_params = cluster_result.best_params
         # todo: Generalize for multiple cluster scanners

@@ -138,7 +138,7 @@ class PointCloudBuilder:
     def calc_eta(self, r, z):
         """Compute pseudorapidity (spatial)."""
         theta = np.arctan2(r, z)
-        return -1.0 * np.log(np.tan(theta / 2.0))
+        return -np.log(np.tan(theta / 2.0))
 
     def restrict_to_subdetectors(
         self, hits: pd.DataFrame, cells: pd.DataFrame

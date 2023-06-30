@@ -270,6 +270,7 @@ class ClusterHyperParamScanner:
         params = self._suggest(trial)
         ems = self._evaluate_metrics(params, [self._guide])
         global_fom = np.nanmean(ems.foms[self._guide]).item()
+        self.logger.debug("Evaluated %s: %s", params, global_fom)
         if self._es(global_fom):
             self.logger.info("Stopped early")
             trial.study.stop()

@@ -19,7 +19,7 @@ class DBSCANHyperParamScanner(HyperparametersMixin):
         self,
         *,
         eps_range: tuple[float, float] = (1e-5, 1.0),
-        min_samples_range: tuple[int, int] = (1, 3),
+        min_samples_range: tuple[int, int] = (1, 1),
         n_trials: int = 10,
         n_jobs: int = 1,
         guide="trk.double_majority_pt0.9",
