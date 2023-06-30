@@ -115,11 +115,11 @@ class PointCloudTCN(nn.Module):
 
 
 class ModularGraphTCN(nn.Module, HyperparametersMixin):
-    # noinspection PyUnusedLocals
+    # noinspection PyUnusedLocal
     def __init__(
         self,
         *,
-        ec: nn.Module,
+        ec: nn.Module | None = None,
         hc_in: nn.Module,
         node_indim: int,
         edge_indim: int,
@@ -132,8 +132,15 @@ class ModularGraphTCN(nn.Module, HyperparametersMixin):
         mask_orphan_nodes=False,
         use_ec_embeddings_for_hc=False,
     ):
-        """General form of track condensation network based on preconstructed graphs
-        with initial step of edge classification (passed as a parameter).
+        """Track condensation network based on preconstructed graphs. This module
+        combines the following:
+
+        * Node and edge encoders to get to `(h_dim, e_dim)`
+        * a track condensation network `hc_in`
+        * an optional edge classifier
+
+        Additional options configure how output from the edge classifier can be included
+        in the track condensation network.
 
         Args:
             ec: Edge classifier
