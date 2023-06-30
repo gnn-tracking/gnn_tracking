@@ -46,6 +46,7 @@ class MLModule(TrackingModule):
         }
         loss = sum(lws[k] * v for k, v in loss_dct.items())
         loss_dct |= {f"{k}_weighted": v * lws[k] for k, v in loss_dct.items()}
+        loss_dct["total"] = loss
         return loss, to_floats(loss_dct)
 
     @tolerate_some_oom_errors
@@ -54,13 +55,13 @@ class MLModule(TrackingModule):
         out = self(batch)
         loss, loss_dct = self.get_losses(out, batch)
         self.log_dict(loss_dct, prog_bar=True, on_step=True)
-        self.log("total", loss.float(), prog_bar=True, on_step=True)
         return loss
 
     def validation_step(self, batch: Data, batch_idx: int):
         batch = self.data_preproc(batch)
         out = self(batch)
         loss, loss_dct = self.get_losses(out, batch)
-        self.log_dict(to_floats(loss_dct), on_epoch=True)
-        self.log("total", loss.float(), on_epoch=True)
+        self.log_dict_with_errors(
+            loss_dct, batch_size=self.trainer.val_dataloaders.batch_size
+        )
         # todo: add graph analysis

@@ -54,7 +54,10 @@ class ECModule(TrackingModule):
         )
         metrics |= get_maximized_bcs(y=batch.y, output=out["W"])
         # todo: add graph analysis
-        self.log_dict(dict(sorted(metrics.items())), on_epoch=True)
+        self.log_dict_with_errors(
+            dict(sorted(metrics.items())),
+            batch_size=self.trainer.val_dataloaders.batch_size,
+        )
 
     def highlight_metric(self, metric: str) -> bool:
         return "max_mcc" in metric

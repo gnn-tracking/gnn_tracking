@@ -34,7 +34,7 @@ class ImprovedLogLM(LightningModule):
         super().__init__(**kwargs)
         self._uncertainties = collections.defaultdict(StandardError)
 
-    def log_dict_with_errors(self, dct: dict[str, float]) -> None:
+    def log_dict_with_errors(self, dct: dict[str, float], batch_size=None) -> None:
         """Log a dictionary of values with their statistical uncertainties.
 
         This method only starts calculating the uncertainties. To log them,
@@ -44,6 +44,7 @@ class ImprovedLogLM(LightningModule):
         self.log_dict(
             dct,
             on_epoch=True,
+            batch_size=batch_size,
         )
         for k, v in dct.items():
             if f"{k}_std" in dct:
@@ -55,7 +56,7 @@ class ImprovedLogLM(LightningModule):
         Needs to be called at the end of the train/val/test epoch.
         """
         for k, v in self._uncertainties.items():
-            self.log(k + "_std", v.compute(), on_epoch=True)
+            self.log(k + "_std", v.compute(), on_epoch=True, batch_size=1)
 
     # noinspection PyUnusedLocal
     def on_training_epoch_end(self, *args) -> None:

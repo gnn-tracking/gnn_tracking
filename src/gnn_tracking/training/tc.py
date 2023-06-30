@@ -98,7 +98,9 @@ class TCModule(TrackingModule):
         out = self(data)
         loss, metrics = self.get_losses(out, data)
         metrics |= self._evaluate_cluster_metrics(out, data, batch_idx)
-        self.log_dict_with_errors(metrics)
+        self.log_dict_with_errors(
+            metrics, batch_size=self.trainer.val_dataloaders.batch_size
+        )
 
     def _evaluate_cluster_metrics(
         self, out: dict[str, Any], data: Data, batch_idx: int
