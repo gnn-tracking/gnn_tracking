@@ -1,6 +1,7 @@
 """Base class used for all pytorch lightning modules."""
 import collections
 import logging
+import warnings
 from typing import Any
 
 import torch
@@ -142,6 +143,12 @@ class TrackingModule(ImprovedLogLM):
         self.preproc = obj_from_or_to_hparams(self, "preproc", preproc)
         self.optimizer = optimizer
         self.scheduler = scheduler
+
+        warnings.filterwarnings(
+            "ignore",
+            message="TypedStorage is deprecated. It will be removed in the future and "
+            "UntypedStorage will be the only storage class.",
+        )
 
     def forward(self, data: Data) -> Tensor:
         return self.model.forward(data)
