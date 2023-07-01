@@ -2,11 +2,13 @@ import importlib
 import math
 from typing import Any
 
+import pytorch_lightning
 import torch
 from pytorch_lightning import LightningModule
 from pytorch_lightning.core.mixins import HyperparametersMixin
 from torch import Tensor, nn
 from torchmetrics import Metric
+from tqdm import tqdm
 
 from gnn_tracking.utils.log import logger
 
@@ -115,3 +117,42 @@ class StandardError(Metric):
 
     def compute(self):
         return torch.std(self.values) / math.sqrt(len(self.values))
+
+
+class SimpleTqdmProgressBar(pytorch_lightning.callbacks.ProgressBar):
+    def __init__(self):
+        """Fallback progress bar that creates a new tqdm bar for each epoch.
+        Adapted from https://github.com/Lightning-AI/lightning/issues/2189 , reply
+        https://github.com/Lightning-AI/lightning/issues/2189#issuecomment-1510439811
+        """
+        super().__init__()
+        self.bar = None
+        self.enabled = True
+
+    @property
+    def is_enabled(self):
+        return self.enabled
+
+    def on_train_epoch_start(self, trainer, pl_module):
+        if self.enabled:
+            self.bar = tqdm(
+                total=self.total_train_batches,
+                desc=f"Epoch {trainer.current_epoch+1}",
+                position=0,
+                leave=True,
+            )
+
+    def on_train_batch_end(self, trainer, pl_module, outputs, batch, batch_idx):
+        if self.bar:
+            self.bar.update(1)
+            self.bar.set_postfix(self.get_metrics(trainer, pl_module))
+
+    def on_validation_epoch_end(self, trainer, pl_module) -> None:
+        if self.bar:
+            self.bar.set_postfix(self.get_metrics(trainer, pl_module))
+            self.bar.close()
+            self.bar = None
+
+    def disable(self):
+        self.bar = None
+        self.enabled = False
