@@ -165,7 +165,7 @@ def count_tracking_metrics(
         TrackingMetrics namedtuple.
     """
     n_particles = len(np.unique(h_df["id"][h_mask]))
-    n_clusters = c_mask.sum()
+    n_clusters = c_mask.sum().item()
 
     n_perfect_match = sum(c_df["perfect_match"][c_mask])
     n_double_majority = sum(c_df["double_majority"][c_mask])
