@@ -33,6 +33,7 @@ class ImprovedLogLM(LightningModule):
         """
         super().__init__(**kwargs)
         self._uncertainties = collections.defaultdict(StandardError)
+        self.print_validation_results = True
 
     def log_dict_with_errors(self, dct: dict[str, float], batch_size=None) -> None:
         """Log a dictionary of values with their statistical uncertainties.
@@ -115,17 +116,23 @@ class ImprovedLogLM(LightningModule):
         """Should a metric be highlighted in the log output for the val/test step?"""
         return False
 
-    def on_validation_end(self, *args, **kwargs) -> None:
+    def print_validation_metrics(self) -> None:
+        """Print the validation metrics to the console."""
         metrics = self.trainer.callback_metrics
-        if not metrics:
+        if not metrics or not self.print_validation_results:
             return
         console = Console()
-        console.print("\n")
-        console.print(
-            self.format_results_table(
-                to_floats(metrics), header=f"Validation epoch={self.current_epoch}"
+        with console.capture() as capture:
+            console.print(
+                self.format_results_table(
+                    to_floats(metrics),
+                    header=f"Validation epoch={self.current_epoch+1}",
+                )
             )
-        )
+        self.print(capture.get())
+
+    def on_validation_end(self, *args, **kwargs) -> None:
+        self.print_validation_metrics()
 
 
 class TrackingModule(ImprovedLogLM):
