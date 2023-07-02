@@ -58,6 +58,7 @@ class ImprovedLogLM(LightningModule):
         """
         for k, v in self._uncertainties.items():
             self.log(k + "_std", v.compute(), on_epoch=True, batch_size=1)
+        self._uncertainties.clear()
 
     # noinspection PyUnusedLocal
     def on_training_epoch_end(self, *args) -> None:
