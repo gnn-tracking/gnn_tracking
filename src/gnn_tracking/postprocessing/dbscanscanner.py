@@ -1,3 +1,5 @@
+from typing import Callable, Sequence
+
 import numpy as np
 from pytorch_lightning.core.mixins import HyperparametersMixin
 from sklearn.cluster import DBSCAN
@@ -20,7 +22,7 @@ class DBSCANHyperParamScanner(HyperparametersMixin):
         *,
         eps_range: tuple[float, float] = (1e-5, 1.0),
         min_samples_range: tuple[int, int] = (1, 1),
-        n_trials: int = 10,
+        n_trials: int | Callable | Sequence = 10,
         n_jobs: int = 1,
         guide="trk.double_majority_pt0.9",
     ):
@@ -31,10 +33,23 @@ class DBSCANHyperParamScanner(HyperparametersMixin):
         Args:
             eps_range: Range of epsilons to sample from
             min_samples_range: Range of min_samples to sample from
-            **kwargs: Passed on to ClusterHyperParamScanner.
+            n_trials: Number of trials to run. If callable: Function that returns
+                the number for given epoch. If sequence: Will be indexed by epoch.
+            n_jobs: Number of jobs to run in parallel.
+            guide: Guiding metric
         """
         super().__init__()
-        self.save_hyperparameters()
+        self.save_hyperparameters(ignore="n_trials")
+        self._n_trials = n_trials
+
+    def _get_n_trials(self, epoch: int) -> int:
+        if isinstance(self._n_trials, int):
+            return self._n_trials
+        elif isinstance(self._n_trials, Sequence):
+            if len(self._n_trials) <= epoch:
+                return self._n_trials[-1]
+            return self._n_trials[epoch]
+        return self._n_trials(epoch)
 
     def __call__(self, epoch=None, start_params=None, **kwargs) -> ClusterScanResult:
         def suggest(trial):
@@ -53,6 +68,6 @@ class DBSCANHyperParamScanner(HyperparametersMixin):
         )
         return chps.scan(
             start_params=start_params,
-            n_trials=self.hparams.n_trials,
+            n_trials=self._get_n_trials(epoch),
             n_jobs=self.hparams.n_jobs,
         )
