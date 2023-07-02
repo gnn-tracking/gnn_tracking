@@ -28,7 +28,6 @@ def save_sub_hyperparameters(
             "class_path": obj.__class__.__module__ + "." + obj.__class__.__name__,
             "init_args": dict(obj.hparams),
         }
-    logger.debug("Saving hyperperameters %s", sub_hparams)
     self.save_hyperparameters({key: sub_hparams})
 
 
@@ -40,15 +39,17 @@ def load_obj_from_hparams(hparams: dict[str, Any], key: str = "") -> Any:
 
 
 def obj_from_or_to_hparams(self: HyperparametersMixin, key: str, obj: Any) -> Any:
+    """Used to support initializing python objects from hyperparameters:
+    If `obj` is a python object other than a dictionary, its hyperparameters are
+    saved (its class path and init args) to `self.hparams[key]`.
+    If `obj` is instead a dictionary, its assumed that we have to restore an object
+    based on this information.
+    """
     if obj is None:
         return None
     if isinstance(obj, dict):
-        logger.debug("Got %s, assuming I have to load", obj)
         # Assume that we have to load
         return load_obj_from_hparams(obj)
-    logger.debug(
-        "Got obj of type %s, assuming I have to save hyperparameters", type(obj)
-    )
     save_sub_hyperparameters(self=self, key=key, obj=obj)  # type: ignore
     return obj
 
