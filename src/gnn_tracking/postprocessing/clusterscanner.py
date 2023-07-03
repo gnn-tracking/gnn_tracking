@@ -402,7 +402,7 @@ class PulsedNTrials(HyperparametersMixin):
         couple of epochs (and start from the previous best parameter otherwise).
 
         Args:
-            warmup_epoch: Number of epochs to run with warmup_trials.
+            warmup_epoch: If `epoch < warmup_epoch`, use `warmup_trials` trials.
             low_trials: Low number of trials
             high_trials: High number of trials
             every_epoch: If `epoch % every_epoch == 0`, use `high_trials`, else

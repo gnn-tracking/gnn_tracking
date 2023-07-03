@@ -56,12 +56,13 @@ class ImprovedLogLM(LightningModule):
         """Log the uncertainties calculated in `log_dict_with_errors`.
         Needs to be called at the end of the train/val/test epoch.
         """
+        ...
         for k, v in self._uncertainties.items():
             self.log(k + "_std", v.compute(), on_epoch=True, batch_size=1)
         self._uncertainties.clear()
 
     # noinspection PyUnusedLocal
-    def on_training_epoch_end(self, *args) -> None:
+    def on_train_epoch_end(self, *args) -> None:
         self._log_errors()
 
     def on_validation_epoch_end(self) -> None:
