@@ -8,7 +8,7 @@ import optuna
 from gnn_tracking.metrics.cluster_metrics import ClusterMetricType
 from gnn_tracking.utils.earlystopping import no_early_stopping
 from gnn_tracking.utils.log import get_logger
-from gnn_tracking.utils.timing import Timer, timing
+from gnn_tracking.utils.timing import Timer
 
 
 class ClusterScanResult:
@@ -307,19 +307,32 @@ class ClusterHyperParamScanner:
         self, start_params: dict[str, Any] | None = None, **kwargs
     ) -> ClusterScanResult:
         """Run the scan."""
-        self._es.reset()
+
+    def scan(
+        self, start_params: dict[str, Any] | None = None, **kwargs
+    ) -> ClusterScanResult:
         if kwargs.get("n_trials") == 0:
+            self.logger.debug("No cluster scan because n_trials=0")
             return ClusterScanResult(
                 metrics={},
-                best_params={},
+                best_params={self._guide: np.nan},
                 best_value=np.nan,
             )
+        if start_params is not None:
+            self.logger.debug("Starting from params: %s", start_params)
+
+        self.logger.info("Starting hyperparameter scan for clustering")
+        timer = Timer()
+        self._es.reset()
         if start_params is not None and kwargs.get("n_trials") == 1:
             self.logger.debug(
                 "Skipping optuna, because start_params are given and only "
                 "one trial to run"
             )
             metrics = self._evaluate(best_params=start_params)
+            self.logger.info(
+                "Clustering hyperparameter scan & metric evaluation took %s", timer()
+            )
             return ClusterScanResult(
                 metrics=metrics,
                 best_params=start_params,
@@ -348,16 +361,11 @@ class ClusterHyperParamScanner:
             tdf.min(),
             tdf.max(),
         )
-        return result
 
-    def scan(
-        self, start_params: dict[str, Any] | None = None, **kwargs
-    ) -> ClusterScanResult:
-        if start_params is not None:
-            self.logger.debug("Starting from params: %s", start_params)
-        self.logger.info("Starting hyperparameter scan for clustering")
-        with timing("Clustering hyperparameter scan & metric evaluation", self.logger):
-            return self._scan(start_params=start_params, **kwargs)
+        self.logger.info(
+            "Clustering hyperparameter scan & metric evaluation took %s", timer()
+        )
+        return result
 
 
 class ClusterFctType(Protocol):
