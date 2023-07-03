@@ -222,7 +222,7 @@ def _condensation_loss(
 
 
 class PotentialLoss(torch.nn.Module, HyperparametersMixin):
-    def __init__(self, q_min=0.01, radius_threshold=10.0, attr_pt_thld=0.9):
+    def __init__(self, q_min=0.01, radius_threshold=1.0, attr_pt_thld=0.9):
         """Potential/condensation loss (specific to object condensation approach).
 
         Args:
