@@ -4,6 +4,7 @@ from typing import Any, Callable, Iterable, Mapping, Protocol
 
 import numpy as np
 import optuna
+from pytorch_lightning.core.mixins import HyperparametersMixin
 
 from gnn_tracking.metrics.cluster_metrics import ClusterMetricType
 from gnn_tracking.utils.earlystopping import no_early_stopping
@@ -383,3 +384,39 @@ class ClusterFctType(Protocol):
         node_mask: list[np.ndarray] | None = None,
     ) -> ClusterScanResult:
         ...
+
+
+class PulsedNTrials(HyperparametersMixin):
+    # noinspection PyUnusedLocal
+    def __init__(
+        self,
+        *,
+        warmup_epoch: int = 0,
+        low_trials: int,
+        high_trials: int,
+        high_every: int = 2,
+        warmup_trials: int | None = None,
+    ):
+        """A parameterization of a simple scheme to set the number of trials.
+        Because cluster scans are expensive, you might want to only rescan every
+        couple of epochs (and start from the previous best parameter otherwise).
+
+        Args:
+            warmup_epoch: Number of epochs to run with warmup_trials.
+            low_trials: Low number of trials
+            high_trials: High number of trials
+            every_epoch: If `epoch % every_epoch == 0`, use `high_trials`, else
+                `low_trials`.
+            warmup_trials: Trials during warmup phase. If None, use low_trials.
+        """
+        super().__init__()
+        self.save_hyperparameters()
+
+    def __call__(self, epoch: int) -> int:
+        if epoch < self.hparams.warmup_epoch:
+            if self.hparams.warmup_trials is None:
+                return self.hparams.low_trials
+            return self.hparams.warmup_trials
+        if epoch % self.hparams.high_every == 0:
+            return self.hparams.high_trials
+        return self.hparams.low_trials

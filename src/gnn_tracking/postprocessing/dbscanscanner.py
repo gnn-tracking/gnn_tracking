@@ -9,6 +9,7 @@ from gnn_tracking.postprocessing.clusterscanner import (
     ClusterHyperParamScanner,
     ClusterScanResult,
 )
+from gnn_tracking.utils.lightning import obj_from_or_to_hparams
 
 
 def dbscan(graphs: np.ndarray, eps=0.99, min_samples=1) -> np.ndarray:
@@ -40,7 +41,7 @@ class DBSCANHyperParamScanner(HyperparametersMixin):
         """
         super().__init__()
         self.save_hyperparameters(ignore="n_trials")
-        self._n_trials = n_trials
+        self._n_trials = obj_from_or_to_hparams(self, "n_trials", n_trials)
 
     def _get_n_trials(self, epoch: int) -> int:
         if isinstance(self._n_trials, int):
