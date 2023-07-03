@@ -10,7 +10,7 @@ from torch_geometric.data import Data
 
 from gnn_tracking.metrics.losses import GraphConstructionHingeEmbeddingLoss
 from gnn_tracking.training.base import TrackingModule
-from gnn_tracking.utils.dictionaries import to_floats
+from gnn_tracking.utils.dictionaries import add_key_suffix, to_floats
 from gnn_tracking.utils.lightning import obj_from_or_to_hparams
 from gnn_tracking.utils.oom import tolerate_some_oom_errors
 
@@ -54,7 +54,7 @@ class MLModule(TrackingModule):
         batch = self.data_preproc(batch)
         out = self(batch)
         loss, loss_dct = self.get_losses(out, batch)
-        self.log_dict(loss_dct, prog_bar=True, on_step=True)
+        self.log_dict(add_key_suffix(loss_dct, "_train"), prog_bar=True, on_step=True)
         return loss
 
     def validation_step(self, batch: Data, batch_idx: int):

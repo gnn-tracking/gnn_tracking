@@ -9,7 +9,7 @@ from torch_geometric.data import Data
 from gnn_tracking.metrics.losses import BackgroundLoss, PotentialLoss
 from gnn_tracking.postprocessing.dbscanscanner import DBSCANHyperParamScanner
 from gnn_tracking.training.base import TrackingModule
-from gnn_tracking.utils.dictionaries import to_floats
+from gnn_tracking.utils.dictionaries import add_key_suffix, to_floats
 from gnn_tracking.utils.lightning import obj_from_or_to_hparams
 from gnn_tracking.utils.oom import tolerate_some_oom_errors
 
@@ -90,7 +90,7 @@ class TCModule(TrackingModule):
         data = self.data_preproc(data)
         out = self(data)
         loss, loss_dct = self.get_losses(out, data)
-        self.log_dict(loss_dct, prog_bar=True, on_step=True)
+        self.log_dict(add_key_suffix(loss_dct, "_train"), prog_bar=True, on_step=True)
         return loss
 
     def validation_step(self, data: Data, batch_idx: int) -> None:
