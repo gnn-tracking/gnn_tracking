@@ -112,7 +112,7 @@ class TrackingDataModule(LightningDataModule):
 
         Training has the following additional keys:
 
-        - `max_sample_size=None`: Maximum number of samples to load for each epoch
+        - `sample_size=None`: Number of samples to load for each epoch
             (if None, load all samples)
         """
         super().__init__()
@@ -150,15 +150,13 @@ class TrackingDataModule(LightningDataModule):
         dataset = self.datasets[key]
         n_samples = len(dataset)
         if key == "train" and len(self.datasets[key]):
-            max_sample_size = self._configs[key].get("max_sample_size", None)
-            n_samples = (
-                min(n_samples, max_sample_size) if max_sample_size else n_samples
-            )
-            replacement = (max_sample_size > len(dataset)) if max_sample_size else False
+            if "max_sample_size" in self._configs[key]:
+                raise ValueError("max_sample_size has been replaced by sample_size")
+            n_samples = self._configs[key].get("sample_size", len(dataset))
             sampler = RandomSampler(
                 self.datasets[key],
-                replacement=replacement,
-                num_samples=max_sample_size,
+                replacement=n_samples > len(dataset),
+                num_samples=n_samples,
             )
         return DataLoader(
             dataset,
