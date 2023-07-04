@@ -2,9 +2,20 @@ import collections
 import functools
 from typing import Callable
 
+import torch.cuda
+
 from gnn_tracking.utils.log import logger
 
 N_OOM_ERRORS = collections.defaultdict(int)
+
+
+def is_oom_error(e: Exception) -> bool:
+    """Is this an out of memory (OOM) error?"""
+    if isinstance(e, RuntimeError) and "out of memory" in str(e):
+        return True
+    if isinstance(e, torch.cuda.OutOfMemoryError):
+        return True
+    return False
 
 
 def tolerate_some_oom_errors(fct: Callable):
@@ -16,7 +27,7 @@ def tolerate_some_oom_errors(fct: Callable):
         try:
             result = fct(*args, **kwargs)
         except RuntimeError as e:
-            if e == RuntimeError and "out of memory" in str(e):
+            if is_oom_error(e):
                 logger.warning(
                     "WARNING: ran out of memory (OOM), skipping batch. "
                     "If this happens frequently, decrease the batch size. "

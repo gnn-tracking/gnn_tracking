@@ -15,6 +15,7 @@ from torch_geometric.data import Data
 from gnn_tracking.utils.dictionaries import to_floats
 from gnn_tracking.utils.lightning import StandardError, obj_from_or_to_hparams
 from gnn_tracking.utils.log import get_logger
+from gnn_tracking.utils.oom import tolerate_some_oom_errors
 
 # The following abbreviations are used throughout the code:
 # W: edge weights
@@ -178,3 +179,7 @@ class TrackingModule(ImprovedLogLM):
             "optimizer": optimizer,
             "lr_scheduler": scheduler,
         }
+
+    @tolerate_some_oom_errors
+    def backward(self, *args: Any, **kwargs: Any) -> None:
+        super().backward(*args, **kwargs)
