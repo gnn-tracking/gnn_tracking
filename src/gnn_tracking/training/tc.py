@@ -1,6 +1,7 @@
 """Lightning module for object condensation training."""
 
 import collections
+import math
 from typing import Any
 
 from torch import Tensor
@@ -20,7 +21,7 @@ class TCModule(TrackingModule):
         self,
         *,
         potential_loss: PotentialLoss = PotentialLoss(),  # noqa: B008
-        background_loss: BackgroundLoss = BackgroundLoss(),  # noqa: B008
+        background_loss: BackgroundLoss | None = BackgroundLoss(),  # noqa: B008
         cluster_scanner: DBSCANHyperParamScanner | None = None,
         lw_repulsive: float = 1.0,
         lw_background: float = 1.0,
@@ -54,6 +55,25 @@ class TCModule(TrackingModule):
         )
         self._cluster_scan_input = collections.defaultdict(list)
         self._best_cluster_params = {}
+        self._validate_settings()
+
+    def _validate_settings(self):
+        """Check that settings make sense and warn/raise exceptions otherwise."""
+        if (
+            math.isclose(self.hparams.lw_background, 0.0)
+            and self.background_loss is not None
+        ):
+            self.logg.warning(
+                "Background loss weight is ~0.0. You probably want to set "
+                "background_loss=None to disable it completely (for speedup)."
+            )
+        if (
+            not math.isclose(self.hparams.lw_background, 0.0)
+            and self.background_loss is None
+        ):
+            raise ValueError(
+                "Background loss weight is non-zero but background_loss=None"
+            )
 
     def is_last_val_batch(self, batch_idx: int) -> bool:
         """Are we validating the last batch of the validation set?"""
@@ -70,16 +90,17 @@ class TCModule(TrackingModule):
             reconstructable=data.reconstructable,
             ec_hit_mask=out.get("ec_hit_mask", None),
         )
-        losses["background"] = self.background_loss(
-            beta=out["B"],
-            particle_id=data.particle_id,
-            ec_hit_mask=out.get("ec_hit_mask", None),
-        )
         lws = {
             "attractive": 1.0,
             "repulsive": self.hparams["lw_repulsive"],
             "background": self.hparams["lw_background"],
         }
+        if self.background_loss is not None:
+            losses["background"] = self.background_loss(
+                beta=out["B"],
+                particle_id=data.particle_id,
+                ec_hit_mask=out.get("ec_hit_mask", None),
+            )
         loss = sum(lws[k] * v for k, v in losses.items())
         losses |= {f"{k}_weighted": v * lws[k] for k, v in losses.items()}
         losses["total"] = loss
