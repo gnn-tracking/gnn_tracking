@@ -45,11 +45,12 @@ def obj_from_or_to_hparams(self: HyperparametersMixin, key: str, obj: Any) -> An
     If `obj` is instead a dictionary, its assumed that we have to restore an object
     based on this information.
     """
-    if obj is None:
-        return None
-    if isinstance(obj, dict):
+    if isinstance(obj, dict) and "class_path" in obj and "init_args" in obj:
         # Assume that we have to load
         return load_obj_from_hparams(obj)
+    if isinstance(obj, (int, float, str, bool, list, tuple, dict)) or obj is None:
+        self.save_hyperparameters({key: obj})
+        return obj
     save_sub_hyperparameters(self=self, key=key, obj=obj)  # type: ignore
     return obj
 
