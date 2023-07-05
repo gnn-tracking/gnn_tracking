@@ -169,9 +169,6 @@ class TrackingModule(ImprovedLogLM):
             return self.preproc(data)
         return data
 
-    def test_step(self, batch: Data, batch_idx: int):
-        return self.validation_step(batch, batch_idx)
-
     def configure_optimizers(self) -> Any:
         optimizer = self.optimizer(self.parameters())
         scheduler = self.scheduler(optimizer)
