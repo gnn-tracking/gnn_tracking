@@ -110,7 +110,7 @@ class FalsifyLowPtEdgeWeightLoss(torch.nn.Module, ABC, HyperparametersMixin):
         y = falsify_low_pt_edges(
             y=y, edge_index=edge_index, pt=pt, pt_thld=self.hparams.pt_thld
         )
-        return self._forward(y=y, w=w)
+        return self._forward(y=y.float(), w=w)
 
     @abstractmethod
     def _forward(self, *, w: T, y: T, **kwargs) -> T:
