@@ -46,7 +46,7 @@ def obj_from_or_to_hparams(self: HyperparametersMixin, key: str, obj: Any) -> An
     based on this information.
     """
     if isinstance(obj, dict) and "class_path" in obj and "init_args" in obj:
-        # Assume that we have to load
+        self.save_hyperparameters({key: obj})
         return load_obj_from_hparams(obj)
     if isinstance(obj, (int, float, str, bool, list, tuple, dict)) or obj is None:
         self.save_hyperparameters({key: obj})
