@@ -13,6 +13,7 @@ from gnn_tracking.metrics.binary_classification import (
 )
 from gnn_tracking.training.base import TrackingModule
 from gnn_tracking.utils.lightning import obj_from_or_to_hparams
+from gnn_tracking.utils.nomenclature import denote_pt
 from gnn_tracking.utils.oom import tolerate_some_oom_errors
 
 
@@ -32,6 +33,7 @@ class ECModule(TrackingModule):
             w=out["W"],
             y=data.y.float(),
             pt=data.pt,
+            edge_index=data.edge_index,
         )
 
     @tolerate_some_oom_errors
@@ -48,14 +50,23 @@ class ECModule(TrackingModule):
         loss = self.get_losses(out, batch)
         self.log("total", loss.float(), on_epoch=True)
         metrics = {}
-        # todo: this needs to be done for different pt thresholds
-        metrics |= get_roc_auc_scores(
-            true=batch.y, predicted=out["W"], max_fprs=[None, 0.01, 0.001]
-        )
-        metrics |= get_maximized_bcs(y=batch.y, output=out["W"])
+        for pt in [0.0, 0.5, 0.9, 1.5]:
+            if pt > 0:
+                pt_mask = (batch.pt[batch.edge_index[0]] > pt) | (
+                    batch.pt[batch.edge_index[1]] > pt
+                )
+                w = out["W"][pt_mask]
+                y = batch.y[pt_mask]
+            else:
+                w = out["W"]
+                y = batch.y
+            _metrics = get_roc_auc_scores(
+                true=y, predicted=w, max_fprs=[None, 0.01, 0.001]
+            ) | get_maximized_bcs(y=y, output=w)
+            metrics |= denote_pt(_metrics, pt)
         # todo: add graph analysis
         self.log_dict_with_errors(
-            dict(sorted(metrics.items())),
+            metrics,
             batch_size=self.trainer.val_dataloaders.batch_size,
         )
 
