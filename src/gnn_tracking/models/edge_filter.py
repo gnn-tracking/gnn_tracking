@@ -8,28 +8,25 @@ import numpy as np
 import torch
 from pytorch_lightning.core.mixins import HyperparametersMixin
 from torch import Tensor as T
-from torch.nn import Linear, ModuleList, init
+from torch.nn import Linear, Module, ModuleList, init
 from torch.nn.functional import normalize, relu, sigmoid
 from torch_geometric.data import Data
 
 from gnn_tracking.models.mlp import MLP
-from gnn_tracking.training.ec import ECModule
-
-# todo: Need a lightning class for these
+from gnn_tracking.utils.asserts import assert_feat_dim
 
 
-class EFDeepSet(ECModule):
+class EFDeepSet(Module, HyperparametersMixin):
     def __init__(
         self,
         *,
         in_dim: int = 14,
         hidden_dim: int = 128,
         depth: int = 3,
-        **kwargs,
     ):
         """EdgeFilter based on the deep sets architecture"""
-        super().__init__(**kwargs)
-        self.save_hyperparameters(ignore=["loss_fct", "optimizer", "scheduler"])
+        super().__init__()
+        self.save_hyperparameters()
 
         self.node_encoder = MLP(
             input_size=in_dim,
@@ -63,21 +60,31 @@ class EFDeepSet(ECModule):
         return {"W": w}
 
 
-class EFMLP(ECModule):
+class EFMLP(Module, HyperparametersMixin):
     # noinspection PyUnusedLocal
     def __init__(
         self,
         *,
-        in_dim: int,
+        node_indim: int,
+        edge_indim: int = 0,
         hidden_dim: int,
         depth: int,
         beta: float = 0.4,
-        **kwargs,
     ):
-        """EdgeFilter based on an MLP architecture."""
-        super().__init__(**kwargs)
+        """EdgeFilter based on an MLP architecture.
 
-        self.encoder = Linear(in_dim * 2, hidden_dim, bias=False)
+        Args:
+            node_indim: dimension of the node features
+            edge_indim: dimension of the edge features. If set to 0: do not use edge
+                features.
+            hidden_dim: dimension of the hidden layers
+            depth: number of hidden layers
+            beta: temperature parameter for the softmax
+        """
+        super().__init__()
+        self.save_hyperparameters()
+
+        self.encoder = Linear(node_indim * 2 + edge_indim, hidden_dim, bias=False)
         self.decoder = Linear(hidden_dim, 1, bias=False)
 
         self.layers = ModuleList(
@@ -86,7 +93,10 @@ class EFMLP(ECModule):
         self.reset_parameters()
 
     def reset_parameters(self):
-        self._reset_layer_parameters(self.encoder, var=1 / (2 * self.hparams.in_dim))
+        self._reset_layer_parameters(
+            self.encoder,
+            var=1 / (2 * self.hparams.node_indim + self.hparams.edge_indim),
+        )
         for layer in self.layers:
             self._reset_layer_parameters(layer, var=2 / self.hparams.hidden_dim)
         self._reset_layer_parameters(self.decoder, var=2 / self.hparams.hidden_dim)
@@ -98,10 +108,19 @@ class EFMLP(ECModule):
             init.normal_(p.data, mean=0, std=math.sqrt(var))
 
     def forward(self, data: Data) -> dict[str, T]:
-        x = normalize(data.x, p=2.0, dim=1, eps=1e-12, out=None)
+        assert_feat_dim(data.x, self.hparams.node_indim)
+        if self.hparams.edge_indim > 0:
+            assert_feat_dim(data.edge_attr, self.hparams.edge_indim)
+        # x = normalize(data.x, p=2.0, dim=1, eps=1e-12, out=None)
         i = data.edge_index[0]
         j = data.edge_index[1]
-        x = torch.cat((x[i], x[j]), dim=1)
+        features = [
+            data.x[i],
+            data.x[j],
+        ]
+        if self.hparams.edge_indim > 0:
+            features.append(data.edge_attr)
+        x = torch.cat(features, dim=1)
         x = self.encoder(x)
         for layer in self.layers:
             x = (
