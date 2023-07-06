@@ -1,6 +1,7 @@
 import itertools
 import os
 from pathlib import Path
+from typing import Any
 
 import torch
 from pytorch_lightning import LightningDataModule
@@ -117,12 +118,25 @@ class TrackingDataModule(LightningDataModule):
         """
         super().__init__()
         self._configs = {
-            "train": train,
-            "val": val,
-            "test": test,
+            "train": self._fix_datatypes(train),
+            "val": self._fix_datatypes(val),
+            "test": self._fix_datatypes(test),
         }
         self.datasets = {}
         self._cpus = cpus
+
+    @staticmethod
+    def _fix_datatypes(dct: dict[str, Any] | None) -> dict[str, Any] | None:
+        """Fix datatypes of config dictionary.
+        This is necessary because when configuring values from the command line,
+        all values might be strings.
+        """
+        if dct is None:
+            return {}
+        for key in ["start", "stop", "sector", "batch_size", "sample_size"]:
+            if key in dct:
+                dct[key] = int(dct[key])
+        return dct
 
     def _get_dataset(self, key) -> TrackingDataset:
         config = self._configs[key]
