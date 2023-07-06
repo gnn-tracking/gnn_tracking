@@ -153,7 +153,7 @@ class EdgeWeightFocalLoss(FalsifyLowPtEdgeWeightLoss):
         )
 
 
-class HaughtyFocalLoss(torch.nn.Module):
+class HaughtyFocalLoss(torch.nn.Module, HyperparametersMixin):
     def __init__(
         self,
         *,
@@ -162,6 +162,7 @@ class HaughtyFocalLoss(torch.nn.Module):
         pt_thld=0.0,
     ):
         super().__init__()
+        self.save_hyperparameters()
         self._alpha = alpha
         self._gamma = gamma
         self._pt_thld = pt_thld

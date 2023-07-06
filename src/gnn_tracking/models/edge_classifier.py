@@ -9,6 +9,7 @@ from torch_geometric.data import Data
 from gnn_tracking.models.mlp import MLP
 from gnn_tracking.models.resin import ResIN
 from gnn_tracking.utils.asserts import assert_feat_dim
+from gnn_tracking.utils.lightning import get_model
 
 
 class ECForGraphTCN(nn.Module, HyperparametersMixin):
@@ -160,3 +161,21 @@ class PerfectEdgeClassification(nn.Module, HyperparametersMixin):
         # Return as float, because that's what a normal model would do
         # (and also what BCE expects)
         return {"W": r.float()}
+
+
+class ECFromChkpt(nn.Module, HyperparametersMixin):
+    # noinspection PyUnusedLocal
+    def __init__(
+        self,
+        *,
+        ec_class_name: str = None,
+        ec_chkpt_path: str | None = None,
+        ec_freeze: bool = True,
+    ):
+        """For easy loading of an pretrained EC from a lightning yaml config."""
+        super().__init__()
+        self.save_hyperparameters()
+        self._ec = get_model(ec_class_name, ec_chkpt_path)
+
+    def forward(self, data: Data) -> Data:
+        return self._ec(data)
