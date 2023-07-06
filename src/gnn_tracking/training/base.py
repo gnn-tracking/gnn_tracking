@@ -7,12 +7,9 @@ from typing import Any
 import torch
 from pytorch_lightning import LightningModule
 from pytorch_lightning.cli import LRSchedulerCallable, OptimizerCallable
-from rich.console import Console
-from rich.table import Table
 from torch import Tensor, nn
 from torch_geometric.data import Data
 
-from gnn_tracking.utils.dictionaries import to_floats
 from gnn_tracking.utils.lightning import StandardError, obj_from_or_to_hparams
 from gnn_tracking.utils.log import get_logger
 from gnn_tracking.utils.oom import tolerate_some_oom_errors
@@ -71,71 +68,6 @@ class ImprovedLogLM(LightningModule):
 
     def on_test_epoch_end(self) -> None:
         self._log_errors()
-
-    def format_results_table(
-        self,
-        results: dict[str, float],
-        *,
-        header: str = "",
-    ) -> Table:
-        """Format a dictionary of results as a rich table.
-
-        Args:
-            results: Dictionary of results
-            header: Header to prepend to the log message
-
-        Returns:
-            None
-        """
-        table = Table(title=header)
-        table.add_column("Metric")
-        table.add_column("Value", justify="right")
-        table.add_column("Error", justify="right")
-        results = dict(sorted(results.items()))  # type: ignore
-        for k, v in results.items():
-            if not self.printed_results_filter(k):
-                continue
-            if k.endswith("_std"):
-                continue
-            style = None
-            if self.highlight_metric(k):
-                style = "bright_magenta bold"
-            err = results.get(f"{k}_std", float("nan"))
-            table.add_row(k, f"{v:.5f}", f"{err:.5f}", style=style)
-        return table
-
-    # noinspection PyUnusedLocal
-    # noinspection PyMethodMayBeStatic
-    def printed_results_filter(self, key: str) -> bool:
-        """Should a metric be printed in the log output for the val/test step?
-
-        This is meant to be overridden by your personal trainer.
-        """
-        return True
-
-    # noinspection PyUnusedLocal
-    # noinspection PyMethodMayBeStatic
-    def highlight_metric(self, metric: str) -> bool:
-        """Should a metric be highlighted in the log output for the val/test step?"""
-        return False
-
-    def print_validation_metrics(self) -> None:
-        """Print the validation metrics to the console."""
-        metrics = self.trainer.callback_metrics
-        if not metrics or not self.print_validation_results:
-            return
-        console = Console()
-        with console.capture() as capture:
-            console.print(
-                self.format_results_table(
-                    to_floats(metrics),
-                    header=f"Validation epoch={self.current_epoch+1}",
-                )
-            )
-        self.print(capture.get())
-
-    def on_validation_end(self, *args, **kwargs) -> None:
-        self.print_validation_metrics()
 
 
 class TrackingModule(ImprovedLogLM):
