@@ -4,8 +4,9 @@ import numpy as np
 from matplotlib import pyplot as plt
 from numpy.testing import assert_allclose
 
-from gnn_tracking.test_data import trackml_test_data_dir
 from gnn_tracking.utils.plotting import EventPlotter
+
+from .test_data import trackml_test_data_dir
 
 
 @patch("matplotlib.pyplot.show")
