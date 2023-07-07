@@ -4,7 +4,8 @@ import pytest
 
 from gnn_tracking.graph_construction.graph_builder import GraphBuilder
 from gnn_tracking.preprocessing.point_cloud_builder import PointCloudBuilder
-from gnn_tracking.test_data import trackml_test_data_dir
+
+from .test_data import trackml_test_data_dir
 
 
 @pytest.fixture(scope="session")
