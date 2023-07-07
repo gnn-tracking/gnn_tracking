@@ -1,5 +1,8 @@
 """Lightning module for object condensation training."""
 
+# Ignore unused arguments because of save_hyperparameters
+# ruff: noqa: ARG002
+
 import collections
 import math
 from typing import Any

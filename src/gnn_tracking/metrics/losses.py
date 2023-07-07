@@ -1,5 +1,8 @@
 """This module contains loss functions for the GNN tracking model."""
 
+# Ignore unused arguments because of save_hyperparameters
+# ruff: noqa: ARG002
+
 import copy
 import math
 from abc import ABC, abstractmethod
@@ -98,6 +101,7 @@ def falsify_low_pt_edges(
 
 
 class FalsifyLowPtEdgeWeightLoss(torch.nn.Module, ABC, HyperparametersMixin):
+    # noinspection PyUnusedLocal
     def __init__(self, *, pt_thld: float = 0.0):
         """Add an option to falsify edges with low pt to edge classification losses."""
         super().__init__()

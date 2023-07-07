@@ -1,3 +1,6 @@
+# Ignore unused arguments because of save_hyperparameters
+# ruff: noqa: ARG002
+
 import collections
 from collections import defaultdict
 from typing import Any, Callable, Iterable, Mapping, Protocol

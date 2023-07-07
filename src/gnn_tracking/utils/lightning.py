@@ -117,7 +117,7 @@ class StandardError(Metric):
         self.add_state("values", default=torch.tensor([]), dist_reduce_fx="cat")
 
     def update(self, x: Tensor):
-        self.values = torch.cat((self.values, x))
+        self.values = torch.cat((self.values, x))  # noqa: PD011
 
     def compute(self):
         return torch.std(self.values) / math.sqrt(len(self.values))
@@ -137,7 +137,7 @@ class SimpleTqdmProgressBar(pytorch_lightning.callbacks.ProgressBar):
     def is_enabled(self):
         return self.enabled
 
-    def on_train_epoch_start(self, trainer, pl_module):
+    def on_train_epoch_start(self, trainer, pl_module):  # noqa: ARG002
         if self.enabled:
             self.bar = tqdm(
                 total=self.total_train_batches,
@@ -146,7 +146,9 @@ class SimpleTqdmProgressBar(pytorch_lightning.callbacks.ProgressBar):
                 leave=True,
             )
 
-    def on_train_batch_end(self, trainer, pl_module, outputs, batch, batch_idx):
+    def on_train_batch_end(
+        self, trainer, pl_module, outputs, batch, batch_idx  # noqa: ARG002
+    ):
         if self.bar:
             self.bar.update(1)
             self.bar.set_postfix(self.get_metrics(trainer, pl_module))

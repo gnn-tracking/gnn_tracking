@@ -1,9 +1,11 @@
+# ruff: noqa: T201
+
 import dataclasses
 import os
 
 import numpy as np
 import pytest
-from pytest import approx
+from pytest import approx  # noqa: PT013
 
 from gnn_tracking.metrics.cluster_metrics import (
     count_hits_per_cluster,

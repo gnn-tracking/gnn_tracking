@@ -2,6 +2,9 @@
 i.e., making decisions solely based on edge features of the edge under consideration)
 """
 
+# Ignore unused arguments because of save_hyperparameters
+# ruff: noqa: ARG002
+
 import math
 
 import numpy as np

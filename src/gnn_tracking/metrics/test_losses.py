@@ -2,7 +2,7 @@ from dataclasses import dataclass
 
 import numpy as np
 import torch
-from pytest import approx
+from pytest import approx  # noqa: PT013
 from torch.nn.functional import binary_cross_entropy
 from typing_extensions import TypeAlias
 

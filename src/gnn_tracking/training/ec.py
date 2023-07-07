@@ -1,5 +1,8 @@
 """Lightning module for edge classifier training."""
 
+# Ignore unused arguments because of save_hyperparameters
+# ruff: noqa: ARG002
+
 from typing import Any
 
 from torch import Tensor

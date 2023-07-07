@@ -1,3 +1,4 @@
+# ruff: noqa: ARG002
 import logging
 from abc import ABC, abstractmethod
 from typing import Any

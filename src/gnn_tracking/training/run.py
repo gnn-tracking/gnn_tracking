@@ -7,7 +7,7 @@ from gnn_tracking.utils.loading import TrackingDataModule
 
 def cli_main():
     # noinspection PyUnusedLocal
-    cli = LightningCLI(  # noqa F841
+    cli = LightningCLI(  # noqa: F841
         datamodule_class=TrackingDataModule,
         trainer_defaults={
             "callbacks": [

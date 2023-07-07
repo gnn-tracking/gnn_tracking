@@ -1,5 +1,7 @@
 """This module holds the main training models for GNN tracking."""
 
+# Ignore unused arguments because of save_hyperparameters
+# ruff: noqa: ARG002
 
 import torch
 import torch.nn as nn
@@ -237,8 +239,6 @@ class ModularGraphTCN(nn.Module, HyperparametersMixin):
         if self.hparams.use_ec_embeddings_for_hc:
             assert data.ec_edge_embedding is not None
             assert data.ec_node_embedding is not None
-            print("de", data.ec_node_embedding.shape)
-            print("ea", data.x.shape)
             _edge_attrs.append(data.ec_edge_embedding)
             _xs.append(data.ec_node_embedding)
         if self.hparams.feed_edge_weights:

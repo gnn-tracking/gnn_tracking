@@ -12,6 +12,7 @@ from gnn_tracking.models.track_condensation_networks import (
 )
 from gnn_tracking.training.tc import TCModule
 from gnn_tracking.utils.loading import TestTrackingDataModule
+from gnn_tracking.utils.log import logger
 from gnn_tracking.utils.seeds import fix_seeds
 
 
@@ -138,7 +139,7 @@ def test_train(tmp_path, built_graphs, t: TestTrainCase) -> None:
     lmodel = TCModule(
         model=model,
     )
-    print(lmodel.hparams)
+    logger.debug(lmodel.hparams)
     # Avoid testing with TPS
     trainer = Trainer(max_steps=1, accelerator="cpu")
     trainer.fit(lmodel, datamodule=dm)
