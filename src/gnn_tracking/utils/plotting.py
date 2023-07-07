@@ -43,10 +43,9 @@ class EventPlotter:
         hits["v"] = hits["y"] / (hits["x"] ** 2 + hits["y"] ** 2)
 
         # select the data columns we need
-        hits = hits[
+        return hits[
             ["hit_id", "r", "phi", "eta", "x", "y", "z", "u", "v", "volume_id"]
         ].merge(truth[["hit_id", "particle_id", "pt", "eta_pt"]], on="hit_id")
-        return hits
 
     def get_hits(self, evtid=None):
         if evtid is None:

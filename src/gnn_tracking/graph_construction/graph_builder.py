@@ -208,7 +208,7 @@ class GraphBuilder:
             good_edge_mask &= ~intersected_layer
 
         # store edges (in COO format) and geometric edge features
-        selected_edges = pd.DataFrame(
+        return pd.DataFrame(
             {
                 "index_1": hit_pairs["index_1"][good_edge_mask],
                 "index_2": hit_pairs["index_2"][good_edge_mask],
@@ -218,8 +218,6 @@ class GraphBuilder:
                 "dR": dR[good_edge_mask],
             }
         )
-
-        return selected_edges
 
     def correct_truth_labels(
         self, hits: DF, edges: DF, y: A, particle_ids: A
@@ -504,7 +502,8 @@ class GraphBuilder:
             try:
                 evtid, sector = self.get_event_id_sector_from_str(f.name)
             except (ValueError, KeyError) as e:
-                raise ValueError(f"{f.name} is not a valid file name") from e
+                msg = f"{f.name} is not a valid file name"
+                raise ValueError(msg) from e
             if 0 <= only_sector != sector:
                 continue
             if f.name in outfiles and not self.redo:

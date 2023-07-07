@@ -181,7 +181,8 @@ def get_track_graph_info_from_data(
                 )._asdict()
             )
         except Exception as e:
-            raise ValueError("Error for PID", pid) from e
+            msg = "Error for PID"
+            raise ValueError(msg, pid) from e
     return pd.DataFrame.from_records(results)
 
 
@@ -189,22 +190,25 @@ def summarize_track_graph_info(tgi: pd.DataFrame) -> dict[str, float]:
     """Summarize track graph information returned by
     `get_track_graph_info_from_data`.
     """
-    return dict(
-        frac_segment100=sum((tgi.n_hits_largest_segment / tgi.n_hits) == 1) / len(tgi),
-        frac_component100=sum((tgi.n_hits_largest_component / tgi.n_hits) == 1)
+    return {
+        "frac_segment100": sum((tgi.n_hits_largest_segment / tgi.n_hits) == 1)
         / len(tgi),
-        frac_segment50=sum((tgi.n_hits_largest_segment / tgi.n_hits) >= 0.50)
+        "frac_component100": sum((tgi.n_hits_largest_component / tgi.n_hits) == 1)
         / len(tgi),
-        frac_component50=sum((tgi.n_hits_largest_component / tgi.n_hits) >= 0.50)
+        "frac_segment50": sum((tgi.n_hits_largest_segment / tgi.n_hits) >= 0.50)
         / len(tgi),
-        frac_segment75=sum((tgi.n_hits_largest_segment / tgi.n_hits) >= 0.75)
+        "frac_component50": sum((tgi.n_hits_largest_component / tgi.n_hits) >= 0.50)
         / len(tgi),
-        frac_component75=sum((tgi.n_hits_largest_component / tgi.n_hits) >= 0.75)
+        "frac_segment75": sum((tgi.n_hits_largest_segment / tgi.n_hits) >= 0.75)
         / len(tgi),
-        n_segments=tgi.n_segments.mean(),
-        frac_hits_largest_segment=(tgi.n_hits_largest_segment / tgi.n_hits).mean(),
-        frac_hits_largest_component=(tgi.n_hits_largest_component / tgi.n_hits).mean(),
-    )
+        "frac_component75": sum((tgi.n_hits_largest_component / tgi.n_hits) >= 0.75)
+        / len(tgi),
+        "n_segments": tgi.n_segments.mean(),
+        "frac_hits_largest_segment": (tgi.n_hits_largest_segment / tgi.n_hits).mean(),
+        "frac_hits_largest_component": (
+            tgi.n_hits_largest_component / tgi.n_hits
+        ).mean(),
+    }
 
 
 class OrphanCount(NamedTuple):

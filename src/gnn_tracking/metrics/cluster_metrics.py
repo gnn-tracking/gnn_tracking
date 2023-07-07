@@ -120,7 +120,7 @@ def tracking_metric_df(h_df: pd.DataFrame, predicted_count_thld=3) -> pd.DataFra
     )
     # Could to .first() for pt/reconstructable, but we want to average over eta
     pid_to_props = (
-        h_df[["id"] + particle_properties].groupby("id")[particle_properties].mean()
+        h_df[["id", *particle_properties]].groupby("id")[particle_properties].mean()
     )
     c_df = c_df.merge(
         pid_to_props, left_on="maj_pid", right_index=True, copy=False

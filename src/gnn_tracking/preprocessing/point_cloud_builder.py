@@ -212,8 +212,7 @@ class PointCloudBuilder:
         hits["eta_rz"] = self.calc_eta(hits.r, hits.z)
         hits["u"] = hits["x"] / (hits["x"] ** 2 + hits["y"] ** 2)
         hits["v"] = hits["y"] / (hits["x"] ** 2 + hits["y"] ** 2)
-        hits = hits.merge(truth[["hit_id", "particle_id", "pt", "eta_pt"]], on="hit_id")
-        return hits
+        return hits.merge(truth[["hit_id", "particle_id", "pt", "eta_pt"]], on="hit_id")
 
     def sector_hits(
         self, hits: pd.DataFrame, s, particle_id_counts: dict[int, int]
@@ -307,7 +306,7 @@ class PointCloudBuilder:
 
     def to_pyg_data(self, hits: pd.DataFrame) -> Data:
         """Build the output data structure"""
-        data = Data(
+        return Data(
             x=torch.from_numpy(
                 hits[self.feature_names].to_numpy() / self.feature_scale
             ).float(),
@@ -319,7 +318,6 @@ class PointCloudBuilder:
             reconstructable=torch.from_numpy(hits["reconstructable"].to_numpy()).long(),
             sector=torch.from_numpy(hits["sector"].to_numpy()).long(),
         )
-        return data
 
     def get_measurements(self):
         measurements = pd.DataFrame(self.measurements)

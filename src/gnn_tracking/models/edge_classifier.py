@@ -1,5 +1,7 @@
 """Models for edge classification"""
 
+from typing import Optional
+
 import numpy as np
 import torch
 from pytorch_lightning.core.mixins import HyperparametersMixin
@@ -20,7 +22,7 @@ class ECForGraphTCN(nn.Module, HyperparametersMixin):
         edge_indim: int,
         interaction_node_dim: int = 5,
         interaction_edge_dim: int = 4,
-        hidden_dim: int | float = None,
+        hidden_dim: Optional[int | float] = None,
         L_ec: int = 3,
         alpha: float = 0.5,
         residual_type="skip1",
@@ -168,7 +170,7 @@ class ECFromChkpt(nn.Module, HyperparametersMixin):
     def __init__(
         self,
         *,
-        ec_class_name: str = None,
+        ec_class_name: Optional[str] = None,
         ec_chkpt_path: str | None = None,
         ec_freeze: bool = True,
     ):

@@ -132,7 +132,8 @@ def test_train(tmp_path, built_graphs, t: TestTrainCase) -> None:
             **t.tc_params,
         )
     else:
-        raise ValueError(f"Unknown model type {t.model}")
+        msg = f"Unknown model type {t.model}"
+        raise ValueError(msg)
 
     lmodel = TCModule(
         model=model,

@@ -91,9 +91,7 @@ def collect_all_ec_stats(
     r_averaged = []
     n_batches = len(r) // len(thresholds)
     for i in range(len(thresholds)):
-        batched = {
-            k: np.array([x[k] for x in r[i :: len(thresholds)]]) for k in r[0].keys()
-        }
+        batched = {k: np.array([x[k] for x in r[i :: len(thresholds)]]) for k in r[0]}
         r_averaged.append(
             {k: np.mean(batch) for k, batch in batched.items()}
             | {

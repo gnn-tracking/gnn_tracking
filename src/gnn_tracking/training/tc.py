@@ -71,9 +71,8 @@ class TCModule(TrackingModule):
             not math.isclose(self.hparams.lw_background, 0.0)
             and self.background_loss is None
         ):
-            raise ValueError(
-                "Background loss weight is non-zero but background_loss=None"
-            )
+            msg = "Background loss weight is non-zero but background_loss=None"
+            raise ValueError(msg)
 
     def is_last_val_batch(self, batch_idx: int) -> bool:
         """Are we validating the last batch of the validation set?"""

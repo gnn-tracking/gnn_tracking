@@ -51,8 +51,11 @@ def preprocess_detector(detector: DF) -> dict:
     thicknesses = DetectorThicknesses(detector).get_thicknesses()
     rotations = DetectorRotations(detector).get_rotations()
     pixel_size = DetectorPixelSize(detector).get_pixel_size()
-    det = dict(thicknesses=thicknesses, rotations=rotations, pixel_size=pixel_size)
-    return det
+    return {
+        "thicknesses": thicknesses,
+        "rotations": rotations,
+        "pixel_size": pixel_size,
+    }
 
 
 def determine_array_size(detector: DF) -> tuple[float, float, float]:
@@ -98,14 +101,13 @@ class DetectorRotations:
         """
         Extract the rotation matrix from module dataframe
         """
-        r = np.matrix(
+        return np.matrix(
             [
                 [mod.rot_xu.item(), mod.rot_xv.item(), mod.rot_xw.item()],
                 [mod.rot_yu.item(), mod.rot_yv.item(), mod.rot_yw.item()],
                 [mod.rot_zu.item(), mod.rot_zv.item(), mod.rot_zw.item()],
             ]
         )
-        return r
 
 
 class DetectorThicknesses:
@@ -207,8 +209,7 @@ def get_all_rotated(hits: DF, detector: dict, l_u: S, l_v: S, l_w: S):
     dirs = np.concatenate((u, v, w), axis=1)
 
     dirs = np.expand_dims(dirs, axis=2)
-    vecRot = np.matmul(rotations_hits, dirs).squeeze(2)
-    return vecRot
+    return np.matmul(rotations_hits, dirs).squeeze(2)
 
 
 def extract_dir_new(hits: DF, cells: DF, detector: dict) -> DF:
@@ -232,7 +233,7 @@ def extract_dir_new(hits: DF, cells: DF, detector: dict) -> DF:
     angles = np.vstack(
         [hit_ids, cell_counts, cell_vals, l_eta, l_phi, l_u, l_v, l_w, g_eta, g_phi]
     ).T
-    df_angles = pd.DataFrame(
+    return pd.DataFrame(
         angles,
         columns=[
             "hit_id",
@@ -247,8 +248,6 @@ def extract_dir_new(hits: DF, cells: DF, detector: dict) -> DF:
             "gphi",
         ],
     )
-
-    return df_angles
 
 
 def augment_hit_features(hits: DF, cells: DF, detector_proc: dict):

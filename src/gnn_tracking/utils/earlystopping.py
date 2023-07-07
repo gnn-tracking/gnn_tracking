@@ -41,7 +41,8 @@ class RelEarlyStopper(EarlyStopper):
         elif self._direction == "min":
             fom = -fom
         else:
-            raise ValueError(f"Unknown direction {self._direction}")
+            msg = f"Unknown direction {self._direction}"
+            raise ValueError(msg)
         if self._best_fom is None:
             self._best_fom = fom
             return False

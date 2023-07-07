@@ -9,12 +9,12 @@ def cli_main():
     # noinspection PyUnusedLocal
     cli = LightningCLI(  # noqa F841
         datamodule_class=TrackingDataModule,
-        trainer_defaults=dict(
-            callbacks=[
+        trainer_defaults={
+            "callbacks": [
                 RichProgressBar(leave=True),
                 PrintValidationMetrics(),
             ]
-        ),
+        },
     )
 
 

@@ -18,7 +18,8 @@ class DynamicEdgeConv(MessagePassing):
         super().__init__(aggr=aggr, flow="source_to_target", **kwargs)
 
         if knn is None:
-            raise ImportError("`DynamicEdgeConv` requires `torch-cluster`.")
+            msg = "`DynamicEdgeConv` requires `torch-cluster`."
+            raise ImportError(msg)
 
         self.nn = nn
         self.k = k
@@ -41,7 +42,8 @@ class DynamicEdgeConv(MessagePassing):
             x: PairTensor = (x, x)
 
         if x[0].dim() != 2:
-            raise ValueError("Static graphs not supported in DynamicEdgeConv")
+            msg = "Static graphs not supported in DynamicEdgeConv"
+            raise ValueError(msg)
 
         b: PairOptTensor = (None, None)
         if isinstance(batch, Tensor):

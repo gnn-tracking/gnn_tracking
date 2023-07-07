@@ -1,7 +1,7 @@
 import inspect
 import itertools
 from copy import deepcopy
-from typing import Any, Sequence, TypeVar
+from typing import Any, Optional, Sequence, TypeVar
 
 import torch
 
@@ -25,7 +25,7 @@ def subdict_with_prefix_stripped(dct: dict[str, _P], prefix: str = "") -> dict[s
 
 
 def expand_grid(
-    grid: dict[str, Sequence], fixed: dict[str, Sequence] = None
+    grid: dict[str, Sequence], fixed: Optional[dict[str, Sequence]] = None
 ) -> list[dict[str, Any]]:
     """Expands a grid of parameters into a list of configurations."""
     if fixed is None:
@@ -34,7 +34,7 @@ def expand_grid(
     configs: list[dict[str, Any]] = []
     for _c in _configs:
         c = deepcopy(fixed)
-        c.update({k: v for k, v in zip(grid.keys(), _c)})
+        c.update(dict(zip(grid.keys(), _c)))
         configs.append(c)
     return configs
 
@@ -43,8 +43,9 @@ def pivot_record_list(records: list[dict]) -> dict:
     """Transform list of key value pairs into dict of lists."""
     keys = list(records[0].keys())
     for record in records:
-        if not set(record.keys()) == set(keys):
-            raise ValueError("All records must have the same keys.")
+        if set(record.keys()) != set(keys):
+            msg = "All records must have the same keys."
+            raise ValueError(msg)
     return {k: [r[k] for r in records] for k in keys}
 
 

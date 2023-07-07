@@ -77,10 +77,10 @@ def get_majority_sector(sectors: np.ndarray) -> int:
     unique_sectors, counts = np.unique(sectors, return_counts=True)
     no_noise_mask = unique_sectors >= 0
     if not np.any(no_noise_mask):
-        raise ValueError("Only noise in this graph")
+        msg = "Only noise in this graph"
+        raise ValueError(msg)
     chosen_idx = np.argmax(counts[no_noise_mask])
-    chosen_sector = unique_sectors[no_noise_mask][chosen_idx]
-    return chosen_sector
+    return unique_sectors[no_noise_mask][chosen_idx]
 
 
 # todo: Could simplify this implementation if we pass around DataFrames rather than

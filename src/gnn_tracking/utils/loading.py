@@ -52,7 +52,8 @@ class TrackingDataset(Dataset):
             in_dir = [in_dir]
         for d in in_dir:
             if not Path(d).exists():
-                raise FileNotFoundError(f"Directory {d} does not exist.")
+                msg = f"Directory {d} does not exist."
+                raise FileNotFoundError(msg)
         glob = "*.pt" if sector is None else f"*_s{sector}.pt"
         available_files = sorted(
             itertools.chain.from_iterable([Path(d).glob(glob) for d in in_dir])
@@ -60,10 +61,11 @@ class TrackingDataset(Dataset):
 
         if stop is not None and stop > len(available_files):
             # to avoid tracking wrong hyperparameters
-            raise ValueError(
+            msg = (
                 f"stop={stop} is larger than the number of files "
-                f"({len(available_files)})"
+                "({len(available_files)})"
             )
+            raise ValueError(msg)
         considered_files = available_files[start:stop]
         logger.info(
             "DataLoader will load %d graphs (out of %d available).",
@@ -141,7 +143,8 @@ class TrackingDataModule(LightningDataModule):
     def _get_dataset(self, key) -> TrackingDataset:
         config = self._configs[key]
         if config is None:
-            raise ValueError(f"DataLoaderConfig for key {key} is None.")
+            msg = f"DataLoaderConfig for key {key} is None."
+            raise ValueError(msg)
         return TrackingDataset(
             in_dir=config["dirs"],
             start=config.get("start", 0),
@@ -165,7 +168,8 @@ class TrackingDataModule(LightningDataModule):
         n_samples = len(dataset)
         if key == "train" and len(self.datasets[key]):
             if "max_sample_size" in self._configs[key]:
-                raise ValueError("max_sample_size has been replaced by sample_size")
+                msg = "max_sample_size has been replaced by sample_size"
+                raise ValueError(msg)
             n_samples = self._configs[key].get("sample_size", len(dataset))
             sampler = RandomSampler(
                 self.datasets[key],

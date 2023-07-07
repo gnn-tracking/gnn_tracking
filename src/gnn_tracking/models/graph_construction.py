@@ -1,6 +1,7 @@
 """Models for embeddings used for graph construction."""
 
 import math
+from typing import Optional
 
 import numpy as np
 import torch.nn
@@ -130,7 +131,8 @@ class MLGraphConstruction(nn.Module):
         self._build_edge_features = build_edge_features
         self._ef_threshold = ec_threshold
         if self._ef is not None and self._ef_threshold is None:
-            raise ValueError("ef_threshold must be set if ef is not None")
+            msg = "ef_threshold must be set if ef is not None"
+            raise ValueError(msg)
         if build_edge_features and ratio_of_false:
             logger.warning(
                 "Subsampling false edges. This might not make sense"
@@ -203,7 +205,7 @@ class MLGraphConstructionFromChkpt(nn.Module, HyperparametersMixin):
         *,
         ml_class_name: str = "gnn_tracking.training.ml.MLModule",
         ml_chkpt_path: str = "",
-        ec_class_name: str = None,
+        ec_class_name: Optional[str] = None,
         ec_chkpt_path: str | None = None,
         max_radius: float = 1,
         max_num_neighbors: int = 256,

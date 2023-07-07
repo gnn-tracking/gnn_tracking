@@ -60,7 +60,8 @@ def get_object_from_path(path: str, init_args: dict[str, Any] | None = None) -> 
     module_name, _, class_name = path.rpartition(".")
     logger.debug("Getting class %s from module %s", class_name, module_name)
     if not module_name:
-        raise ValueError("Please specify the full import path")
+        msg = "Please specify the full import path"
+        raise ValueError(msg)
     module = importlib.import_module(module_name)
     obj = getattr(module, class_name)
     if init_args is not None:
@@ -77,10 +78,11 @@ def get_lightning_module(
     if class_path is None:
         return None
     if not chkpt_path:
-        raise ValueError(
-            "This function currently does not support to restore a model without "
-            "specifying a Checkpoint."
+        msg = (
+            "This function currently does not support to restore a model "
+            "without specifying a Checkpoint."
         )
+        raise ValueError(msg)
     model_class: type = get_object_from_path(class_path)
     assert issubclass(model_class, LightningModule)
     logger.debug("Loading checkpoint %s", chkpt_path)

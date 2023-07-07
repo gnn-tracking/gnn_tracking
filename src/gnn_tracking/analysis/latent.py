@@ -92,8 +92,7 @@ class SelectedPidsPlot:
         pid_mask = self._pids == pid
         assoc_labels = torch.unique(self._labels[pid_mask])
         label_mask = torch.isin(self._labels, assoc_labels)
-        col_mask = label_mask & (~pid_mask)
-        return col_mask
+        return label_mask & (~pid_mask)
 
     @staticmethod
     def plot_circles(ax: plt.Axes, xs: T, ys: T, colors, eps=1) -> None:

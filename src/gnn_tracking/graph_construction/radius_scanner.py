@@ -217,13 +217,15 @@ class RadiusScanner:
             we exceed maximal number of edges.
         """
         if radius > self._radius_range[1]:
-            raise ComputationAborted("Exceeded radius range")
+            msg = "Exceeded radius range"
+            raise ComputationAborted(msg)
         data = construct_graph(
             mo, radius=radius, max_num_neighbors=self._max_num_neighbors
         )
         if data.num_edges > self._max_edges:
             self._clip_radius_range(max_radius=radius, reason="too many edges")
-            raise ComputationAborted("Too many edges")
+            msg = "Too many edges"
+            raise ComputationAborted(msg)
         lsfs = get_largest_segment_fracs(data)
         frac50 = (lsfs > 0.5).mean().item()
         frac75 = (lsfs > 0.75).mean().item()
