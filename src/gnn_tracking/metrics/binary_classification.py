@@ -209,7 +209,8 @@ def roc_auc_score(
     metric = BinaryAUROC(max_fpr=max_fpr).to(device=guess_device(device))
     try:
         return metric(preds=y_score, target=y_true).item()
-    except ValueError as e:
+    except (ValueError, IndexError) as e:
+        # Index error is for https://github.com/Lightning-AI/torchmetrics/issues/1891
         logger.error(e)
         return float("nan")
 

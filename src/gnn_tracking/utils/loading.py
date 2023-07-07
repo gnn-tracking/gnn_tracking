@@ -215,4 +215,4 @@ class TestTrackingDataModule(LightningDataModule):
         return DataLoader(self.datasets["val"])
 
     def test_dataloader(self):
-        return self.datasets["test"]
+        return DataLoader(self.datasets["test"])
