@@ -1,4 +1,5 @@
 import dataclasses
+import os
 
 import numpy as np
 import pytest
@@ -295,6 +296,12 @@ def test_count_cluster_hits():
 
 
 def test_fix_cluster_metrics():
+    if os.getenv("GITHUB_ACTIONS"):
+        pytest.xfail(
+            "This test is known to fail on github actions. See "
+            "https://github.com/gnn-tracking/gnn_tracking/issues/349 "
+            "for more details."
+        )
     rng = np.random.default_rng(0)
     n_samples = 50
     n_particles = 20
