@@ -182,11 +182,11 @@ def find_latest_checkpoint(
     if trial_name:
         log_dir /= trial_name
     assert log_dir.is_dir()
-    if not log_dir.name == "checkpoints":
+    if log_dir.name != "checkpoints":
         log_dir /= "checkpoints"
     assert log_dir.is_dir()
     checkpoints = list(log_dir.glob("*.ckpt"))
     if len(checkpoints) == 0:
-        raise ValueError(f"No checkpoints found in {log_dir}")
-    path = max(checkpoints, key=lambda p: p.stat().st_mtime)
-    return path
+        msg = f"No checkpoints found in {log_dir}"
+        raise ValueError(msg)
+    return max(checkpoints, key=lambda p: p.stat().st_mtime)

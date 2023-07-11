@@ -24,14 +24,14 @@ def tracking_data_module() -> TrackingDataModule:
 def test_train_from_config(config_file: Path):
     cli = LightningCLI(  # noqa F841
         datamodule_class=tracking_data_module,
-        trainer_defaults=dict(
-            callbacks=[
+        trainer_defaults={
+            "callbacks": [
                 RichProgressBar(leave=True),
                 PrintValidationMetrics(),
             ],
-            log_every_n_steps=1,
-            accelerator="cpu",
-            max_epochs=1,
-        ),
+            "log_every_n_steps": 1,
+            "accelerator": "cpu",
+            "max_epochs": 1,
+        },
         args=["fit", "--config", str(config_file)],
     )
