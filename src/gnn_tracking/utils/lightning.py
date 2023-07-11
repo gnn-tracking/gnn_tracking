@@ -1,5 +1,7 @@
 import importlib
 import math
+import os
+from pathlib import Path
 from typing import Any
 
 import pytorch_lightning
@@ -162,3 +164,29 @@ class SimpleTqdmProgressBar(pytorch_lightning.callbacks.ProgressBar):
     def disable(self):
         self.bar = None
         self.enabled = False
+
+
+def find_latest_checkpoint(
+    log_dir: os.PathLike,
+    trial_name: str = "",
+) -> Path:
+    """Find latest lightning checkpoint
+
+    Args:
+        log_dir (os.PathLike): Path to the directory of your trial or to the
+            directory of the experiment if `trial_name` is specified.
+        trial_name (str, optional): Name of the trial if `log_dir` is the
+            directory of the experiment.
+    """
+    log_dir = Path(log_dir)
+    if trial_name:
+        log_dir /= trial_name
+    assert log_dir.is_dir()
+    if not log_dir.name == "checkpoints":
+        log_dir /= "checkpoints"
+    assert log_dir.is_dir()
+    checkpoints = list(log_dir.glob("*.ckpt"))
+    if len(checkpoints) == 0:
+        raise ValueError(f"No checkpoints found in {log_dir}")
+    path = max(checkpoints, key=lambda p: p.stat().st_mtime)
+    return path
