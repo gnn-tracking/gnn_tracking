@@ -124,8 +124,16 @@ class TrackingDataModule(LightningDataModule):
             "val": self._fix_datatypes(val),
             "test": self._fix_datatypes(test),
         }
-        self.datasets = {}
+        self._datasets = {}
         self._cpus = cpus
+
+    @property
+    def datasets(self) -> dict[str, TrackingDataset]:
+        if not self._datasets:
+            logger.error(
+                "Datasets have not been loaded yet. Make sure to call the setup method."
+            )
+        return self._datasets
 
     @staticmethod
     def _fix_datatypes(dct: dict[str, Any] | None) -> dict[str, Any] | None:
@@ -142,7 +150,7 @@ class TrackingDataModule(LightningDataModule):
 
     def _get_dataset(self, key) -> TrackingDataset:
         config = self._configs[key]
-        if config is None:
+        if not config:
             msg = f"DataLoaderConfig for key {key} is None."
             raise ValueError(msg)
         return TrackingDataset(
@@ -154,25 +162,25 @@ class TrackingDataModule(LightningDataModule):
 
     def setup(self, stage: str) -> None:
         if stage == "fit":
-            self.datasets["train"] = self._get_dataset("train")
-            self.datasets["val"] = self._get_dataset("val")
+            self._datasets["train"] = self._get_dataset("train")
+            self._datasets["val"] = self._get_dataset("val")
         elif stage == "test":
-            self.datasets["test"] = self._get_dataset("test")
+            self._datasets["test"] = self._get_dataset("test")
         else:
             _ = f"Unknown stage '{stage}'"
             raise ValueError(_)
 
     def _get_dataloader(self, key):
         sampler = None
-        dataset = self.datasets[key]
+        dataset = self._datasets[key]
         n_samples = len(dataset)
-        if key == "train" and len(self.datasets[key]):
+        if key == "train" and len(self._datasets[key]):
             if "max_sample_size" in self._configs[key]:
                 msg = "max_sample_size has been replaced by sample_size"
                 raise ValueError(msg)
             n_samples = self._configs[key].get("sample_size", len(dataset))
             sampler = RandomSampler(
-                self.datasets[key],
+                self._datasets[key],
                 replacement=n_samples > len(dataset),
                 num_samples=n_samples,
             )
