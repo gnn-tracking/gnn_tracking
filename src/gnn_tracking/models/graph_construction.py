@@ -114,7 +114,8 @@ class MLGraphConstruction(nn.Module):
         build_edge_features=True,
         ec_threshold=None,
     ):
-        """Builds graph from embedding space.
+        """Builds graph from embedding space. If you want to start from a checkpoint,
+        use `MLGraphConstructionFromChkpt` instead.
 
         Args:
             ml: Metric learning embedding module
@@ -236,3 +237,39 @@ class MLGraphConstructionFromChkpt(nn.Module, HyperparametersMixin):
 
     def forward(self, data: Data) -> Data:
         return self._gc(data)
+
+
+class MLFromChkpt(nn.Module, HyperparametersMixin):
+    # noinspection PyUnusedLocal
+    def __init__(
+        self,
+        chkpt_path: str,
+        *,
+        class_name: str = "gnn_tracking.training.ml.MLModule",
+        freeze: bool = True,
+        original_features: bool = False,
+    ):
+        """Use this class to restore a pretrained ML model.
+        In contrast to `MLGraphConstructionFromChkpt`, this class does not build a
+        graph from the latent space but returns a transformed point cloud.
+
+        .. warning::
+            In the current implementation, the original ``Data`` object is modified.
+
+        Args:
+            chkpt_path: Path to the checkpoint
+            class_name: Class name of the ML lightning module
+            freeze: Freeze the model (no more backprop to these parameters)
+            original_features: Include original node features as node features
+        """
+        super().__init__()
+        self.save_hyperparameters()
+        self._ml = get_model(class_name, chkpt_path, freeze=freeze)
+
+    def forward(self, data: Data) -> Data:
+        out = self._ml(data)
+        if self.hparams.original_features:
+            data.x = torch.cat((out["H"], data.x), dim=1)
+        else:
+            data.x = out["H"]
+        return data
