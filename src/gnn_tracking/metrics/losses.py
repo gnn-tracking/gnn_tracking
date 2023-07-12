@@ -490,7 +490,7 @@ class GraphConstructionHingeEmbeddingLoss(nn.Module, HyperparametersMixin):
     def __init__(
         self,
         *,
-        r_emb=0.002,
+        r_emb=1,
         max_num_neighbors: int = 256,
         attr_pt_thld: float = 0.9,
         p_attr: float = 1,
