@@ -5,7 +5,6 @@
 # ruff: noqa: ARG002
 
 import math
-from typing import Optional
 
 import numpy as np
 import torch.nn
@@ -210,7 +209,7 @@ class MLGraphConstructionFromChkpt(nn.Module, HyperparametersMixin):
         *,
         ml_class_name: str = "gnn_tracking.training.ml.MLModule",
         ml_chkpt_path: str = "",
-        ec_class_name: Optional[str] = None,
+        ec_class_name: str | None = "gnn_tracking.training.ec.ECModule",
         ec_chkpt_path: str | None = None,
         max_radius: float = 1,
         max_num_neighbors: int = 256,
