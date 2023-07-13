@@ -206,11 +206,11 @@ class MLGraphConstructionFromChkpt(nn.Module, HyperparametersMixin):
     # noinspection PyUnusedLocal
     def __init__(
         self,
+        ml_chkpt_path: str,
+        ec_chkpt_path: str = "",
         *,
         ml_class_name: str = "gnn_tracking.training.ml.MLModule",
-        ml_chkpt_path: str = "",
-        ec_class_name: str | None = "gnn_tracking.training.ec.ECModule",
-        ec_chkpt_path: str | None = None,
+        ec_class_name: str = "gnn_tracking.training.ec.ECModule",
         max_radius: float = 1,
         max_num_neighbors: int = 256,
         ratio_of_false=None,
@@ -220,11 +220,23 @@ class MLGraphConstructionFromChkpt(nn.Module, HyperparametersMixin):
         ml_freeze: bool = True,
         ec_freeze: bool = True,
     ):
-        """Wrapper around MLGraphConstruction but loads all modules from checkpoints."""
+        """Wrapper around MLGraphConstruction but loads all modules from checkpoints.
+
+        Args:
+            ml_chkpt_path: Path to metric learning checkpoint
+            ec_chkpt_path: Path to edge filter checkpoint. If empty, no EC will be
+                used.
+            ml_class_name: Class name of metric learning lightning module
+                (default should almost always be fine)
+            ec_class_name: Class name of edge filter lightning module
+                (default should almost always be fine)
+        """
         super().__init__()
         self.save_hyperparameters()
         ml = get_model(ml_class_name, ml_chkpt_path)
-        ec = get_model(ec_class_name, ec_chkpt_path)
+        ec = None
+        if ec_chkpt_path:
+            ec = get_model(ec_class_name, ec_chkpt_path)
         self._gc = MLGraphConstruction(
             ml=ml,
             max_radius=max_radius,
