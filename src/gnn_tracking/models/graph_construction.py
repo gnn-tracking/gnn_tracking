@@ -215,6 +215,7 @@ class MLGraphConstructionFromChkpt(nn.Module, HyperparametersMixin):
         max_num_neighbors: int = 256,
         ratio_of_false=None,
         build_edge_features=True,
+        use_embedding_features=False,
         ec_thld: float | None = None,
         ml_freeze: bool = True,
         ec_freeze: bool = True,
@@ -232,6 +233,7 @@ class MLGraphConstructionFromChkpt(nn.Module, HyperparametersMixin):
             build_edge_features=build_edge_features,
             ec=ec,
             ec_threshold=ec_thld,
+            use_embedding_features=use_embedding_features,
         )
 
     def forward(self, data: Data) -> Data:
