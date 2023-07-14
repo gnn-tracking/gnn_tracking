@@ -16,7 +16,7 @@ from torch.nn.functional import normalize, relu
 from torch_cluster import knn_graph
 from torch_geometric.data import Data
 
-from gnn_tracking.utils.lightning import get_model
+from gnn_tracking.utils.lightning import get_model, obj_from_or_to_hparams
 from gnn_tracking.utils.log import logger
 
 
@@ -100,7 +100,7 @@ def knn_with_max_radius(x: T, k: int, max_radius: float | None = None) -> T:
     return edge_index
 
 
-class MLGraphConstruction(nn.Module):
+class MLGraphConstruction(nn.Module, HyperparametersMixin):
     def __init__(
         self,
         ml: torch.nn.Module,
@@ -114,7 +114,7 @@ class MLGraphConstruction(nn.Module):
         ec_threshold=None,
     ):
         """Builds graph from embedding space. If you want to start from a checkpoint,
-        use `MLGraphConstructionFromChkpt` instead.
+        use `MLGraphConstruction.from_chkpt`.
 
         Args:
             ml: Metric learning embedding module
@@ -126,8 +126,9 @@ class MLGraphConstruction(nn.Module):
             build_edge_features:
         """
         super().__init__()
-        self._ml = ml
-        self._ef = ec
+        self.save_hyperparameters(ignore=["ml", "ec"])
+        self._ml = obj_from_or_to_hparams(self, "ml", ml)
+        self._ef = obj_from_or_to_hparams(self, "ec", ec)
         self._max_radius = max_radius
         self._max_num_neighbors = max_num_neighbors
         self._use_embedding_features = use_embedding_features
@@ -135,13 +136,56 @@ class MLGraphConstruction(nn.Module):
         self._build_edge_features = build_edge_features
         self._ef_threshold = ec_threshold
         if self._ef is not None and self._ef_threshold is None:
-            msg = "ef_threshold must be set if ef is not None"
+            msg = "ec_threshold must be set if ec/ef is not None"
             raise ValueError(msg)
         if build_edge_features and ratio_of_false:
             logger.warning(
                 "Subsampling false edges. This might not make sense"
                 " for message passing."
             )
+
+    @classmethod
+    def from_chkpt(
+        cls,
+        ml_chkpt_path: str,
+        ec_chkpt_path: str = "",
+        *,
+        ml_class_name: str = "gnn_tracking.training.ml.MLModule",
+        ec_class_name: str = "gnn_tracking.training.ec.ECModule",
+        max_radius: float = 1,
+        max_num_neighbors: int = 256,
+        ratio_of_false=None,
+        build_edge_features=True,
+        use_embedding_features=False,
+        ec_thld: float | None = None,
+        ml_freeze: bool = True,
+        ec_freeze: bool = True,
+    ) -> "MLGraphConstruction":
+        """Build `MLGraphConstruction` from checkpointed models.
+
+        Args:
+            ml_chkpt_path: Path to metric learning checkpoint
+            ec_chkpt_path: Path to edge filter checkpoint. If empty, no EC will be
+                used.
+            ml_class_name: Class name of metric learning lightning module
+                (default should almost always be fine)
+            ec_class_name: Class name of edge filter lightning module
+                (default should almost always be fine)
+        """
+        ml = get_model(ml_class_name, ml_chkpt_path, freeze=ml_freeze)
+        ec = None
+        if ec_chkpt_path:
+            ec = get_model(ec_class_name, ec_chkpt_path, ec_freeze)
+        return cls(
+            ml=ml,
+            max_radius=max_radius,
+            max_num_neighbors=max_num_neighbors,
+            ratio_of_false=ratio_of_false,
+            build_edge_features=build_edge_features,
+            ec=ec,
+            ec_threshold=ec_thld,
+            use_embedding_features=use_embedding_features,
+        )
 
     @property
     def out_dim(self) -> tuple[int, int]:
@@ -202,82 +246,61 @@ class MLGraphConstruction(nn.Module):
         )
 
 
-class MLGraphConstructionFromChkpt(nn.Module, HyperparametersMixin):
+def ml_graph_construction_from_chkpt(*args, **kwargs) -> MLGraphConstruction:
+    """Alias for `MLGraphConstruction.from_chkpt` for use in yaml files"""
+    return MLGraphConstruction.from_chkpt(*args, **kwargs)
+
+
+class MLPCTransformer(nn.Module, HyperparametersMixin):
     # noinspection PyUnusedLocal
     def __init__(
         self,
-        ml_chkpt_path: str,
-        ec_chkpt_path: str = "",
+        model: nn.Module,
         *,
-        ml_class_name: str = "gnn_tracking.training.ml.MLModule",
-        ec_class_name: str = "gnn_tracking.training.ec.ECModule",
-        max_radius: float = 1,
-        max_num_neighbors: int = 256,
-        ratio_of_false=None,
-        build_edge_features=True,
-        use_embedding_features=False,
-        ec_thld: float | None = None,
-        ml_freeze: bool = True,
-        ec_freeze: bool = True,
+        original_features: bool = False,
     ):
-        """Wrapper around MLGraphConstruction but loads all modules from checkpoints.
+        """Transforms a point cloud (PC) using a metric learning (ML) model.
+        This is just a thin wrapper around the ML module with specification of what
+        to do with the resulting latent space.
+        In contrast to `MLGraphConstructionFromChkpt`, this class does not build a
+        graph from the latent space but returns a transformed point cloud.
+        Use `MLPCTransformer.from_ml_chkpt` to build from a checkpointed ML model.
+
+        .. warning::
+            In the current implementation, the original ``Data`` object is modified
+            by `forward`.
 
         Args:
-            ml_chkpt_path: Path to metric learning checkpoint
-            ec_chkpt_path: Path to edge filter checkpoint. If empty, no EC will be
-                used.
-            ml_class_name: Class name of metric learning lightning module
-                (default should almost always be fine)
-            ec_class_name: Class name of edge filter lightning module
-                (default should almost always be fine)
+            model: Metric learning model. Should return latent space with key "H"
+            original_features: Include original node features as node features
         """
         super().__init__()
-        self.save_hyperparameters()
-        ml = get_model(ml_class_name, ml_chkpt_path)
-        ec = None
-        if ec_chkpt_path:
-            ec = get_model(ec_class_name, ec_chkpt_path)
-        self._gc = MLGraphConstruction(
-            ml=ml,
-            max_radius=max_radius,
-            max_num_neighbors=max_num_neighbors,
-            ratio_of_false=ratio_of_false,
-            build_edge_features=build_edge_features,
-            ec=ec,
-            ec_threshold=ec_thld,
-            use_embedding_features=use_embedding_features,
-        )
+        self._ml = obj_from_or_to_hparams(self, "ml", model)
+        self.save_hyperparameters(ignore=["model"])
 
-    def forward(self, data: Data) -> Data:
-        return self._gc(data)
-
-
-class MLFromChkpt(nn.Module, HyperparametersMixin):
-    # noinspection PyUnusedLocal
-    def __init__(
-        self,
+    @classmethod
+    def from_ml_chkpt(
+        cls,
         chkpt_path: str,
         *,
         class_name: str = "gnn_tracking.training.ml.MLModule",
         freeze: bool = True,
-        original_features: bool = False,
+        **kwargs,
     ):
-        """Use this class to restore a pretrained ML model.
-        In contrast to `MLGraphConstructionFromChkpt`, this class does not build a
-        graph from the latent space but returns a transformed point cloud.
-
-        .. warning::
-            In the current implementation, the original ``Data`` object is modified.
+        """Build `MLPCTransformer` from checkpointed ML model.
 
         Args:
-            chkpt_path: Path to the checkpoint
-            class_name: Class name of the ML lightning module
-            freeze: Freeze the model (no more backprop to these parameters)
-            original_features: Include original node features as node features
+            chkpt_path: Path to checkpoint
+            class_name: Lightning module class name that was used for training.
+                Probably default covers most cases.
+            freeze: Freeze model parameters
+            **kwargs: Additional kwargs passed to `MLPCTransformer` constructor
         """
-        super().__init__()
-        self.save_hyperparameters()
-        self._ml = get_model(class_name, chkpt_path, freeze=freeze)
+        ml_model = get_model(class_name, chkpt_path, freeze=freeze)
+        return cls(
+            ml_model,
+            **kwargs,
+        )
 
     def forward(self, data: Data) -> Data:
         out = self._ml(data)
@@ -286,3 +309,8 @@ class MLFromChkpt(nn.Module, HyperparametersMixin):
         else:
             data.x = out["H"]
         return data
+
+
+def ml_pc_transformer_from_ml_chkpt(*args, **kwargs) -> MLPCTransformer:
+    """Alias for `MLPCTransformer.from_ml_chkpt` for use in yaml configs"""
+    return MLPCTransformer.from_chkpt(*args, **kwargs)
