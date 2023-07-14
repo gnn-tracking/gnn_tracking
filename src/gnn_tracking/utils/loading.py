@@ -163,6 +163,8 @@ class TrackingDataModule(LightningDataModule):
     def setup(self, stage: str) -> None:
         if stage == "fit":
             self._datasets["train"] = self._get_dataset("train")
+            self.setup("validate")
+        elif stage == "validate":
             self._datasets["val"] = self._get_dataset("val")
         elif stage == "test":
             self._datasets["test"] = self._get_dataset("test")
