@@ -2,7 +2,7 @@ import importlib
 import math
 import os
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 import pytorch_lightning
 import torch
@@ -16,11 +16,32 @@ from gnn_tracking.utils.log import logger
 
 
 def save_sub_hyperparameters(
-    self: HyperparametersMixin, key: str, obj: HyperparametersMixin | dict
+    self: HyperparametersMixin,
+    key: str,
+    obj: HyperparametersMixin | dict,
+    errors: Literal["warn", "raise"] = "warn",
 ) -> None:
     """Take hyperparameters from `obj` and save them to `self` under the
     key `key`.
+
+    Args:
+        self: The object to save the hyperparameters to.
+        key: The key under which to save the hyperparameters.
+        obj: The object to take the hyperparameters from.
+        errors: Whether to raise an error or just warn
     """
+    if not hasattr(self, "hparams"):
+        msg = (
+            "Can't save hyperparameters to object of type %s. Make sure to "
+            "inherit from HyperparametersMixin."
+        )
+        if errors == "warn":
+            logger.warning(msg, type(obj))
+        elif errors == "raise":
+            raise ValueError(msg % type(obj))
+        else:
+            raise ValueError(f"Unknown value for `errors`: {errors}")
+
     assert key not in self.hparams
     if isinstance(obj, dict):
         logger.warning("SSH got dict %s. That's unexpected.", obj)
