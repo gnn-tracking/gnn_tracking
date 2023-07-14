@@ -6,9 +6,8 @@ from pytorch_lightning.cli import LightningCLI
 
 from gnn_tracking.training.callbacks import PrintValidationMetrics
 from gnn_tracking.utils.loading import TrackingDataModule
-
-from .test_configs import test_config_dir
-from .test_data import test_data_dir
+from tests.test_configs import test_config_dir
+from tests.test_data import test_data_dir
 
 AVAILABLE_CONFIGS: list[Path] = list(test_config_dir.glob("*.yml"))
 

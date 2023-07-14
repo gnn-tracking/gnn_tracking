@@ -165,19 +165,18 @@ class PerfectEdgeClassification(nn.Module, HyperparametersMixin):
         return {"W": r.float()}
 
 
-class ECFromChkpt(nn.Module, HyperparametersMixin):
-    # noinspection PyUnusedLocal
-    def __init__(
-        self,
-        *,
-        ec_class_name: Optional[str] = None,
-        ec_chkpt_path: str | None = None,
-        ec_freeze: bool = True,
-    ):
-        """For easy loading of an pretrained EC from a lightning yaml config."""
-        super().__init__()
-        self.save_hyperparameters()
-        self._ec = get_model(ec_class_name, ec_chkpt_path)
+def ec_from_chkpt(
+    chkpt_path: str = "",
+    *,
+    class_name="gnn_tracking.training.ec.ECModule",
+    freeze: bool = True,
+):
+    """For easy loading of an pretrained EC from a lightning yaml config.
 
-    def forward(self, data: Data) -> Data:
-        return self._ec(data)
+    Args:
+        chkpt_path: Path to the checkpoint file.
+        class_name: Name of the lightning module that was used to train the EC.
+            Default should work for most cases.
+        freeze: If True, the model is frozen (i.e., its parameters are not trained).
+    """
+    return get_model(class_name, chkpt_path, freeze=freeze)
