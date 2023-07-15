@@ -18,6 +18,7 @@ from torch_geometric.data import Data
 
 from gnn_tracking.utils.lightning import get_model, obj_from_or_to_hparams
 from gnn_tracking.utils.log import logger
+from gnn_tracking.utils.torch_utils import freeze_if
 
 
 class GraphConstructionFCNN(nn.Module, HyperparametersMixin):
@@ -112,6 +113,8 @@ class MLGraphConstruction(nn.Module, HyperparametersMixin):
         ratio_of_false=None,
         build_edge_features=True,
         ec_threshold=None,
+        ml_freeze: bool = True,
+        ec_freeze: bool = True,
     ):
         """Builds graph from embedding space. If you want to start from a checkpoint,
         use `MLGraphConstruction.from_chkpt`.
@@ -127,8 +130,8 @@ class MLGraphConstruction(nn.Module, HyperparametersMixin):
         """
         super().__init__()
         self.save_hyperparameters(ignore=["ml", "ec"])
-        self._ml = obj_from_or_to_hparams(self, "ml", ml)
-        self._ef = obj_from_or_to_hparams(self, "ec", ec)
+        self._ml = freeze_if(obj_from_or_to_hparams(self, "ml", ml), ml_freeze)
+        self._ef = freeze_if(obj_from_or_to_hparams(self, "ec", ec), ec_freeze)
         self._max_radius = max_radius
         self._max_num_neighbors = max_num_neighbors
         self._use_embedding_features = use_embedding_features
@@ -152,14 +155,7 @@ class MLGraphConstruction(nn.Module, HyperparametersMixin):
         *,
         ml_class_name: str = "gnn_tracking.training.ml.MLModule",
         ec_class_name: str = "gnn_tracking.training.ec.ECModule",
-        max_radius: float = 1,
-        max_num_neighbors: int = 256,
-        ratio_of_false=None,
-        build_edge_features=True,
-        use_embedding_features=False,
-        ec_thld: float | None = None,
-        ml_freeze: bool = True,
-        ec_freeze: bool = True,
+        **kwargs,
     ) -> "MLGraphConstruction":
         """Build `MLGraphConstruction` from checkpointed models.
 
@@ -171,20 +167,16 @@ class MLGraphConstruction(nn.Module, HyperparametersMixin):
                 (default should almost always be fine)
             ec_class_name: Class name of edge filter lightning module
                 (default should almost always be fine)
+            **kwargs: Additional arguments passed to `MLGraphConstruction`
         """
-        ml = get_model(ml_class_name, ml_chkpt_path, freeze=ml_freeze)
+        ml = get_model(ml_class_name, ml_chkpt_path)
         ec = None
         if ec_chkpt_path:
-            ec = get_model(ec_class_name, ec_chkpt_path, ec_freeze)
+            ec = get_model(ec_class_name, ec_chkpt_path)
         return cls(
             ml=ml,
-            max_radius=max_radius,
-            max_num_neighbors=max_num_neighbors,
-            ratio_of_false=ratio_of_false,
-            build_edge_features=build_edge_features,
             ec=ec,
-            ec_threshold=ec_thld,
-            use_embedding_features=use_embedding_features,
+            **kwargs,
         )
 
     @property
@@ -258,6 +250,7 @@ class MLPCTransformer(nn.Module, HyperparametersMixin):
         model: nn.Module,
         *,
         original_features: bool = False,
+        freeze: bool = True,
     ):
         """Transforms a point cloud (PC) using a metric learning (ML) model.
         This is just a thin wrapper around the ML module with specification of what
@@ -275,7 +268,7 @@ class MLPCTransformer(nn.Module, HyperparametersMixin):
             original_features: Include original node features as node features
         """
         super().__init__()
-        self._ml = obj_from_or_to_hparams(self, "ml", model)
+        self._ml = freeze_if(obj_from_or_to_hparams(self, "ml", model), freeze)
         self.save_hyperparameters(ignore=["model"])
 
     @classmethod
@@ -284,7 +277,6 @@ class MLPCTransformer(nn.Module, HyperparametersMixin):
         chkpt_path: str,
         *,
         class_name: str = "gnn_tracking.training.ml.MLModule",
-        freeze: bool = True,
         **kwargs,
     ):
         """Build `MLPCTransformer` from checkpointed ML model.
@@ -293,10 +285,9 @@ class MLPCTransformer(nn.Module, HyperparametersMixin):
             chkpt_path: Path to checkpoint
             class_name: Lightning module class name that was used for training.
                 Probably default covers most cases.
-            freeze: Freeze model parameters
             **kwargs: Additional kwargs passed to `MLPCTransformer` constructor
         """
-        ml_model = get_model(class_name, chkpt_path, freeze=freeze)
+        ml_model = get_model(class_name, chkpt_path)
         return cls(
             ml_model,
             **kwargs,
