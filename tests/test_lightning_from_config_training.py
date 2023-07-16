@@ -31,7 +31,8 @@ def test_train_from_config(config_file: Path):
             ],
             "log_every_n_steps": 1,
             "accelerator": "cpu",
-            "max_epochs": 1,
+            "max_steps": 1,
+            "num_sanity_val_steps": 0,
         },
         args=["fit", "--config", str(config_file)],
     )
