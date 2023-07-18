@@ -166,9 +166,9 @@ class ModularGraphTCN(nn.Module, HyperparametersMixin):
         self.relu = nn.ReLU()
 
         #: Edge classification network
-        self.ec = ec
+        self.ec = obj_from_or_to_hparams(self, "ec", ec)
         #: Track condensation network (usually made up of interaction networks)
-        self.hc_in = hc_in
+        self.hc_in = obj_from_or_to_hparams(self, "hc_in", hc_in)
 
         node_enc_indim = node_indim
         edge_enc_indim = edge_indim

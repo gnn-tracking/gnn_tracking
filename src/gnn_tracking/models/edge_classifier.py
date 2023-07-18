@@ -1,6 +1,5 @@
 """Models for edge classification"""
 
-from typing import Optional
 
 import numpy as np
 import torch
@@ -22,7 +21,7 @@ class ECForGraphTCN(nn.Module, HyperparametersMixin):
         edge_indim: int,
         interaction_node_dim: int = 5,
         interaction_edge_dim: int = 4,
-        hidden_dim: Optional[int | float] = None,
+        hidden_dim: int | float | None = None,
         L_ec: int = 3,
         alpha: float = 0.5,
         residual_type="skip1",
