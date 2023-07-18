@@ -30,13 +30,14 @@ def save_sub_hyperparameters(
         obj: The object to take the hyperparameters from.
         errors: Whether to raise an error or just warn
     """
-    if not hasattr(self, "hparams"):
+    if not hasattr(obj, "hparams"):
         msg = (
             "Can't save hyperparameters to object of type %s. Make sure to "
             "inherit from HyperparametersMixin."
         )
         if errors == "warn":
             logger.warning(msg, type(obj))
+            return
         elif errors == "raise":
             raise ValueError(msg % type(obj))
         else:
