@@ -31,7 +31,7 @@ def construct_graph(mo: dict[str, typing.Any], radius, max_num_neighbors=128) ->
         mo["particle_id"][edge_index[0]] == mo["particle_id"][edge_index[1]]
     )
     data = Data(x=mo["x"], edge_index=edge_index, y=y)
-    data.pt = mo["particle_id"]
+    data.pt = mo["pt"]
     data.particle_id = mo["particle_id"]
     data.reconstructable = mo["reconstructable"]
     return data
