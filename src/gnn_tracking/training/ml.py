@@ -11,11 +11,14 @@ from torch import Tensor
 from torch import Tensor as T
 from torch_geometric.data import Data
 
+from gnn_tracking.graph_construction.k_scanner import GraphConstructionKNNScanner
 from gnn_tracking.metrics.losses import GraphConstructionHingeEmbeddingLoss
 from gnn_tracking.training.base import TrackingModule
 from gnn_tracking.utils.dictionaries import add_key_suffix, to_floats
 from gnn_tracking.utils.lightning import obj_from_or_to_hparams
 from gnn_tracking.utils.oom import tolerate_some_oom_errors
+
+_DEFAULT_GC_SCANNER = GraphConstructionKNNScanner()
 
 
 class MLModule(TrackingModule):
@@ -25,14 +28,16 @@ class MLModule(TrackingModule):
         *,
         loss_fct: GraphConstructionHingeEmbeddingLoss,
         lw_repulsive=1.0,
+        gc_scanner: GraphConstructionKNNScanner | None = None,
         **kwargs,
     ):
         """Pytorch lightning module with training and validation step for the metric
         learning approach to graph construction.
         """
         super().__init__(**kwargs)
-        self.save_hyperparameters("lw_repulsive")
+        self.save_hyperparameters("lw_repulsive", "gc_scanner")
         self.loss_fct = obj_from_or_to_hparams(self, "loss_fct", loss_fct)
+        self.gc_scanner = obj_from_or_to_hparams(self, "gc_scanner", gc_scanner)
 
     # noinspection PyUnusedLocal
     def get_losses(self, out: dict[str, Any], data: Data) -> tuple[T, dict[str, float]]:
@@ -67,4 +72,9 @@ class MLModule(TrackingModule):
         self.log_dict_with_errors(
             loss_dct, batch_size=self.trainer.val_dataloaders.batch_size
         )
-        # todo: add graph analysis
+        if self.gc_scanner is not None:
+            self.gc_scanner(batch, batch_idx, latent=out["H"])
+
+    def on_validation_epoch_end(self) -> None:
+        if self.gc_scanner is not None:
+            self.log_dict(self.gc_scanner.get_foms(), on_step=False, on_epoch=True)
