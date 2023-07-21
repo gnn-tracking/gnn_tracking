@@ -16,6 +16,7 @@ from torch.nn.functional import normalize, relu
 from torch_cluster import knn_graph
 from torch_geometric.data import Data
 
+from gnn_tracking.utils.asserts import assert_feat_dim
 from gnn_tracking.utils.lightning import get_model, obj_from_or_to_hparams
 from gnn_tracking.utils.log import logger
 from gnn_tracking.utils.torch_utils import freeze_if
@@ -69,7 +70,7 @@ class GraphConstructionFCNN(nn.Module, HyperparametersMixin):
             init.normal_(p.data, mean=0, std=math.sqrt(var))
 
     def forward(self, data: Data) -> dict[str, T]:
-        assert data.x.shape[1] == self.hparams.in_dim
+        assert_feat_dim(data.x, self.hparams.in_dim)
         x = normalize(data.x, p=2.0, dim=1, eps=1e-12, out=None)
         x = self._encoder(x)
         for layer in self._layers:
