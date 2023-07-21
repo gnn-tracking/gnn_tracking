@@ -238,9 +238,10 @@ class MLGraphConstruction(nn.Module, HyperparametersMixin):
         )
 
 
-def ml_graph_construction_from_chkpt(*args, **kwargs) -> MLGraphConstruction:
-    """Alias for `MLGraphConstruction.from_chkpt` for use in yaml files"""
-    return MLGraphConstruction.from_chkpt(*args, **kwargs)
+class MLGraphConstructionFromChkpt(nn.Module, HyperparametersMixin):
+    def __new__(cls, *args, **kwargs) -> MLGraphConstruction:
+        """Alias for `MLGraphConstruction.from_chkpt` for use in yaml files"""
+        return MLGraphConstruction.from_chkpt(*args, **kwargs)
 
 
 class MLPCTransformer(nn.Module, HyperparametersMixin):
@@ -302,6 +303,7 @@ class MLPCTransformer(nn.Module, HyperparametersMixin):
         return data
 
 
-def ml_pc_transformer_from_ml_chkpt(*args, **kwargs) -> MLPCTransformer:
-    """Alias for `MLPCTransformer.from_ml_chkpt` for use in yaml configs"""
-    return MLPCTransformer.from_chkpt(*args, **kwargs)
+class MLPCTransformerFromMLChkpt(MLPCTransformer):
+    def __new__(*args, **kwargs) -> MLPCTransformer:
+        """Alias for `MLPCTransformer.from_ml_chkpt` for use in yaml configs"""
+        return MLPCTransformer.from_chkpt(*args, **kwargs)
