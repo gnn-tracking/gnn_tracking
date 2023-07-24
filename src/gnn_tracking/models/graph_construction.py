@@ -154,7 +154,7 @@ class MLGraphConstruction(nn.Module, HyperparametersMixin):
     @classmethod
     def from_chkpt(
         cls,
-        ml_chkpt_path: str,
+        ml_chkpt_path: str = "",
         ec_chkpt_path: str = "",
         *,
         ml_class_name: str = "gnn_tracking.training.ml.MLModule",
@@ -174,9 +174,7 @@ class MLGraphConstruction(nn.Module, HyperparametersMixin):
             **kwargs: Additional arguments passed to `MLGraphConstruction`
         """
         ml = get_model(ml_class_name, ml_chkpt_path)
-        ec = None
-        if ec_chkpt_path:
-            ec = get_model(ec_class_name, ec_chkpt_path)
+        ec = get_model(ec_class_name, ec_chkpt_path)
         return cls(
             ml=ml,
             ec=ec,

@@ -118,14 +118,24 @@ def get_lightning_module(
 
 
 def get_model(
-    class_path: str, chkpt_path: str = "", freeze: bool = False
+    class_path: str,
+    chkpt_path: str = "",
+    freeze: bool = False,
 ) -> nn.Module | None:
     """Get torch model (specified by `class_path`, a string) and load a checkpoint.
     Uses `get_lightning_module` to get the model.
+
+    Args:
+        class_path: The path to the lightning module class
+        chkpt_path: The path to the checkpoint. If no checkpoint is specified, we
+            return None.
+        freeze: Whether to freeze the model
     """
+    if not chkpt_path:
+        return
     lm = get_lightning_module(class_path, chkpt_path, freeze=freeze)
     if lm is None:
-        return None
+        return
     return lm.model
 
 
