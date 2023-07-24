@@ -6,6 +6,8 @@ import yaml
 from torch import nn
 from tqdm import tqdm
 
+from gnn_tracking.utils.log import logger
+
 
 class MLGraphBuilder:
     def __init__(
@@ -21,19 +23,30 @@ class MLGraphBuilder:
         self._gc = gc
 
     def process(
-        self, input_dir: os.PathLike, output_dir: os.PathLike, filename: str
+        self,
+        input_dir: os.PathLike,
+        output_dir: os.PathLike,
+        filename: str,
+        *,
+        redo=False
     ) -> None:
         """Process single file"""
         input_dir = Path(input_dir)
         output_dir = Path(output_dir)
         in_path = input_dir / filename
+        if not redo and in_path.exists():
+            logger.debug("File %s already exists, skipping", in_path)
         output_dir.mkdir(parents=True, exist_ok=True)
         out_path = output_dir / filename
         data = torch.load(in_path)
         transformed = self._gc(data)
         torch.save(transformed, out_path)
 
-    def _save_hparams(self, input_dir: Path, output_dir: Path) -> None:
+    def _save_hparams(
+        self,
+        input_dir: Path,
+        output_dir: Path,
+    ) -> None:
         """Save hyperparameters to disk"""
         output_dir.mkdir(parents=True, exist_ok=True)
         hparams = dict(self._gc.hparams)
@@ -45,6 +58,7 @@ class MLGraphBuilder:
         input_dirs: list[os.PathLike],
         output_dirs: list[os.PathLike],
         *,
+        redo=True,
         progress=True,
         _first_only=False
     ) -> None:
@@ -54,6 +68,7 @@ class MLGraphBuilder:
         Args:
             input_dirs:
             output_dirs:
+            redo: If True, overwrite existing files
             progress: Show progress bar
             _first_only: Only process the first file. Useful for testing.
 
@@ -73,6 +88,6 @@ class MLGraphBuilder:
             if progress:
                 iterator = tqdm(iterator)
             for filename in iterator:
-                self.process(input_dir, output_dir, filename)
+                self.process(input_dir, output_dir, filename, redo=redo)
                 if _first_only:
                     break
