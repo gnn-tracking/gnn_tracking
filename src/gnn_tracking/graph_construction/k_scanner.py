@@ -1,3 +1,5 @@
+"""Finds the right k for k-NN to optimize the graph construction."""
+
 import copy
 import math
 import typing
@@ -224,7 +226,11 @@ class GraphConstructionKNNScanner(HyperparametersMixin):
         data.y = (
             data.particle_id[data.edge_index[0]] == data.particle_id[data.edge_index[1]]
         )
-        lsfs = get_largest_segment_fracs(data)
+        lsfs = get_largest_segment_fracs(
+            data,
+            n_particles_sampled=self.hparams.subsample_pids,
+            pt_thld=self.hparams.pt_thld,
+        )
         return {
             "k": k,
             "frac50": (lsfs > 0.5).mean().item(),
