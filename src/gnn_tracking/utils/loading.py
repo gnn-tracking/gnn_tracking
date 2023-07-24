@@ -118,6 +118,7 @@ class TrackingDataModule(LightningDataModule):
         - `sample_size=None`: Number of samples to load for each epoch
             (if None, load all samples)
         """
+        self.save_hyperparameters()
         super().__init__()
         self._configs = {
             "train": self._fix_datatypes(train),
