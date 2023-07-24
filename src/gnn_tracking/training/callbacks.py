@@ -57,6 +57,8 @@ class PrintValidationMetrics(Callback):
     """
 
     def on_validation_end(self, trainer: Trainer, pl_module: LightningModule) -> None:
+        if trainer.sanity_checking:
+            return
         metrics = trainer.callback_metrics
         if not metrics:
             return
@@ -65,7 +67,7 @@ class PrintValidationMetrics(Callback):
             console.print(
                 format_results_table(
                     to_floats(metrics),
-                    header=f"Validation epoch={trainer.current_epoch + 1}",
+                    header=f"Validation epoch={trainer.current_epoch}",
                     printed_results_filter=getattr(
                         pl_module, "printed_results_filter", None
                     ),
