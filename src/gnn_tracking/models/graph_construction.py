@@ -280,7 +280,7 @@ class MLPCTransformer(nn.Module, HyperparametersMixin):
         """
         super().__init__()
         self._ml = freeze_if(obj_from_or_to_hparams(self, "ml", model), freeze)
-        self.save_hyperparameters(ignore=["ml"])
+        self.save_hyperparameters(ignore=["model"])
 
     @classmethod
     def from_ml_chkpt(
