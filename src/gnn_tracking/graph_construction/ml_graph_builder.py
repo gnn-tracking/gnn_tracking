@@ -1,3 +1,4 @@
+import os
 from pathlib import Path
 
 import torch
@@ -19,8 +20,12 @@ class MLGraphBuilder:
         """
         self._gc = gc
 
-    def process(self, input_dir: Path, output_dir: Path, filename: str) -> None:
+    def process(
+        self, input_dir: os.PathLike, output_dir: os.PathLike, filename: str
+    ) -> None:
         """Process single file"""
+        input_dir = Path(input_dir)
+        output_dir = Path(output_dir)
         in_path = input_dir / filename
         output_dir.mkdir(parents=True, exist_ok=True)
         out_path = output_dir / filename
@@ -37,8 +42,8 @@ class MLGraphBuilder:
 
     def process_directories(
         self,
-        input_dirs: list[Path],
-        output_dirs: list[Path],
+        input_dirs: list[os.PathLike],
+        output_dirs: list[os.PathLike],
         *,
         progress=True,
         _first_only=False
@@ -55,6 +60,8 @@ class MLGraphBuilder:
         Returns:
             None
         """
+        input_dirs = [Path(p) for p in input_dirs]
+        output_dirs = [Path(p) for p in output_dirs]
         if len(input_dirs) != len(output_dirs):
             msg = "input_dirs and output_dirs must have the same length"
             raise ValueError(msg)
