@@ -103,9 +103,10 @@ def knn_with_max_radius(x: T, k: int, max_radius: float | None = None) -> T:
 
 
 class MLGraphConstruction(nn.Module, HyperparametersMixin):
+    # noinspection PyUnusedLocal
     def __init__(
         self,
-        ml: torch.nn.Module,
+        ml: torch.nn.Module | None = None,
         *,
         ec: torch.nn.Module | None = None,
         max_radius: float = 1,
@@ -116,30 +117,32 @@ class MLGraphConstruction(nn.Module, HyperparametersMixin):
         ec_threshold=None,
         ml_freeze: bool = True,
         ec_freeze: bool = True,
+        embedding_slice: tuple[int, int] | None = None,
     ):
         """Builds graph from embedding space. If you want to start from a checkpoint,
         use `MLGraphConstruction.from_chkpt`.
 
         Args:
-            ml: Metric learning embedding module
+            ml: Metric learning embedding module. If not specified, it is assumed that
+                the node features from the data object are already the embedding
+                coordinates. To use a subset of the embedding coordinates, use
+                ``embedding_slice``.
             ec: Directly apply edge filter
             max_radius: Maximum radius for kNN
             max_num_neighbors: Number of neighbors for kNN
             use_embedding_features: Add embedding space features to node features
             ratio_of_false: Subsample false edges
             build_edge_features:
+            ec_threshold:
+            embedding_slice: Used if ``ml`` is None. If not None, all node features
+                are used. If a tuple, the first element is the start index and the
+                second element is the end index.
         """
         super().__init__()
         self.save_hyperparameters(ignore=["ml", "ec"])
         self._ml = freeze_if(obj_from_or_to_hparams(self, "ml", ml), ml_freeze)
         self._ef = freeze_if(obj_from_or_to_hparams(self, "ec", ec), ec_freeze)
-        self._max_radius = max_radius
-        self._max_num_neighbors = max_num_neighbors
-        self._use_embedding_features = use_embedding_features
-        self._ratio_of_false = ratio_of_false
-        self._build_edge_features = build_edge_features
-        self._ef_threshold = ec_threshold
-        if self._ef is not None and self._ef_threshold is None:
+        if self._ef is not None and ec_threshold is None:
             msg = "ec_threshold must be set if ec/ef is not None"
             raise ValueError(msg)
         if build_edge_features and ratio_of_false:
@@ -184,27 +187,33 @@ class MLGraphConstruction(nn.Module, HyperparametersMixin):
     def out_dim(self) -> tuple[int, int]:
         """Returns node, edge, output dims"""
         node_dim = self._ml.in_dim
-        if self._use_embedding_features:
+        if self.hparams.use_embedding_features:
             node_dim += self._ml.out_dim
-        edge_dim = 2 * node_dim if self._build_edge_features else 0
+        edge_dim = 2 * node_dim if self.hparams.build_edge_features else 0
         return node_dim, edge_dim
 
     def forward(self, data: Data) -> Data:
-        mo = self._ml(data)
+        if self._ml is not None:
+            mo = self._ml(data)
+            embedding_features = mo["H"]
+        else:
+            embedding_features = data.x[slice(self.hparams.embedding_slice)]
         edge_index = knn_with_max_radius(
-            mo["H"], max_radius=self._max_radius, k=self._max_num_neighbors
+            embedding_features,
+            max_radius=self.hparams.max_radius,
+            k=self.hparams.max_num_neighbors,
         )
         y: T = (  # type: ignore
             data.particle_id[edge_index[0]] == data.particle_id[edge_index[1]]
         )
-        if not self._use_embedding_features:
+        if not self.hparams.use_embedding_features:
             x = data.x
         else:
             x = torch.cat((mo["H"], data.x), dim=1)
         # print(edge_index.shape, )
-        if self._ratio_of_false and self.training:
+        if self.hparams.ratio_of_false and self.training:
             num_true = y.sum()
-            num_false_to_keep = int(num_true * self._ratio_of_false)
+            num_false_to_keep = int(num_true * self.hparams.ratio_of_false)
             false_edges = edge_index[:, ~y][:, :num_false_to_keep]
             true_edges = edge_index[:, y]
             edge_index = torch.cat((false_edges, true_edges), dim=1)
@@ -214,9 +223,8 @@ class MLGraphConstruction(nn.Module, HyperparametersMixin):
                     torch.ones(true_edges.shape[1], device=y.device),
                 )
             )
-        # print(false_edges.shape, true_edges.shape, edge_index.shape, y.shape)
         edge_features = None
-        if self._build_edge_features:
+        if self.hparams.build_edge_features:
             edge_features = torch.cat(
                 (
                     x[edge_index[0]] - x[edge_index[1]],
@@ -226,7 +234,7 @@ class MLGraphConstruction(nn.Module, HyperparametersMixin):
             )
         if self._ef is not None:
             w = self._ef(edge_features)["W"]
-            edge_index = edge_index[:, w > self._ef_threshold]
+            edge_index = edge_index[:, w > self.hparams.ef_threshold]
         return Data(
             x=x,
             edge_index=edge_index,
@@ -267,7 +275,8 @@ class MLPCTransformer(nn.Module, HyperparametersMixin):
 
         Args:
             model: Metric learning model. Should return latent space with key "H"
-            original_features: Include original node features as node features
+            original_features: Include original node features as node features (after
+                the transformed ones)
         """
         super().__init__()
         self._ml = freeze_if(obj_from_or_to_hparams(self, "ml", model), freeze)
