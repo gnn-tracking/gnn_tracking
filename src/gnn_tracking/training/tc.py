@@ -113,7 +113,12 @@ class TCModule(TrackingModule):
         data = self.data_preproc(data)
         out = self(data)
         loss, loss_dct = self.get_losses(out, data)
-        self.log_dict(add_key_suffix(loss_dct, "_train"), prog_bar=True, on_step=True)
+        self.log_dict(
+            add_key_suffix(loss_dct, "_train"),
+            prog_bar=True,
+            on_step=True,
+            batch_size=self.trainer.train_dataloader.batch_size,
+        )
         return loss
 
     def validation_step(self, data: Data, batch_idx: int) -> None:

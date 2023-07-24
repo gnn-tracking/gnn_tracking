@@ -62,7 +62,12 @@ class MLModule(TrackingModule):
         batch = self.data_preproc(batch)
         out = self(batch)
         loss, loss_dct = self.get_losses(out, batch)
-        self.log_dict(add_key_suffix(loss_dct, "_train"), prog_bar=True, on_step=True)
+        self.log_dict(
+            add_key_suffix(loss_dct, "_train"),
+            prog_bar=True,
+            on_step=True,
+            batch_size=self.trainer.train_dataloader.batch_size,
+        )
         return loss
 
     def validation_step(self, batch: Data, batch_idx: int):
@@ -77,4 +82,9 @@ class MLModule(TrackingModule):
 
     def on_validation_epoch_end(self) -> None:
         if self.gc_scanner is not None:
-            self.log_dict(self.gc_scanner.get_foms(), on_step=False, on_epoch=True)
+            self.log_dict(
+                self.gc_scanner.get_foms(),
+                on_step=False,
+                on_epoch=True,
+                batch_size=self.trainer.val_dataloaders.batch_size,
+            )
