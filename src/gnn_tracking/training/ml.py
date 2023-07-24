@@ -35,7 +35,7 @@ class MLModule(TrackingModule):
         learning approach to graph construction.
         """
         super().__init__(**kwargs)
-        self.save_hyperparameters("lw_repulsive", "gc_scanner")
+        self.save_hyperparameters("lw_repulsive")
         self.loss_fct = obj_from_or_to_hparams(self, "loss_fct", loss_fct)
         self.gc_scanner = obj_from_or_to_hparams(self, "gc_scanner", gc_scanner)
 
