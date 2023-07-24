@@ -117,7 +117,7 @@ class MLGraphConstruction(nn.Module, HyperparametersMixin):
         ec_threshold=None,
         ml_freeze: bool = True,
         ec_freeze: bool = True,
-        embedding_slice: tuple[int, int] | None = None,
+        embedding_slice: tuple[int | None, int | None] = (None, None),
     ):
         """Builds graph from embedding space. If you want to start from a checkpoint,
         use `MLGraphConstruction.from_chkpt`.
@@ -131,9 +131,11 @@ class MLGraphConstruction(nn.Module, HyperparametersMixin):
             max_radius: Maximum radius for kNN
             max_num_neighbors: Number of neighbors for kNN
             use_embedding_features: Add embedding space features to node features
-            ratio_of_false: Subsample false edges
-            build_edge_features:
-            ec_threshold:
+                (only if ``ml`` is not None)
+            ratio_of_false: Subsample false edges (using truth information)
+            build_edge_features: Build edge features (as difference and sum of node
+                features).
+            ec_threshold: EC threshold for edge filter/classification
             embedding_slice: Used if ``ml`` is None. If not None, all node features
                 are used. If a tuple, the first element is the start index and the
                 second element is the end index.
@@ -145,6 +147,10 @@ class MLGraphConstruction(nn.Module, HyperparametersMixin):
         if self._ef is not None and ec_threshold is None:
             msg = "ec_threshold must be set if ec/ef is not None"
             raise ValueError(msg)
+        if self._ml is None and use_embedding_features:
+            raise ValueError("use_embedding_features requires ml to be not None")
+        if self._ml is not None and embedding_slice != (None, None):
+            raise ValueError("embedding_slice requires ml to be None")
         if build_edge_features and ratio_of_false:
             logger.warning(
                 "Subsampling false edges. This might not make sense"
@@ -195,7 +201,8 @@ class MLGraphConstruction(nn.Module, HyperparametersMixin):
             mo = self._ml(data)
             embedding_features = mo["H"]
         else:
-            embedding_features = data.x[slice(self.hparams.embedding_slice)]
+            s = self.hparams.embedding_slice
+            embedding_features = data.x[:, s[0] : s[1]]
         edge_index = knn_with_max_radius(
             embedding_features,
             max_radius=self.hparams.max_radius,
@@ -204,7 +211,7 @@ class MLGraphConstruction(nn.Module, HyperparametersMixin):
         y: T = (  # type: ignore
             data.particle_id[edge_index[0]] == data.particle_id[edge_index[1]]
         )
-        if not self.hparams.use_embedding_features:
+        if not self._ml or not self.hparams.use_embedding_features:
             x = data.x
         else:
             x = torch.cat((mo["H"], data.x), dim=1)
