@@ -83,7 +83,7 @@ _test_train_test_cases = [
 
 
 @pytest.mark.parametrize("t", _test_train_test_cases)
-def test_train(tmp_path, built_graphs, t: TestTrainCase) -> None:
+def test_train(built_graphs, t: TestTrainCase) -> None:
     fix_seeds()
     _, graph_builder = built_graphs
     g = graph_builder.data_list[0]

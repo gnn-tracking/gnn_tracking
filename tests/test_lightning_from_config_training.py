@@ -21,7 +21,7 @@ def tracking_data_module() -> TrackingDataModule:
 
 @pytest.mark.parametrize("config_file", AVAILABLE_CONFIGS)
 def test_train_from_config(config_file: Path):
-    cli = LightningCLI(  # noqa F841
+    cli = LightningCLI(  # noqa: F841
         datamodule_class=tracking_data_module,
         trainer_defaults={
             "callbacks": [
