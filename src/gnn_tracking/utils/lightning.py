@@ -132,10 +132,10 @@ def get_model(
         freeze: Whether to freeze the model
     """
     if not chkpt_path:
-        return
+        return None
     lm = get_lightning_module(class_path, chkpt_path, freeze=freeze)
     if lm is None:
-        return
+        return None
     return lm.model
 
 
