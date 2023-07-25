@@ -34,7 +34,7 @@ def _binary_focal_loss(
     probs_neg = 1 - inpt
 
     pos_term = -alpha * pos_weight * probs_neg.pow(gamma) * target * probs_pos.log()
-    neg_term = -(1 - alpha) * probs_pos.pow(gamma) * (1.0 - target) * probs_neg.log()
+    neg_term = -(1.0 - alpha) * probs_pos.pow(gamma) * (1.0 - target) * probs_neg.log()
     loss_tmp = pos_term + neg_term
 
     return torch.mean(loss_tmp)

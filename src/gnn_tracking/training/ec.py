@@ -74,4 +74,4 @@ class ECModule(TrackingModule):
         )
 
     def highlight_metric(self, metric: str) -> bool:
-        return "max_mcc" in metric
+        return metric in ["max_mcc_pt0.9", "total", "tpr_eq_tnr_pt0.9"]
