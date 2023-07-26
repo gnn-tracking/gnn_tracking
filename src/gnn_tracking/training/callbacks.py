@@ -1,3 +1,4 @@
+import os
 from pathlib import Path
 from typing import Callable
 
@@ -86,6 +87,7 @@ class ExpandWandbConfig(Callback):
 
     * Information about the optimizer/scheduler.
     * Information from the datamodule
+    * SLURM job id (if set)
 
     This will also avoid problems where hyperparameters are not synced at the beginning
     (but only at the end, in particular failing to save them if the run is interrupted).
@@ -131,6 +133,7 @@ class ExpandWandbConfig(Callback):
                 "optimizer": config["model"].get("init_args", {}).get("optimizer"),
                 "scheduler": config["model"].get("init_args", {}).get("scheduler"),
                 "data": trainer.datamodule.hparams,
+                "_SLURM_JOB_ID": os.environ.get("SLURM_JOB_ID"),
                 **pl_module.hparams,
             }
         )
