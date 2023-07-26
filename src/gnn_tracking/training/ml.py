@@ -18,8 +18,6 @@ from gnn_tracking.utils.dictionaries import add_key_suffix, to_floats
 from gnn_tracking.utils.lightning import obj_from_or_to_hparams
 from gnn_tracking.utils.oom import tolerate_some_oom_errors
 
-_DEFAULT_GC_SCANNER = GraphConstructionKNNScanner()
-
 
 class MLModule(TrackingModule):
     # noinspection PyUnusedLocal
