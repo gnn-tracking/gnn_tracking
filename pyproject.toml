@@ -41,7 +41,8 @@ extend-ignore = [
   "E501",   # Line too long
   "PT004",  # Use underscore for non-returning fixture (use usefixture instead)
   "PD901",  # df is a bad name
-  "PGH003"  # mypy blanket ignore
+  "PGH003",  # mypy blanket ignore
+  "E741"    # ambiguous variable name
 ]
 target-version = "py37"
 src = ["src"]
