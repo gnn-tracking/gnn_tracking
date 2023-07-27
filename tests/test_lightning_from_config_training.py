@@ -3,12 +3,12 @@ from pathlib import Path
 import pytest
 from pytorch_lightning.callbacks import RichProgressBar
 from pytorch_lightning.cli import LightningCLI
+from pytorch_lightning.loggers import TensorBoardLogger, WandbLogger
 
-from gnn_tracking.training.callbacks import PrintValidationMetrics
+from gnn_tracking.training.callbacks import ExpandWandbConfig, PrintValidationMetrics
 from gnn_tracking.utils.loading import TrackingDataModule
-
-from .test_configs import test_config_dir
-from .test_data import test_data_dir
+from tests.test_configs import test_config_dir
+from tests.test_data import test_data_dir
 
 AVAILABLE_CONFIGS: list[Path] = list(test_config_dir.glob("*.yml"))
 
@@ -21,17 +21,30 @@ def tracking_data_module() -> TrackingDataModule:
 
 
 @pytest.mark.parametrize("config_file", AVAILABLE_CONFIGS)
-def test_train_from_config(config_file: Path):
-    cli = LightningCLI(  # noqa F841
+def test_train_from_config(config_file: Path, tmp_path):
+    logger = WandbLogger(
+        project="test",
+        group="test",
+        offline=True,
+        version="test",
+        save_dir=tmp_path,
+    )
+
+    tb_logger = TensorBoardLogger(tmp_path, version="test")
+
+    cli = LightningCLI(  # noqa: F841
         datamodule_class=tracking_data_module,
         trainer_defaults={
             "callbacks": [
                 RichProgressBar(leave=True),
                 PrintValidationMetrics(),
+                ExpandWandbConfig(),
             ],
             "log_every_n_steps": 1,
             "accelerator": "cpu",
-            "max_epochs": 1,
+            "max_steps": 1,
+            "num_sanity_val_steps": 0,
+            "logger": [tb_logger, logger],
         },
         args=["fit", "--config", str(config_file)],
     )

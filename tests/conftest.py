@@ -1,11 +1,13 @@
 from pathlib import Path
 
 import pytest
+import torch
+from torch_geometric.data import Data
 
 from gnn_tracking.graph_construction.graph_builder import GraphBuilder
 from gnn_tracking.preprocessing.point_cloud_builder import PointCloudBuilder
 
-from .test_data import trackml_test_data_dir
+from .test_data import graph_test_data_first, trackml_test_data_dir
 
 
 @pytest.fixture(scope="session")
@@ -35,3 +37,8 @@ def built_graphs(point_clouds_path, tmp_path_factory) -> tuple[Path, GraphBuilde
     )
     graph_builder.process(stop=None)
     return out_path, graph_builder
+
+
+@pytest.fixture(scope="session")
+def test_graph() -> Data:
+    return torch.load(graph_test_data_first)

@@ -44,14 +44,25 @@ class ECModule(TrackingModule):
         batch = self.data_preproc(batch)
         out = self(batch)
         loss = self.get_losses(out, batch)
-        self.log("total_train", loss.float(), prog_bar=True, on_step=True)
+        self.log(
+            "total_train",
+            loss.float(),
+            prog_bar=True,
+            on_step=True,
+            batch_size=self.trainer.train_dataloader.batch_size,
+        )
         return loss
 
     def validation_step(self, batch: Data, batch_idx: int):
         batch = self.data_preproc(batch)
         out = self(batch)
         loss = self.get_losses(out, batch)
-        self.log("total", loss.float(), on_epoch=True)
+        self.log(
+            "total",
+            loss.float(),
+            on_epoch=True,
+            batch_size=self.trainer.val_dataloaders.batch_size,
+        )
         metrics = {}
         for pt in [0.0, 0.5, 0.9, 1.5]:
             if pt > 0:
@@ -74,4 +85,4 @@ class ECModule(TrackingModule):
         )
 
     def highlight_metric(self, metric: str) -> bool:
-        return "max_mcc" in metric
+        return metric in ["max_mcc_pt0.9", "total", "tpr_eq_tnr_pt0.9"]

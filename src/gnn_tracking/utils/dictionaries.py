@@ -55,9 +55,9 @@ def to_floats(inpt: Any) -> Any:
     """
     if isinstance(inpt, dict):
         return {k: to_floats(v) for k, v in inpt.items()}
-    elif isinstance(inpt, list):
+    if isinstance(inpt, list):
         return [to_floats(v) for v in inpt]
-    elif isinstance(inpt, torch.Tensor):
+    if isinstance(inpt, torch.Tensor):
         return float(inpt)
     return inpt
 

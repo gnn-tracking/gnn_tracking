@@ -11,6 +11,7 @@ from torch import Tensor
 from torch import Tensor as T
 from torch_geometric.data import Data
 
+from gnn_tracking.graph_construction.k_scanner import GraphConstructionKNNScanner
 from gnn_tracking.metrics.losses import GraphConstructionHingeEmbeddingLoss
 from gnn_tracking.training.base import TrackingModule
 from gnn_tracking.utils.dictionaries import add_key_suffix, to_floats
@@ -25,6 +26,7 @@ class MLModule(TrackingModule):
         *,
         loss_fct: GraphConstructionHingeEmbeddingLoss,
         lw_repulsive=1.0,
+        gc_scanner: GraphConstructionKNNScanner | None = None,
         **kwargs,
     ):
         """Pytorch lightning module with training and validation step for the metric
@@ -33,6 +35,7 @@ class MLModule(TrackingModule):
         super().__init__(**kwargs)
         self.save_hyperparameters("lw_repulsive")
         self.loss_fct = obj_from_or_to_hparams(self, "loss_fct", loss_fct)
+        self.gc_scanner = obj_from_or_to_hparams(self, "gc_scanner", gc_scanner)
 
     # noinspection PyUnusedLocal
     def get_losses(self, out: dict[str, Any], data: Data) -> tuple[T, dict[str, float]]:
@@ -57,7 +60,12 @@ class MLModule(TrackingModule):
         batch = self.data_preproc(batch)
         out = self(batch)
         loss, loss_dct = self.get_losses(out, batch)
-        self.log_dict(add_key_suffix(loss_dct, "_train"), prog_bar=True, on_step=True)
+        self.log_dict(
+            add_key_suffix(loss_dct, "_train"),
+            prog_bar=True,
+            on_step=True,
+            batch_size=self.trainer.train_dataloader.batch_size,
+        )
         return loss
 
     def validation_step(self, batch: Data, batch_idx: int):
@@ -67,4 +75,14 @@ class MLModule(TrackingModule):
         self.log_dict_with_errors(
             loss_dct, batch_size=self.trainer.val_dataloaders.batch_size
         )
-        # todo: add graph analysis
+        if self.gc_scanner is not None:
+            self.gc_scanner(batch, batch_idx, latent=out["H"])
+
+    def on_validation_epoch_end(self) -> None:
+        if self.gc_scanner is not None:
+            self.log_dict(
+                self.gc_scanner.get_foms(),
+                on_step=False,
+                on_epoch=True,
+                batch_size=self.trainer.val_dataloaders.batch_size,
+            )

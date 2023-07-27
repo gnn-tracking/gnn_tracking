@@ -6,6 +6,7 @@ from abc import ABC, abstractmethod
 from typing import Any
 
 import torch
+from pytorch_lightning.core.mixins import HyperparametersMixin
 from torch import Tensor as T
 from torch import nn
 from torch.nn.functional import relu
@@ -205,7 +206,7 @@ RESIDUAL_NETWORKS_BY_NAME: dict[str, Any] = {
 }
 
 
-class ResIN(nn.Module):
+class ResIN(nn.Module, HyperparametersMixin):
     def __init__(
         self,
         *,
@@ -233,6 +234,7 @@ class ResIN(nn.Module):
                 the residual type)
         """
         super().__init__()
+        self.save_hyperparameters()
         if residual_kwargs is None:
             residual_kwargs = {}
         layers = [

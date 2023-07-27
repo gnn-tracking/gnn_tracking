@@ -10,7 +10,6 @@ import optuna
 from pytorch_lightning.core.mixins import HyperparametersMixin
 
 from gnn_tracking.metrics.cluster_metrics import ClusterMetricType
-from gnn_tracking.utils.earlystopping import no_early_stopping
 from gnn_tracking.utils.log import get_logger
 from gnn_tracking.utils.timing import Timer
 
@@ -101,7 +100,6 @@ class ClusterHyperParamScanner:
         guide: str,
         metrics: dict[str, ClusterMetricType],
         sectors: list[np.ndarray] | None = None,
-        early_stopping=no_early_stopping,
         pt_thlds: Iterable[float] = (
             0.0,
             0.5,
@@ -127,8 +125,6 @@ class ClusterHyperParamScanner:
             sectors: List of 1D arrays of sector indices (answering which sector each
                 hit from each graph belongs to). If None, all hits are assumed to be
                 from the same sector.
-            early_stopping: Callable that can be called with result and has a reset
-                method. If it returns True, the scan is stopped.
             pt_thlds: Pt thresholds to be used in metric evaluation (for metrics that
                 support it).
             node_mask: If data has been masked before clustering, this is the mask that
@@ -174,7 +170,6 @@ class ClusterHyperParamScanner:
         )
         self._sectors = sort_according_to_mask(sectors, node_mask)
         self._metrics: dict[str, ClusterMetricType] = metrics
-        self._es = early_stopping
         self._study = None
         self._guide = guide
         #: Cache for sector to study for each graph.
@@ -275,9 +270,6 @@ class ClusterHyperParamScanner:
         ems = self._evaluate_metrics(params, [self._guide])
         global_fom = np.nanmean(ems.foms[self._guide]).item()
         self.logger.debug("Evaluated %s: %s", params, global_fom)
-        if self._es(global_fom):
-            self.logger.info("Stopped early")
-            trial.study.stop()
         return global_fom
 
     def _evaluate(
@@ -327,7 +319,6 @@ class ClusterHyperParamScanner:
 
         self.logger.info("Starting hyperparameter scan for clustering")
         timer = Timer()
-        self._es.reset()
         if start_params is not None and kwargs.get("n_trials") == 1:
             self.logger.debug(
                 "Skipping optuna, because start_params are given and only "

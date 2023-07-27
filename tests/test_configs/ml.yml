@@ -12,6 +12,11 @@ model:
       class_path: gnn_tracking.metrics.losses.GraphConstructionHingeEmbeddingLoss
       init_args:
         max_num_neighbors: 1
+    gc_scanner:
+      class_path: gnn_tracking.graph_construction.k_scanner.GraphConstructionKNNScanner
+      init_args:
+          ks: [1, 2]
+          targets: [0.01]
     optimizer:
       class_path: torch.optim.Adam
       init_args:

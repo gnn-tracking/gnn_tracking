@@ -118,6 +118,7 @@ class TrackingDataModule(LightningDataModule):
         - `sample_size=None`: Number of samples to load for each epoch
             (if None, load all samples)
         """
+        self.save_hyperparameters()
         super().__init__()
         self._configs = {
             "train": self._fix_datatypes(train),
@@ -163,6 +164,8 @@ class TrackingDataModule(LightningDataModule):
     def setup(self, stage: str) -> None:
         if stage == "fit":
             self._datasets["train"] = self._get_dataset("train")
+            self.setup("validate")
+        elif stage == "validate":
             self._datasets["val"] = self._get_dataset("val")
         elif stage == "test":
             self._datasets["test"] = self._get_dataset("test")

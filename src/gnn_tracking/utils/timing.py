@@ -29,4 +29,4 @@ def timing(name="Codeblock", logger=None):
     try:
         yield
     finally:
-        logger.info(f"{name} took {t():.2f} seconds")
+        logger.info("%s took %f seconds", name, t())

@@ -1,10 +1,15 @@
+import os
+from pathlib import Path
 from typing import Callable
 
+import yaml
 from pytorch_lightning import Callback, LightningModule, Trainer
+from pytorch_lightning.loggers import TensorBoardLogger, WandbLogger
 from rich.console import Console
 from rich.table import Table
 
 from gnn_tracking.utils.dictionaries import to_floats
+from gnn_tracking.utils.log import logger
 
 
 def format_results_table(
@@ -57,6 +62,8 @@ class PrintValidationMetrics(Callback):
     """
 
     def on_validation_end(self, trainer: Trainer, pl_module: LightningModule) -> None:
+        if trainer.sanity_checking:
+            return
         metrics = trainer.callback_metrics
         if not metrics:
             return
@@ -65,7 +72,7 @@ class PrintValidationMetrics(Callback):
             console.print(
                 format_results_table(
                     to_floats(metrics),
-                    header=f"Validation epoch={trainer.current_epoch + 1}",
+                    header=f"Validation epoch={trainer.current_epoch}",
                     printed_results_filter=getattr(
                         pl_module, "printed_results_filter", None
                     ),
@@ -73,3 +80,60 @@ class PrintValidationMetrics(Callback):
                 )
             )
         pl_module.print(capture.get())
+
+
+class ExpandWandbConfig(Callback):
+    """This callback adds more information to Weights & Biases hyperparameters:
+
+    * Information about the optimizer/scheduler.
+    * Information from the datamodule
+    * SLURM job id (if set)
+
+    This will also avoid problems where hyperparameters are not synced at the beginning
+    (but only at the end, in particular failing to save them if the run is interrupted).
+    """
+
+    def __init__(
+        self,
+    ):
+        self._wandb_logger = None
+        self._tensorboard_logger = None
+
+    def _find_loggers(self, trainer: Trainer) -> None:
+        for l in trainer.loggers:
+            if isinstance(l, TensorBoardLogger):
+                self._tensorboard_logger = l
+            elif isinstance(l, WandbLogger):
+                self._wandb_logger = l
+        if not self._tensorboard_logger:
+            logger.warning(
+                "No TensorBoardLogger found. Will not be able to log full config to"
+                " wandb"
+            )
+        if not self._wandb_logger:
+            logger.warning("No WandbLogger found. Will not be able to log to wandb.")
+
+    def _get_config(self) -> dict:
+        if not self._tensorboard_logger:
+            return {}
+        config_path = Path(self._tensorboard_logger.log_dir, "config.yaml")
+        if not config_path.exists():
+            logger.warning("Could not find config.yaml in log directory")
+        with config_path.open() as f:
+            return yaml.load(f, Loader=yaml.SafeLoader)
+
+    def on_train_start(self, trainer: Trainer, pl_module: LightningModule) -> None:
+        self._find_loggers(trainer)
+        if self._wandb_logger is None:
+            return
+        config = self._get_config()
+        assert self._wandb_logger
+        self._wandb_logger.log_hyperparams(
+            {
+                "optimizer": config["model"].get("init_args", {}).get("optimizer"),
+                "scheduler": config["model"].get("init_args", {}).get("scheduler"),
+                "data": trainer.datamodule.hparams,
+                "_SLURM_JOB_ID": os.environ.get("SLURM_JOB_ID"),
+                **pl_module.hparams,
+            }
+        )

@@ -17,6 +17,7 @@ from gnn_tracking.models.mlp import MLP
 from gnn_tracking.models.resin import ResIN
 from gnn_tracking.utils.asserts import assert_feat_dim
 from gnn_tracking.utils.graph_masks import edge_subgraph
+from gnn_tracking.utils.lightning import obj_from_or_to_hparams
 
 
 class INConvBlock(nn.Module):
@@ -165,9 +166,9 @@ class ModularGraphTCN(nn.Module, HyperparametersMixin):
         self.relu = nn.ReLU()
 
         #: Edge classification network
-        self.ec = ec
+        self.ec = obj_from_or_to_hparams(self, "ec", ec)
         #: Track condensation network (usually made up of interaction networks)
-        self.hc_in = hc_in
+        self.hc_in = obj_from_or_to_hparams(self, "hc_in", hc_in)
 
         node_enc_indim = node_indim
         edge_enc_indim = edge_indim
@@ -442,6 +443,7 @@ class PreTrainedECGraphTCN(nn.Module, HyperparametersMixin):
         """
         super().__init__()
         self.save_hyperparameters(ignore=["ec"])
+        ec = obj_from_or_to_hparams(self, "ec", ec)
         hc_in = ResIN(
             node_dim=h_dim,
             edge_dim=e_dim,

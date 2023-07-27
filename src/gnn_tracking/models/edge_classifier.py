@@ -1,6 +1,5 @@
 """Models for edge classification"""
 
-from typing import Optional
 
 import numpy as np
 import torch
@@ -22,7 +21,7 @@ class ECForGraphTCN(nn.Module, HyperparametersMixin):
         edge_indim: int,
         interaction_node_dim: int = 5,
         interaction_edge_dim: int = 4,
-        hidden_dim: Optional[int | float] = None,
+        hidden_dim: int | float | None = None,
         L_ec: int = 3,
         alpha: float = 0.5,
         residual_type="skip1",
@@ -166,18 +165,19 @@ class PerfectEdgeClassification(nn.Module, HyperparametersMixin):
 
 
 class ECFromChkpt(nn.Module, HyperparametersMixin):
-    # noinspection PyUnusedLocal
-    def __init__(
-        self,
+    def __new__(
+        cls,
+        chkpt_path: str = "",
         *,
-        ec_class_name: Optional[str] = None,
-        ec_chkpt_path: str | None = None,
-        ec_freeze: bool = True,
+        class_name="gnn_tracking.training.ec.ECModule",
+        freeze: bool = True,
     ):
-        """For easy loading of an pretrained EC from a lightning yaml config."""
-        super().__init__()
-        self.save_hyperparameters()
-        self._ec = get_model(ec_class_name, ec_chkpt_path)
+        """For easy loading of an pretrained EC from a lightning yaml config.
 
-    def forward(self, data: Data) -> Data:
-        return self._ec(data)
+        Args:
+            chkpt_path: Path to the checkpoint file.
+            class_name: Name of the lightning module that was used to train the EC.
+                Default should work for most cases.
+            freeze: If True, the model is frozen (i.e., its parameters are not trained).
+        """
+        return get_model(class_name, chkpt_path, freeze=freeze)

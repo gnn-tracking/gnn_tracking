@@ -30,17 +30,17 @@ def save_sub_hyperparameters(
         obj: The object to take the hyperparameters from.
         errors: Whether to raise an error or just warn
     """
-    if not hasattr(self, "hparams"):
+    if not hasattr(obj, "hparams"):
         msg = (
             "Can't save hyperparameters to object of type %s. Make sure to "
             "inherit from HyperparametersMixin."
         )
         if errors == "warn":
             logger.warning(msg, type(obj))
-        elif errors == "raise":
+            return
+        if errors == "raise":
             raise ValueError(msg % type(obj))
-        else:
-            raise ValueError(f"Unknown value for `errors`: {errors}")
+        raise ValueError(f"Unknown value for `errors`: {errors}")
 
     assert key not in self.hparams
     if isinstance(obj, dict):
@@ -117,11 +117,21 @@ def get_lightning_module(
 
 
 def get_model(
-    class_path: str, chkpt_path: str = "", freeze: bool = True
+    class_path: str,
+    chkpt_path: str = "",
+    freeze: bool = False,
 ) -> nn.Module | None:
     """Get torch model (specified by `class_path`, a string) and load a checkpoint.
     Uses `get_lightning_module` to get the model.
+
+    Args:
+        class_path: The path to the lightning module class
+        chkpt_path: The path to the checkpoint. If no checkpoint is specified, we
+            return None.
+        freeze: Whether to freeze the model
     """
+    if not chkpt_path:
+        return None
     lm = get_lightning_module(class_path, chkpt_path, freeze=freeze)
     if lm is None:
         return None

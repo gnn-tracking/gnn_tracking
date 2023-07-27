@@ -15,7 +15,12 @@ author = "Gage deZoort, Kilian Lieret"
 # -- General configuration ---------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#general-configuration
 
-extensions = ["sphinx.ext.napoleon", "autoapi.extension", "recommonmark"]
+extensions = [
+    "sphinx.ext.napoleon",
+    "autoapi.extension",
+    "recommonmark",
+    "sphinx.ext.viewcode",
+]
 
 autoapi_type = "python"
 autoapi_dirs = ["../../src/gnn_tracking"]
