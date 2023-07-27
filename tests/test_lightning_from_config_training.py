@@ -13,15 +13,14 @@ from tests.test_data import test_data_dir
 AVAILABLE_CONFIGS: list[Path] = list(test_config_dir.glob("*.yml"))
 
 
-def tracking_data_module() -> TrackingDataModule:
-    return TrackingDataModule(
-        train={"dirs": [test_data_dir / "graphs"]},
-        val={"dirs": [test_data_dir / "graphs"]},
-    )
-
-
 @pytest.mark.parametrize("config_file", AVAILABLE_CONFIGS)
 def test_train_from_config(config_file: Path, tmp_path):
+    def tracking_data_module() -> TrackingDataModule:
+        return TrackingDataModule(
+            train={"dirs": [test_data_dir / "graphs"]},
+            val={"dirs": [test_data_dir / "graphs"]},
+        )
+
     logger = WandbLogger(
         project="test",
         group="test",
