@@ -16,6 +16,8 @@ from torch.nn.functional import normalize, relu
 from torch_cluster import knn_graph
 from torch_geometric.data import Data
 
+from gnn_tracking.models.mlp import MLP
+from gnn_tracking.models.resin import ResIN
 from gnn_tracking.utils.asserts import assert_feat_dim
 from gnn_tracking.utils.lightning import get_model, obj_from_or_to_hparams
 from gnn_tracking.utils.log import logger
@@ -82,6 +84,67 @@ class GraphConstructionFCNN(nn.Module, HyperparametersMixin):
         x *= self._latent_normalization
         assert x.shape[1] == self.hparams.out_dim
         return {"H": x}
+
+
+class GraphConstructionResIN(nn.Module, HyperparametersMixin):
+    def __init__(
+        self,
+        *,
+        node_indim: int,
+        edge_indim: int,
+        h_outdim: int = 8,
+        hidden_dim: int = 40,
+        alpha: float = 0.5,
+        n_layers: int = 1,
+    ):
+        """Graph construction refinement with a stack of interaction network with
+        residual connections between them.
+        """
+        super().__init__()
+        self.save_hyperparameters()
+        self._node_encoder = MLP(
+            input_size=node_indim,
+            output_size=hidden_dim,
+            hidden_dim=hidden_dim,
+            L=2,
+            bias=False,
+        )
+        self._edge_encoder = MLP(
+            input_size=edge_indim,
+            output_size=hidden_dim,
+            hidden_dim=hidden_dim,
+            L=2,
+            bias=False,
+        )
+        self._resin = ResIN(
+            node_dim=hidden_dim,
+            edge_dim=hidden_dim,
+            object_hidden_dim=hidden_dim,
+            relational_hidden_dim=hidden_dim,
+            n_layers=n_layers,
+            alpha=alpha,
+        )
+        self._decoder = MLP(
+            input_size=hidden_dim,
+            output_size=h_outdim,
+            hidden_dim=hidden_dim,
+            L=2,
+            bias=False,
+        )
+
+    def forward(self, data: Data) -> dict[str, T]:
+        assert_feat_dim(data.x, self.hparams.node_indim)
+        assert_feat_dim(data.edge_attr, self.hparams.edge_indim)
+        x = self._node_encoder(data.x)
+        assert_feat_dim(x, self.hparams.hidden_dim)
+        edge_attr = self._edge_encoder(data.edge_attr)
+        assert_feat_dim(edge_attr, self.hparams.hidden_dim)
+        x, edge_attr, edge_attrs = self._resin(x, data.edge_index, edge_attr)
+        assert_feat_dim(x, self.hparams.hidden_dim)
+        assert_feat_dim(edge_attr, self.hparams.hidden_dim)
+        x = self._decoder(x)
+        assert_feat_dim(x, self.hparams.h_outdim)
+        return {"H": x, "edge_attr": edge_attr, "edge_attrs": edge_attrs}
 
 
 def knn_with_max_radius(x: T, k: int, max_radius: float | None = None) -> T:
