@@ -13,14 +13,16 @@ from tests.test_data import test_data_dir
 AVAILABLE_CONFIGS: list[Path] = list(test_config_dir.glob("*.yml"))
 
 
-@pytest.mark.parametrize("config_file", AVAILABLE_CONFIGS)
-def test_train_from_config(config_file: Path, tmp_path):
-    def tracking_data_module() -> TrackingDataModule:
+class TrackingDataModuleForTests(TrackingDataModule):
+    def __new__(cls, *args, **kwargs) -> TrackingDataModule:
         return TrackingDataModule(
             train={"dirs": [test_data_dir / "graphs"]},
             val={"dirs": [test_data_dir / "graphs"]},
         )
 
+
+@pytest.mark.parametrize("config_file", AVAILABLE_CONFIGS)
+def test_train_from_config(config_file: Path, tmp_path):
     logger = WandbLogger(
         project="test",
         group="test",
@@ -32,7 +34,7 @@ def test_train_from_config(config_file: Path, tmp_path):
     tb_logger = TensorBoardLogger(tmp_path, version="test")
 
     cli = LightningCLI(  # noqa: F841
-        datamodule_class=tracking_data_module,
+        datamodule_class=TrackingDataModuleForTests,
         trainer_defaults={
             "callbacks": [
                 RichProgressBar(leave=True),
