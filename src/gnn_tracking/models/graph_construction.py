@@ -11,6 +11,7 @@ import torch.nn
 from pytorch_lightning.core.mixins import HyperparametersMixin
 from torch import Tensor as T
 from torch import nn
+from torch.jit import script as jit
 from torch.nn import Linear, ModuleList, init
 from torch.nn.functional import normalize, relu
 from torch_cluster import knn_graph
@@ -102,19 +103,23 @@ class GraphConstructionResIN(nn.Module, HyperparametersMixin):
         """
         super().__init__()
         self.save_hyperparameters()
-        self._node_encoder = MLP(
-            input_size=node_indim,
-            output_size=hidden_dim,
-            hidden_dim=hidden_dim,
-            L=2,
-            bias=False,
+        self._node_encoder = jit(
+            MLP(
+                input_size=node_indim,
+                output_size=hidden_dim,
+                hidden_dim=hidden_dim,
+                L=2,
+                bias=False,
+            )
         )
-        self._edge_encoder = MLP(
-            input_size=edge_indim,
-            output_size=hidden_dim,
-            hidden_dim=hidden_dim,
-            L=2,
-            bias=False,
+        self._edge_encoder = jit(
+            MLP(
+                input_size=edge_indim,
+                output_size=hidden_dim,
+                hidden_dim=hidden_dim,
+                L=2,
+                bias=False,
+            )
         )
         self._resin = ResIN(
             node_dim=hidden_dim,
@@ -124,12 +129,14 @@ class GraphConstructionResIN(nn.Module, HyperparametersMixin):
             n_layers=n_layers,
             alpha=alpha,
         )
-        self._decoder = MLP(
-            input_size=hidden_dim,
-            output_size=h_outdim,
-            hidden_dim=hidden_dim,
-            L=2,
-            bias=False,
+        self._decoder = jit(
+            MLP(
+                input_size=hidden_dim,
+                output_size=h_outdim,
+                hidden_dim=hidden_dim,
+                L=2,
+                bias=False,
+            )
         )
 
     def forward(self, data: Data) -> dict[str, T]:
