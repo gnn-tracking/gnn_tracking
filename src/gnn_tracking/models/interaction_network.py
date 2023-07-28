@@ -5,6 +5,7 @@ from torch.jit import script as jit
 from torch_geometric.nn import MessagePassing
 
 from gnn_tracking.models.mlp import MLP
+from gnn_tracking.utils.asserts import assert_feat_dim
 
 
 # noinspection PyAbstractClass
@@ -61,6 +62,8 @@ class InteractionNetwork(MessagePassing, HyperparametersMixin):
         Returns:
             Output node embedding, output edge embedding
         """
+        assert_feat_dim(x, self.hparams.node_indim)
+        assert_feat_dim(edge_attr, self.hparams.edge_indim)
         x_tilde = self.propagate(edge_index, x=x, edge_attr=edge_attr, size=None)
         assert self._e_tilde is not None  # mypy
         # Make sure that memory is released after the forward pass
