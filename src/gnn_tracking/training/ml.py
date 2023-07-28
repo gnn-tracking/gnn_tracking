@@ -86,3 +86,12 @@ class MLModule(TrackingModule):
                 on_epoch=True,
                 batch_size=self.trainer.val_dataloaders.batch_size,
             )
+
+    def highlight_metric(self, metric: str) -> bool:
+        return metric in [
+            "n_edges_frac_segment50_95",
+            "total",
+            "attractive",
+            "repulsive",
+            "max_frac_segment50",
+        ]
