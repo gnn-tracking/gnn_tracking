@@ -83,7 +83,9 @@ class ResidualNetwork(ABC, nn.Module):
         return self._forward(x, edge_index, edge_attr)
 
     @abstractmethod
-    def _forward(self, x, edge_index, edge_attr) -> tuple[T, T, list[T] | None]:
+    def _forward(
+        self, x: T, edge_index: T, edge_attr: T
+    ) -> tuple[T, T, list[T] | None]:
         pass
 
 
@@ -94,7 +96,9 @@ class Skip1ResidualNetwork(ResidualNetwork):
         """
         super().__init__(*args, **kwargs)
 
-    def _forward(self, x, edge_index, edge_attr) -> tuple[T, T, list[T] | None]:
+    def _forward(
+        self, x: T, edge_index: T, edge_attr: T
+    ) -> tuple[T, T, list[T] | None]:
         edge_attrs = [edge_attr] if self._collect_hidden_edge_embeds else None
         for layer in self.layers:
             delta_x, edge_attr = layer(x, edge_index, edge_attr)
@@ -144,7 +148,9 @@ class Skip2ResidualNetwork(ResidualNetwork):
         self._node_batch_norms = nn.ModuleList(_node_batch_norms)
         self._edge_batch_norms = nn.ModuleList(_edge_batch_norms)
 
-    def _forward(self, x, edge_index, edge_attr) -> tuple[T, T, list[T] | None]:
+    def _forward(
+        self, x: T, edge_index: T, edge_attr: T
+    ) -> tuple[T, T, list[T] | None]:
         edge_attrs = [edge_attr] if self._collect_hidden_edge_embeds else None
         for i_layer_pair in range(len(self.layers) // 2):
             i0 = 2 * i_layer_pair
@@ -184,7 +190,7 @@ class SkipTopResidualNetwork(ResidualNetwork):
         super().__init__(layers=layers, **kwargs)
         self._residual_layer = connect_to
 
-    def _forward(self, x, edge_index, edge_attr) -> tuple[T, T, list[T]]:
+    def _forward(self, x: T, edge_index: T, edge_attr: T) -> tuple[T, T, list[T]]:
         edge_attrs = [edge_attr] if self._collect_hidden_edge_embeds else None
         x_residue = None
         for i_layer in range(len(self.layers)):
@@ -272,5 +278,7 @@ class ResIN(nn.Module, HyperparametersMixin):
             return self.edge_dim * (len(self.network.layers) // 2 + 1)
         return self.edge_dim * (len(self.network.layers) + 1)
 
-    def forward(self, x, edge_index, edge_attr) -> tuple[T, T, list[T], list[T] | None]:
+    def forward(
+        self, x: T, edge_index: T, edge_attr: T
+    ) -> tuple[T, T, list[T], list[T] | None]:
         return self.network.forward(x, edge_index, edge_attr)
