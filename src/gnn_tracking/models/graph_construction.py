@@ -101,7 +101,19 @@ class GraphConstructionResIN(nn.Module, HyperparametersMixin):
         alpha_fcnn: float = 0.5,
     ):
         """Graph construction refinement with a stack of interaction network with
-        residual connections between them.
+        residual connections between them. Refinement means that we assume that we're
+        starting of the latent space and edges from `GraphConstructionFCNN`.
+
+        Args:
+            node_indim: Input dimension of the node features
+            edge_indim: Input dimension of the edge features
+            h_outdim: Output dimension of the node features
+            hidden_dim: All other dimensions
+            alpha: Strength of residual connections for the INs
+            n_layers: Number of INs
+            alpha_fcnn: Strength of residual connections connecting back to the initial
+                latent space from the FCNN (assuming that the first `h_outdim` features
+                are its latent space output)
         """
         super().__init__()
         self.save_hyperparameters()
