@@ -88,6 +88,7 @@ class GraphConstructionFCNN(nn.Module, HyperparametersMixin):
 
 
 class GraphConstructionResIN(nn.Module, HyperparametersMixin):
+    # noinspection PyUnusedLocal
     def __init__(
         self,
         *,
@@ -97,6 +98,7 @@ class GraphConstructionResIN(nn.Module, HyperparametersMixin):
         hidden_dim: int = 40,
         alpha: float = 0.5,
         n_layers: int = 1,
+        alpha_fcnn: float = 0.5,
     ):
         """Graph construction refinement with a stack of interaction network with
         residual connections between them.
@@ -140,18 +142,19 @@ class GraphConstructionResIN(nn.Module, HyperparametersMixin):
         )
 
     def forward(self, data: Data) -> dict[str, T]:
+        x_fcnn = data.x[:, : self.hparams.h_outdim]
         assert_feat_dim(data.x, self.hparams.node_indim)
         assert_feat_dim(data.edge_attr, self.hparams.edge_indim)
         x = self._node_encoder(data.x)
         assert_feat_dim(x, self.hparams.hidden_dim)
         edge_attr = self._edge_encoder(data.edge_attr)
         assert_feat_dim(edge_attr, self.hparams.hidden_dim)
-        x, edge_attr, edge_attrs = self._resin(x, data.edge_index, edge_attr)
+        x, _, _ = self._resin(x, data.edge_index, edge_attr)
         assert_feat_dim(x, self.hparams.hidden_dim)
-        assert_feat_dim(edge_attr, self.hparams.hidden_dim)
-        x = self._decoder(x)
-        assert_feat_dim(x, self.hparams.h_outdim)
-        return {"H": x, "edge_attr": edge_attr, "edge_attrs": edge_attrs}
+        delta = self._decoder(x)
+        assert_feat_dim(delta, self.hparams.h_outdim)
+        h = self.hparams.alpha_fcnn * x_fcnn + (1 - self.hparams.alpha_fcnn) * delta
+        return {"H": h}
 
 
 def knn_with_max_radius(x: T, k: int, max_radius: float | None = None) -> T:
