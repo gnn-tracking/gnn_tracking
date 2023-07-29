@@ -152,6 +152,9 @@ class GraphConstructionResIN(nn.Module, HyperparametersMixin):
                 bias=False,
             )
         )
+        self._latent_normalization = torch.nn.Parameter(
+            torch.Tensor([1.0]), requires_grad=True
+        )
 
     def forward(self, data: Data) -> dict[str, T]:
         x_fcnn = data.x[:, : self.hparams.h_outdim]
@@ -166,6 +169,7 @@ class GraphConstructionResIN(nn.Module, HyperparametersMixin):
         delta = self._decoder(x)
         assert_feat_dim(delta, self.hparams.h_outdim)
         h = self.hparams.alpha_fcnn * x_fcnn + (1 - self.hparams.alpha_fcnn) * delta
+        h *= self._latent_normalization
         return {"H": h}
 
 
