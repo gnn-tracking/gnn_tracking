@@ -81,11 +81,10 @@ class GraphConstructionFCNN(nn.Module, HyperparametersMixin):
                 np.sqrt(self.hparams.beta) * layer(relu(x))
                 + np.sqrt(1 - self.hparams.beta) * x
             )
-        x1 = x
         x = self._decoder(relu(x))
         x *= self._latent_normalization
         assert x.shape[1] == self.hparams.out_dim
-        return {"H": x, "H1": x1}
+        return {"H": x}
 
 
 class GraphConstructionResIN(nn.Module, HyperparametersMixin):
@@ -208,7 +207,6 @@ class MLGraphConstruction(nn.Module, HyperparametersMixin):
         ml_freeze: bool = True,
         ec_freeze: bool = True,
         embedding_slice: tuple[int | None, int | None] = (None, None),
-        use_intermediate_embedding_features: bool = False,
     ):
         """Builds graph from embedding space. If you want to start from a checkpoint,
         use `MLGraphConstruction.from_chkpt`.
@@ -316,16 +314,10 @@ class MLGraphConstruction(nn.Module, HyperparametersMixin):
         y: T = (  # type: ignore
             data.particle_id[edge_index[0]] == data.particle_id[edge_index[1]]
         )
-        node_features = []
-        if self._ml and self.hparams.use_embedding_features:
-            node_features.append(mo["H"])
-        if self._ml and self.hparams.use_intermediate_embedding_features:
-            node_features.append(mo["H1"])
-        node_features.append(data.x)
-        if len(node_features) > 1:
-            x = torch.cat(node_features, dim=1)
+        if not self._ml or not self.hparams.use_embedding_features:
+            x = data.x
         else:
-            x = node_features[0]
+            x = torch.cat((mo["H"], data.x), dim=1)
         # print(edge_index.shape, )
         if self.hparams.ratio_of_false and self.training:
             num_true = y.sum()
