@@ -2,7 +2,9 @@ from os import PathLike
 from types import ModuleType
 
 import git
+from packaging import version
 
+import gnn_tracking
 from gnn_tracking.utils.log import logger
 
 
@@ -28,3 +30,10 @@ def get_commit_hash(module: None | ModuleType | str | PathLike = None) -> str:
             "Repository %s is dirty, commit hash may not be accurate.", base_path
         )
     return repo.head.object.hexsha
+
+
+def assert_version_geq(require: str):
+    assert version.parse(gnn_tracking.__version__) >= version.parse(require), (
+        f"Please update gnn_tracking from {gnn_tracking.__version__} to at least "
+        f"version {require}."
+    )

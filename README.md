@@ -2,6 +2,7 @@
 
 # GNNs for Charged Particle Tracking
 
+[![CalVer YY.0M.MICRO](https://img.shields.io/badge/calver-YY.0M.MICRO-22bfda.svg)][calver]
 [![Documentation Status](https://readthedocs.org/projects/gnn-tracking/badge/?version=latest)](https://gnn-tracking.readthedocs.io/en/latest/?badge=latest)
 [![pre-commit.ci status](https://results.pre-commit.ci/badge/github/gnn-tracking/gnn_tracking/main.svg)](https://results.pre-commit.ci/latest/github/gnn-tracking/gnn_tracking/main)
 [![gh actions](https://github.com/gnn-tracking/gnn_tracking/actions/workflows/test.yaml/badge.svg)](https://github.com/gnn-tracking/gnn_tracking/actions)
@@ -28,10 +29,12 @@ See the [readme of the organization][organization-readme] for an overview of the
 5. For development: Install [pre-commit][] hooks: `pre-commit install` (from this directory)
 
 A good place to get started are the [demo notebooks][demo].
+This package is versioned based on the [![CalVer YY.0M.MICRO](https://img.shields.io/badge/calver-YY.0M.MICRO-22bfda.svg) CalVer scheme][calver].
 
 [mamba install]: https://mamba.readthedocs.io/en/latest/installation.html
 [demo]: https://github.com/gnn-tracking/tutorials
 [pre-commit]: https://pre-commit.com
+[calver]: https://calver.org/
 
 ## 🧰 Development guidelines
 
