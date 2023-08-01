@@ -57,7 +57,6 @@ class MLModule(TrackingModule):
 
     @tolerate_some_oom_errors
     def training_step(self, batch: Data, batch_idx: int) -> Tensor | None:
-        batch = self.data_preproc(batch)
         out = self(batch)
         loss, loss_dct = self.get_losses(out, batch)
         self.log_dict(
@@ -69,7 +68,6 @@ class MLModule(TrackingModule):
         return loss
 
     def validation_step(self, batch: Data, batch_idx: int):
-        batch = self.data_preproc(batch)
         out = self(batch)
         loss, loss_dct = self.get_losses(out, batch)
         self.log_dict_with_errors(
