@@ -94,12 +94,9 @@ class TrackingModule(ImprovedLogLM):
         )
 
     def forward(self, data: Data) -> Tensor:
-        return self.model.forward(data)
-
-    def data_preproc(self, data: Data) -> Data:
         if self.preproc is not None:
-            return self.preproc(data)
-        return data
+            data = self.preproc(data)
+        return self.model.forward(data)
 
     def configure_optimizers(self) -> Any:
         optimizer = self.optimizer(self.parameters())
