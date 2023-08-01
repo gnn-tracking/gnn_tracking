@@ -10,6 +10,7 @@ from rich.table import Table
 
 from gnn_tracking.utils.dictionaries import to_floats
 from gnn_tracking.utils.log import logger
+from gnn_tracking.utils.versioning import get_commit_hash
 
 
 def format_results_table(
@@ -134,6 +135,7 @@ class ExpandWandbConfig(Callback):
                 "scheduler": config["model"].get("init_args", {}).get("scheduler"),
                 "data": trainer.datamodule.hparams,
                 "_SLURM_JOB_ID": os.environ.get("SLURM_JOB_ID"),
+                "gnn_tracking_hash": get_commit_hash(),
                 **pl_module.hparams,
             }
         )
