@@ -207,6 +207,9 @@ class ModularGraphTCN(nn.Module, HyperparametersMixin):
         #     node_hidden_dim=hidden_dim,
         #     edge_hidden_dim=hidden_dim,
         # )
+        self._latent_normalization = torch.nn.Parameter(
+            torch.Tensor([1.0]), requires_grad=True
+        )
 
     def forward(
         self,
@@ -263,6 +266,7 @@ class ModularGraphTCN(nn.Module, HyperparametersMixin):
         h = self.p_cluster(h_hc)
         if alpha := self.hparams.alpha_latent:
             h = (1 - alpha) * h + alpha * data.x[:, : self.hparams.h_outdim]
+        h *= self._latent_normalization
         # track_params, _ = self.p_track_param(
         #     h_hc, data.edge_index, torch.cat(edge_attrs_hc, dim=1)
         # )
