@@ -431,10 +431,7 @@ class PreTrainedECGraphTCN(nn.Module, HyperparametersMixin):
         hidden_dim=40,
         L_hc=3,
         alpha_hc: float = 0.5,
-        feed_edge_weights=False,
-        ec_threshold=0.5,
-        mask_orphan_nodes=False,
-        use_ec_embeddings_for_hc=False,
+        **kwargs,
     ):
         """GraphTCN for the use with a pre-trained edge classifier
 
@@ -450,6 +447,7 @@ class PreTrainedECGraphTCN(nn.Module, HyperparametersMixin):
             L_hc: message passing depth for track condenser
             alpha_hc: strength of residual connection for multi-layer interaction
                 networks
+            **kwargs: Passed to `ModularGraphTCN`
         """
         super().__init__()
         self.save_hyperparameters(ignore=["ec"])
@@ -471,10 +469,7 @@ class PreTrainedECGraphTCN(nn.Module, HyperparametersMixin):
             e_dim=e_dim,
             h_outdim=h_outdim,
             hidden_dim=hidden_dim,
-            feed_edge_weights=feed_edge_weights,
-            ec_threshold=ec_threshold,
-            mask_orphan_nodes=mask_orphan_nodes,
-            use_ec_embeddings_for_hc=use_ec_embeddings_for_hc,
+            **kwargs,
         )
 
     def forward(
