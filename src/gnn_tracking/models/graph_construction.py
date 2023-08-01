@@ -254,6 +254,8 @@ class MLGraphConstruction(nn.Module, HyperparametersMixin):
         *,
         ml_class_name: str = "gnn_tracking.training.ml.MLModule",
         ec_class_name: str = "gnn_tracking.training.ec.ECModule",
+        ml_model_only: bool = True,
+        ec_model_only: bool = True,
         **kwargs,
     ) -> "MLGraphConstruction":
         """Build `MLGraphConstruction` from checkpointed models.
@@ -266,10 +268,13 @@ class MLGraphConstruction(nn.Module, HyperparametersMixin):
                 (default should almost always be fine)
             ec_class_name: Class name of edge filter lightning module
                 (default should almost always be fine)
+            ml_model_only: Only the torch model is loaded (excluding preprocessing
+                steps from the lightning module)
+            ec_model_only: See ``ml_model_only``
             **kwargs: Additional arguments passed to `MLGraphConstruction`
         """
-        ml = get_model(ml_class_name, ml_chkpt_path)
-        ec = get_model(ec_class_name, ec_chkpt_path)
+        ml = get_model(ml_class_name, ml_chkpt_path, whole_module=not ml_model_only)
+        ec = get_model(ec_class_name, ec_chkpt_path, whole_module=not ec_model_only)
         return cls(
             ml=ml,
             ec=ec,
