@@ -126,14 +126,15 @@ class ModularGraphTCN(nn.Module, HyperparametersMixin):
         hc_in: nn.Module,
         node_indim: int,
         edge_indim: int,
-        h_dim=5,
-        e_dim=4,
-        h_outdim=2,
-        hidden_dim=40,
-        feed_edge_weights=False,
-        ec_threshold=0.5,
-        mask_orphan_nodes=False,
-        use_ec_embeddings_for_hc=False,
+        h_dim: int = 5,
+        e_dim: int = 4,
+        h_outdim: int = 2,
+        hidden_dim: int = 40,
+        feed_edge_weights: bool = False,
+        ec_threshold: float = 0.5,
+        mask_orphan_nodes: bool = False,
+        use_ec_embeddings_for_hc: bool = False,
+        alpha_latent: float = 0.0,
     ):
         """Track condensation network based on preconstructed graphs. This module
         combines the following:
@@ -160,6 +161,9 @@ class ModularGraphTCN(nn.Module, HyperparametersMixin):
             use_ec_embeddings_for_hc: Use edge classifier embeddings as input to
                 track condenser. This currently assumes that h_dim and e_dim are
                 also the dimensions used in the EC.
+            alpha_latent: Assume that we're already starting from a latent space given
+                by the first ``h_outdim`` node features. In this case, this is the
+                strength of the residual connection
         """
         super().__init__()
         self.save_hyperparameters(ignore=["ec", "hc_in"])
@@ -258,6 +262,8 @@ class ModularGraphTCN(nn.Module, HyperparametersMixin):
         beta = beta + torch.ones_like(beta) * 10e-9
 
         h = self.p_cluster(h_hc)
+        if alpha := self.hparams.alpha_latent:
+            h = (1 - alpha) * h + alpha * data.x[:, : self.hparams.h_outdim]
         # track_params, _ = self.p_track_param(
         #     h_hc, data.edge_index, torch.cat(edge_attrs_hc, dim=1)
         # )
