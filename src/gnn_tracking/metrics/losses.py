@@ -392,7 +392,8 @@ class PotentialLoss(torch.nn.Module, HyperparametersMixin):
             )
 
 
-@torch.jit.script
+# _first_occurrences prevents jit
+# @torch.jit.script
 def _background_loss(*, beta: T, particle_id: T, sb: float) -> T:
     """Extracted function for JIT-compilation. See `BackgroundLoss` for details."""
     sorted_indices = torch.argsort(beta, descending=True)
