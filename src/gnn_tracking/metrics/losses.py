@@ -8,6 +8,7 @@ import math
 from abc import ABC, abstractmethod
 from typing import Any, Mapping, Protocol, Union
 
+import numpy as np
 import torch
 from pytorch_lightning.core.mixins import HyperparametersMixin
 from torch import Tensor
@@ -226,8 +227,111 @@ def _condensation_loss(
     }
 
 
+def _first_occurrences(input_array: T):
+    # Function that determines the first occurrence of each unique element in a 1D array
+    return torch.tensor(
+        np.unique(input_array.cpu(), return_index=True)[1], device=input_array.device
+    )
+
+
+def _square_distances(edges: T, positions: T):
+    # Function that calculates the squared distances between two sets of points
+    return torch.sum((positions[edges[0]] - positions[edges[1]]) ** 2, dim=-1)
+
+
+def _fast_condensation_loss(
+    *,
+    beta: T,
+    x: T,
+    particle_id: T,
+    q_min: float,
+    mask: T,
+    radius_threshold: float,
+    max_num_neighbors: int,
+) -> dict[str, T]:
+    """Extracted function for condensation loss. See `PotentialLoss` for details."""
+    # -- Determining alpha particle indices --
+    # Calculates the indices of the alpha particles including noise particles
+    sorted_indices = torch.argsort(beta, descending=True)
+    ids_sorted = particle_id[sorted_indices]
+    noisy_alphas = sorted_indices[_first_occurrences(ids_sorted)]
+
+    # Filter out noise hits
+    alphas = noisy_alphas[particle_id[noisy_alphas] > 0]
+    assert alphas.size()[0] > 0, "No particles found, cannot evaluate loss"
+
+    # -- Degermining q-values --
+    q = torch.arctanh(beta) ** 2 + q_min
+    assert not torch.isnan(q).any(), "q contains NaNs"
+
+    # -- Determining edges to be used for repulsion loss --
+    # Calculates radius graph edges for points at most radius_threshold distance
+    radius_edges = radius_graph(
+        x=x, r=radius_threshold, max_num_neighbors=max_num_neighbors, loop=False
+    )
+
+    # Filters out radius edges without alpha points
+    radius_edges_only_alphas = radius_edges[:, torch.isin(radius_edges[0], alphas)]
+
+    # Filters out remaining edges which connect hits from the same particle
+    same_particle_mask = (
+        particle_id[radius_edges_only_alphas[0]]
+        != particle_id[radius_edges_only_alphas[1]]
+    )
+    repulsion_edges = radius_edges_only_alphas[:, same_particle_mask]
+
+    # -- Determining edges to be used for attraction loss --
+    # Generate tensor of all indices representing non-alpha hits
+    alpha_hits_filter = torch.zeros(
+        len(particle_id), dtype=bool, device=x.device
+    ).scatter_(0, alphas, 1)
+    non_alpha_indices = torch.arange(len(particle_id), device=x.device)[
+        ~alpha_hits_filter
+    ]
+
+    # Generate tensor of the alpha indices for each element in 'non_alpha_indices'
+    alpha_indices = noisy_alphas[
+        torch.searchsorted(particle_id[noisy_alphas], particle_id[non_alpha_indices])
+    ]
+
+    # Insert alpha indices into their respective positions to form attraction edges
+    unmasked_attraction_edges = (
+        torch.arange(len(particle_id), device=x.device).unsqueeze(0).repeat(2, 1)
+    )
+    unmasked_attraction_edges[1, ~alpha_hits_filter] = alpha_indices
+
+    # Apply mask to attraction edges
+    noisy_attraction_edges = unmasked_attraction_edges[:, mask]
+
+    # Filter out noise edges from attraction edges
+    attraction_edges = noisy_attraction_edges[
+        :, particle_id[noisy_attraction_edges[0, :]] > 0
+    ]
+
+    # -- Calculating loss --
+    # Calculate the distances used in calculating both losses
+    repulsion_distances = radius_threshold - torch.sqrt(
+        _square_distances(repulsion_edges, x)
+    )
+    attraction_distances = _square_distances(attraction_edges, x)
+
+    va = attraction_distances * q[attraction_edges[0]] * q[attraction_edges[1]]
+    vr = repulsion_distances * q[repulsion_edges[0]] * q[repulsion_edges[1]]
+
+    if torch.sum(torch.mean(vr, dim=0)).isnan():
+        vr = torch.tensor([[0.0]])
+        print("Repulsive loss is NaN")
+
+    return {
+        "attractive": (1 / mask.sum()) * torch.sum(va),
+        "repulsive": (1 / x.size()[0]) * torch.sum(vr),
+    }
+
+
 class PotentialLoss(torch.nn.Module, HyperparametersMixin):
-    def __init__(self, q_min=0.01, radius_threshold=1.0, attr_pt_thld=0.9):
+    def __init__(
+        self, q_min=0.01, radius_threshold=1.0, attr_pt_thld=0.9, max_neighbors=0
+    ):
         """Potential/condensation loss (specific to object condensation approach).
 
         Args:
@@ -235,12 +339,16 @@ class PotentialLoss(torch.nn.Module, HyperparametersMixin):
             radius_threshold: Parameter of repulsive potential
             attr_pt_thld: Truth-level threshold for hits/tracks to consider in
                 attractive loss [GeV]
+            max_neighbors: Parameter to determine maximum number of edges drawn
+                from each node while calculating repulsive loss. If set to 0,
+                non-approximate loss is calculated.
         """
         super().__init__()
         self.save_hyperparameters()
         self.q_min = q_min
         self.radius_threshold = radius_threshold
         self.pt_thld = attr_pt_thld
+        self.max_neighbors = max_neighbors
 
     # noinspection PyUnusedLocal
     def forward(
@@ -264,22 +372,35 @@ class PotentialLoss(torch.nn.Module, HyperparametersMixin):
         mask = (reconstructable > 0) & (pt > self.pt_thld)
         # If there are no hits left after masking, then we get a NaN loss.
         assert mask.sum() > 0, "No hits left after masking"
-        return _condensation_loss(
-            beta=beta,
-            x=x,
-            particle_id=particle_id,
-            mask=mask,
-            q_min=self.q_min,
-            radius_threshold=self.radius_threshold,
-        )
+        if self.max_neighbors <= 0:
+            return _condensation_loss(
+                beta=beta,
+                x=x,
+                particle_id=particle_id,
+                mask=mask,
+                q_min=self.q_min,
+                radius_threshold=self.radius_threshold,
+            )
+        else:
+            return _fast_condensation_loss(
+                beta=beta,
+                x=x,
+                particle_id=particle_id,
+                mask=mask,
+                q_min=self.q_min,
+                radius_threshold=self.radius_threshold,
+                max_num_neighbors=self.max_neighbors,
+            )
 
 
 @torch.jit.script
 def _background_loss(*, beta: T, particle_id: T, sb: float) -> T:
     """Extracted function for JIT-compilation. See `BackgroundLoss` for details."""
-    pids = torch.unique(particle_id[particle_id > 0])
-    pid_masks = particle_id[:, None] == pids[None, :]
-    alphas = torch.argmax(pid_masks * beta[:, None], dim=0)
+    sorted_indices = torch.argsort(beta, descending=True)
+    ids_sorted = particle_id[sorted_indices]
+    noisy_alphas = sorted_indices[_first_occurrences(ids_sorted)]
+    alphas = noisy_alphas[particle_id[noisy_alphas] > 0]
+
     beta_alphas = beta[alphas]
     loss = torch.mean(1 - beta_alphas)
     noise_mask = particle_id == 0
