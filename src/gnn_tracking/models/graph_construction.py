@@ -218,9 +218,11 @@ class MLGraphConstruction(nn.Module, HyperparametersMixin):
             msg = "ec_threshold must be set if ec/ef is not None"
             raise ValueError(msg)
         if self._ml is None and use_embedding_features:
-            raise ValueError("use_embedding_features requires ml to be not None")
+            msg = "use_embedding_features requires ml to be not None"
+            raise ValueError(msg)
         if self._ml is not None and embedding_slice != (None, None):
-            raise ValueError("embedding_slice requires ml to be None")
+            msg = "embedding_slice requires ml to be None"
+            raise ValueError(msg)
         if build_edge_features and ratio_of_false:
             logger.warning(
                 "Subsampling false edges. This might not make sense"
@@ -260,6 +262,9 @@ class MLGraphConstruction(nn.Module, HyperparametersMixin):
     @property
     def out_dim(self) -> tuple[int, int]:
         """Returns node, edge, output dims"""
+        if self._ml is None:
+            msg = "Cannot infer output dimension without ML model"
+            raise RuntimeError(msg)
         node_dim = self._ml.in_dim
         if self.hparams.use_embedding_features:
             node_dim += self._ml.out_dim
@@ -354,7 +359,9 @@ class MLPCTransformer(nn.Module, HyperparametersMixin):
                 the transformed ones)
         """
         super().__init__()
-        self._ml = freeze_if(obj_from_or_to_hparams(self, "ml", model), freeze)
+        self._ml: nn.Module = freeze_if(
+            obj_from_or_to_hparams(self, "ml", model), freeze
+        )
         self.save_hyperparameters(ignore=["model"])
 
     @classmethod
@@ -391,4 +398,4 @@ class MLPCTransformer(nn.Module, HyperparametersMixin):
 class MLPCTransformerFromMLChkpt(MLPCTransformer):
     def __new__(*args, **kwargs) -> MLPCTransformer:
         """Alias for `MLPCTransformer.from_ml_chkpt` for use in yaml configs"""
-        return MLPCTransformer.from_ml_chkpt(*args, **kwargs)
+        return MLPCTransformer.from_ml_chkpt(*args, **kwargs)  # type: ignore
