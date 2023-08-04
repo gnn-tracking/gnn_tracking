@@ -16,6 +16,7 @@ from torch_geometric.data import Data
 from tqdm import tqdm
 
 from gnn_tracking.analysis.graphs import get_largest_segment_fracs
+from gnn_tracking.metrics.graph_construction import get_efficiency_purity_edges
 from gnn_tracking.models.graph_construction import knn_with_max_radius
 from gnn_tracking.utils.dictionaries import pivot_record_list
 from gnn_tracking.utils.log import logger
@@ -237,4 +238,5 @@ class GraphConstructionKNNScanner(HyperparametersMixin):
             "frac75": (lsfs > 0.75).mean().item(),
             "frac100": (lsfs == 1).mean().item(),
             "n_edges": n_edges,
+            **get_efficiency_purity_edges(data, pt_thld=self.hparams.pt_thld),
         }
