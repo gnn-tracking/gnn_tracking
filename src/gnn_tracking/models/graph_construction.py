@@ -214,16 +214,20 @@ class MLGraphConstruction(nn.Module, HyperparametersMixin):
         self.save_hyperparameters(ignore=["ml", "ec"])
         self._ml = freeze_if(obj_from_or_to_hparams(self, "ml", ml), ml_freeze)
         self._ef = freeze_if(obj_from_or_to_hparams(self, "ec", ec), ec_freeze)
-        if self._ef is not None and ec_threshold is None:
+        self._validate_config()
+
+    def _validate_config(self) -> None:
+        """Ensure that config makes sense."""
+        if self._ef is not None and self.hparams.ec_threshold is None:
             msg = "ec_threshold must be set if ec/ef is not None"
             raise ValueError(msg)
-        if self._ml is None and use_embedding_features:
+        if self._ml is None and self.hparams.use_embedding_features:
             msg = "use_embedding_features requires ml to be not None"
             raise ValueError(msg)
-        if self._ml is not None and embedding_slice != (None, None):
+        if self._ml is not None and self.hparams.embedding_slice != (None, None):
             msg = "embedding_slice requires ml to be None"
             raise ValueError(msg)
-        if build_edge_features and ratio_of_false:
+        if self.hparams.build_edge_features and self.hparams.ratio_of_false:
             logger.warning(
                 "Subsampling false edges. This might not make sense"
                 " for message passing."
