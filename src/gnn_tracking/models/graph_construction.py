@@ -391,4 +391,4 @@ class MLPCTransformer(nn.Module, HyperparametersMixin):
 class MLPCTransformerFromMLChkpt(MLPCTransformer):
     def __new__(*args, **kwargs) -> MLPCTransformer:
         """Alias for `MLPCTransformer.from_ml_chkpt` for use in yaml configs"""
-        return MLPCTransformer.from_chkpt(*args, **kwargs)
+        return MLPCTransformer.from_ml_chkpt(*args, **kwargs)
