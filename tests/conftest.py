@@ -41,4 +41,8 @@ def built_graphs(point_clouds_path, tmp_path_factory) -> tuple[Path, GraphBuilde
 
 @pytest.fixture(scope="session")
 def test_graph() -> Data:
-    return torch.load(graph_test_data_first)
+    graph = torch.load(graph_test_data_first)
+    # todo: This is a hack, but this is a feature with our new graphs built from
+    #   point clouds with ML
+    graph.true_edge_index = graph.edge_index
+    return graph
