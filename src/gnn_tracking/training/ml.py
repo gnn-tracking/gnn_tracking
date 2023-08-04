@@ -34,7 +34,9 @@ class MLModule(TrackingModule):
         """
         super().__init__(**kwargs)
         self.save_hyperparameters("lw_repulsive")
-        self.loss_fct = obj_from_or_to_hparams(self, "loss_fct", loss_fct)
+        self.loss_fct: GraphConstructionHingeEmbeddingLoss = obj_from_or_to_hparams(
+            self, "loss_fct", loss_fct
+        )
         self.gc_scanner = obj_from_or_to_hparams(self, "gc_scanner", gc_scanner)
 
     # noinspection PyUnusedLocal
@@ -43,7 +45,7 @@ class MLModule(TrackingModule):
             x=out["H"],
             particle_id=data.particle_id,
             batch=data.batch,
-            edge_index=data.edge_index,
+            true_edge_index=data.edge_index,
             pt=data.pt,
         )
         lws = {
