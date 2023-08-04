@@ -41,6 +41,8 @@ This package is versioned based on the [![CalVer YY.0M.MICRO](https://img.shield
 If you open a PR and pre-commit fails for formatting, comment`pre-commit.ci autofix`
 to trigger a fixup commit from `pre-commit`.
 
+To skip the slowest tests with `pytest`, run `pytest --no-slow`.
+
 ## 💚 Contributing
 
 A good place to start are the [issues marked with 'good first issue'][gfi]. It is always best to have the issue assigned to you before starting to work on it. You can also [reach us per mail][ml].

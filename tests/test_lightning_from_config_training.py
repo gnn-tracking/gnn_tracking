@@ -21,6 +21,7 @@ class TrackingDataModuleForTests(TrackingDataModule):
         )
 
 
+@pytest.mark.slow
 @pytest.mark.parametrize("config_file", AVAILABLE_CONFIGS)
 def test_train_from_config(config_file: Path, tmp_path):
     logger = WandbLogger(

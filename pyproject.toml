@@ -5,6 +5,9 @@ testpaths = [
     "tests"
 ]
 xfail_strict = true
+markers = [
+    "slow: slow test"
+]
 
 [tool.pycln]
 all = true
