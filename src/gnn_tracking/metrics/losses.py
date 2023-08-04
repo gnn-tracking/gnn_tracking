@@ -249,48 +249,42 @@ def _fast_condensation_loss(
     max_num_neighbors: int,
 ) -> dict[str, T]:
     """Extracted function for condensation loss. See `PotentialLoss` for details."""
-    # -- Determining alpha particle indices --
-    # Calculates the indices of the alpha particles including noise particles
-    sorted_indices = torch.argsort(beta, descending=True)
-    ids_sorted = particle_id[sorted_indices]
-    noisy_alphas = sorted_indices[_first_occurrences(ids_sorted)]
+    # For better readability, variables that are only relevant in one "block"
+    # are prefixed with an underscore
 
-    # Filter out noise hits
-    alphas = noisy_alphas[particle_id[noisy_alphas] > 0]
+    # -- 1. Determine indices of condensation points (CPs) and q --
+    _sorted_indices = torch.argsort(beta, descending=True)
+    _pids_sorted = particle_id[_sorted_indices]
+    _alphas = _sorted_indices[_first_occurrences(_pids_sorted)]
+    # Index of condensation points in node array
+    alphas = _alphas[particle_id[_alphas] > 0]
     assert alphas.size()[0] > 0, "No particles found, cannot evaluate loss"
-
-    # -- Degermining q-values --
     q = torch.arctanh(beta) ** 2 + q_min
     assert not torch.isnan(q).any(), "q contains NaNs"
 
-    # -- Determining edges to be used for repulsion loss --
-    # Calculates radius graph edges for points at most radius_threshold distance
-    radius_edges = radius_graph(
+    # -- 2. Edges for repulsion loss --
+    _radius_edges = radius_graph(
         x=x, r=radius_threshold, max_num_neighbors=max_num_neighbors, loop=False
     )
+    # Now filter out everything that doesn't include a CP or connects two hits of the
+    # same particle
+    _to_cp = torch.isin(_radius_edges[0], alphas)
+    _is_repulsive = particle_id[_to_cp[0]] != particle_id[_to_cp[1]]
+    repulsion_edges = _to_cp[:, _is_repulsive & _to_cp]
 
-    # Filters out radius edges without alpha points
-    radius_edges_only_alphas = radius_edges[:, torch.isin(radius_edges[0], alphas)]
-
-    # Filters out remaining edges which connect hits from the same particle
-    same_particle_mask = (
-        particle_id[radius_edges_only_alphas[0]]
-        != particle_id[radius_edges_only_alphas[1]]
-    )
-    repulsion_edges = radius_edges_only_alphas[:, same_particle_mask]
-
-    # -- Determining edges to be used for attraction loss --
-    # Generate tensor of all indices representing non-alpha hits
+    # -- 3. Edges for attractive loss --
+    # 1D array (n_nodes): 1 for CPs, 0 otherwise
     alpha_hits_filter = torch.zeros(
         len(particle_id), dtype=bool, device=x.device
     ).scatter_(0, alphas, 1)
+    # indices of all non-CPs
     non_alpha_indices = torch.arange(len(particle_id), device=x.device)[
         ~alpha_hits_filter
     ]
 
-    # Generate tensor of the alpha indices for each element in 'non_alpha_indices'
-    alpha_indices = noisy_alphas[
-        torch.searchsorted(particle_id[noisy_alphas], particle_id[non_alpha_indices])
+    # for each non-CP hit, the index of the corresponding CP
+    alpha_indices = _alphas[
+        torch.searchsorted(particle_id[_alphas], particle_id[non_alpha_indices])
     ]
 
     # Insert alpha indices into their respective positions to form attraction edges
@@ -307,8 +301,7 @@ def _fast_condensation_loss(
         :, particle_id[noisy_attraction_edges[0, :]] > 0
     ]
 
-    # -- Calculating loss --
-    # Calculate the distances used in calculating both losses
+    # -- 4. Calculate loss --
     repulsion_distances = radius_threshold - torch.sqrt(
         _square_distances(repulsion_edges, x)
     )
@@ -317,9 +310,9 @@ def _fast_condensation_loss(
     va = attraction_distances * q[attraction_edges[0]] * q[attraction_edges[1]]
     vr = repulsion_distances * q[repulsion_edges[0]] * q[repulsion_edges[1]]
 
-    if torch.sum(torch.mean(vr, dim=0)).isnan():
+    if torch.isnan(vr).any():
         vr = torch.tensor([[0.0]])
-        print("Repulsive loss is NaN")
+        logger.warning("Repulsive loss is NaN")
 
     return {
         "attractive": (1 / mask.sum()) * torch.sum(va),
