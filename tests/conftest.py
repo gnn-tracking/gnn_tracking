@@ -9,6 +9,35 @@ from gnn_tracking.preprocessing.point_cloud_builder import PointCloudBuilder
 
 from .test_data import graph_test_data_first, trackml_test_data_dir
 
+# Settings
+# --------
+
+
+def by_slow_marker(item):
+    """Get items by slow marker"""
+    return 1 if item.get_closest_marker("slow") is not None else 0
+
+
+def pytest_collection_modifyitems(items):
+    """Move slow items last"""
+    # https://stackoverflow.com/a/61539510/
+    items.sort(key=by_slow_marker)
+
+
+def pytest_addoption(parser):
+    parser.addoption("--no-slow", action="store_true", help="skip slow tests")
+
+
+def pytest_runtest_setup(item):
+    """Allow to skip slow tests"""
+    # https://stackoverflow.com/a/47567535/
+    if "slow" in item.keywords and item.config.getoption("--no-slow"):
+        pytest.skip("skipped if --no-slow option is used")
+
+
+# Globally scoped fixtures
+# -----------------------
+
 
 @pytest.fixture(scope="session")
 def point_clouds_path(tmp_path_factory) -> Path:
