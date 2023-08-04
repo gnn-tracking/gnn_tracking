@@ -41,11 +41,15 @@ class MLModule(TrackingModule):
 
     # noinspection PyUnusedLocal
     def get_losses(self, out: dict[str, Any], data: Data) -> tuple[T, dict[str, float]]:
+        if not hasattr(data, "true_edge_index"):
+            # For the point cloud data, we unfortunately saved the true edges
+            # simply as edge_index.
+            data.true_edge_index = data.edge_index
         loss_dct = self.loss_fct(
             x=out["H"],
             particle_id=data.particle_id,
             batch=data.batch,
-            true_edge_index=data.edge_index,
+            true_edge_index=data.true_edge_index,
             pt=data.pt,
         )
         lws = {

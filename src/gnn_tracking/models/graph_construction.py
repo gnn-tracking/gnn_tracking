@@ -267,6 +267,11 @@ class MLGraphConstruction(nn.Module, HyperparametersMixin):
         return node_dim, edge_dim
 
     def forward(self, data: Data) -> Data:
+        if not hasattr(data, "true_edge_index"):
+            # For the point cloud data, we unfortunately saved the true edges
+            # simply as edge_index. We need to make sure that we keep the
+            # true edge information around and don't overwrite it.
+            data.true_edge_index = data.edge_index
         if self._ml is not None:
             mo = self._ml(data)
             embedding_features = mo["H"]
@@ -313,6 +318,7 @@ class MLGraphConstruction(nn.Module, HyperparametersMixin):
         return Data(
             x=x,
             edge_index=edge_index,
+            true_edges=data.true_edge_index,
             y=y.long(),
             pt=data.pt,
             particle_id=data.particle_id,
