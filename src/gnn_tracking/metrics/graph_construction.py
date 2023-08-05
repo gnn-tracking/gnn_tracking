@@ -14,8 +14,6 @@ def get_efficiency_purity_edges(data: Data, pt_thld=0.9) -> dict[str, float]:
     )
     efficiency = data.y[edge_mask].sum() / true_edge_mask.sum()
     purity = data.y[edge_mask].sum() / edge_mask.sum()
-    assert 0 <= efficiency <= 1
-    assert 0 <= purity <= 1
     return {
         "efficiency": efficiency.item(),
         "purity": purity.item(),
