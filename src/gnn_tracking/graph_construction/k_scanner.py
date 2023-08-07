@@ -25,6 +25,8 @@ from gnn_tracking.utils.log import logger
 
 
 class KScanResults:
+    _extra_metrics = ["k", "frac75", "frac100", "efficiency", "purity"]
+
     def __init__(
         self,
         results: pd.DataFrame,
@@ -46,16 +48,14 @@ class KScanResults:
         for t in self.targets:
             fat = self._get_foms_at_target(t)
             foms[f"n_edges_frac_segment50_{t*100:.0f}"] = fat["n_edges"]
-            foms[f"n_edges_frac_segment50_{t*100:.0f}_k"] = fat["k"]
-            foms[f"frac75_at_frac_segment50_{t*100:.0f}"] = fat["frac75"]
-            foms[f"frac100_at_frac_segment50_{t*100:.0f}"] = fat["frac100"]
+            for v in self._extra_metrics:
+                foms[f"{v}_at_segment50_{t*100:.0f}"] = fat[v]
         idx_max_frac50 = self.df["frac50"].argmax()
         fat = self.df.iloc[idx_max_frac50]
         foms["max_frac_segment50"] = fat["frac50"]
         foms["n_edges_max_frac_segment50"] = fat["n_edges"]
-        foms["max_frac_segment50_k"] = fat["k"]
-        foms["frac75_at_max_frac_segment50"] = fat["frac75"]
-        foms["frac100_at_max_frac_segment50"] = fat["frac100"]
+        for v in self._extra_metrics:
+            foms[f"{v}_at_max_frac_segment50"] = fat[v]
         return foms
 
     def plot(self) -> plt.Axes:
