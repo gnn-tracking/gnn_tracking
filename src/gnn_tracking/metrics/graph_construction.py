@@ -12,7 +12,8 @@ def get_efficiency_purity_edges(data: Data, pt_thld=0.9) -> dict[str, float]:
     true_edge_mask = (
         hit_mask[data.true_edge_index[0]] & hit_mask[data.true_edge_index[1]]
     )
-    efficiency = data.y[edge_mask].sum() / true_edge_mask.sum()
+    # Factor of 2 because the true edges are undirected
+    efficiency = data.y[edge_mask].sum() / 2 * true_edge_mask.sum()
     purity = data.y[edge_mask].sum() / edge_mask.sum()
     return {
         "efficiency": efficiency.item(),
