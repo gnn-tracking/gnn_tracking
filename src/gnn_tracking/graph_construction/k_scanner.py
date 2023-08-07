@@ -117,7 +117,7 @@ class KScanResults:
         return self._eval_spline(target_r)
 
 
-_DEFAULT_KS = np.arange(0, 40, 4).tolist()
+_DEFAULT_KS = np.arange(1, 10).tolist()
 
 
 class GraphConstructionKNNScanner(HyperparametersMixin):
