@@ -9,6 +9,8 @@ import numpy as np
 import pandas as pd
 import torch
 from numba import njit
+from numpy import ndarray as A
+from pandas import DataFrame as DF
 from torch_geometric.data import Data
 from trackml.dataset import load_event
 
@@ -19,12 +21,12 @@ pd.options.mode.chained_assignment = None  # default='warn'
 
 
 @njit
-def get_truth_edge_index(pids: np.ndarray) -> np.ndarray:
+def get_truth_edge_index(pids: A) -> A:
     """Get edge index for all edges, connecting hits of the same `particle_id`.
     To save space, only edges in one direction are returned.
     """
     upids = np.unique(pids[pids > 0])
-    mask: np.ndarray = pids.reshape(1, -1) == upids.reshape(-1, 1)  # type: ignore
+    mask: A = pids.reshape(1, -1) == upids.reshape(-1, 1)  # type: ignore
     edges = []
     for i_particle in range(mask.shape[0]):
         indices = np.nonzero(mask[i_particle])[0]
@@ -98,10 +100,8 @@ class PointCloudBuilder:
             collect_data: Collect data in memory
             add_true_edges: Add true edges to the point cloud
         """
-        # create outdir if necessary
         self.outdir = Path(outdir)
         self.outdir.mkdir(parents=True, exist_ok=True)
-
         self.indir = Path(indir)
         self.n_sectors = n_sectors
         self.redo = redo
@@ -120,7 +120,7 @@ class PointCloudBuilder:
         assert len(self.feature_names) == len(self.feature_scale)
 
         suffix = "-hits.csv.gz"
-        self.prefixes: list[str] = []
+        self.prefixes: list[Path] = []
         #: Does an output file for a given key exist?
         self.exists: dict[str, bool] = {}
         outfiles = [child.name for child in self.outdir.iterdir()]
@@ -140,14 +140,12 @@ class PointCloudBuilder:
         self.add_true_edges = add_true_edges
         self._detector = ecf.load_detector(Path(detector_config))[1]
 
-    def calc_eta(self, r, z):
+    def calc_eta(self, r: A, z: A) -> A:
         """Compute pseudorapidity (spatial)."""
         theta = np.arctan2(r, z)
         return -np.log(np.tan(theta / 2.0))
 
-    def restrict_to_subdetectors(
-        self, hits: pd.DataFrame, cells: pd.DataFrame
-    ) -> tuple[pd.DataFrame, pd.DataFrame]:
+    def restrict_to_subdetectors(self, hits: DF, cells: DF) -> tuple[DF, DF]:
         """Rename (volume, layer) pairs with an integer label."""
         pixel_barrel = [(8, 2), (8, 4), (8, 6), (8, 8)]
         pixel_LEC = [(7, 14), (7, 12), (7, 10), (7, 8), (7, 6), (7, 4), (7, 2)]
@@ -176,11 +174,11 @@ class PointCloudBuilder:
 
     def append_features(
         self,
-        hits: pd.DataFrame,
-        particles: pd.DataFrame,
-        truth: pd.DataFrame,
-        cells: pd.DataFrame,
-    ) -> pd.DataFrame:
+        hits: DF,
+        particles: DF,
+        truth: DF,
+        cells: DF,
+    ) -> DF:
         """Add additional features to the hits dataframe and return it."""
         particles["pt"] = np.sqrt(particles.px**2 + particles.py**2)
         particles["eta_pt"] = self.calc_eta(particles.pt, particles.pz)
@@ -219,9 +217,7 @@ class PointCloudBuilder:
         hits["v"] = hits["y"] / (hits["x"] ** 2 + hits["y"] ** 2)
         return hits.merge(truth[["hit_id", "particle_id", "pt", "eta_pt"]], on="hit_id")
 
-    def sector_hits(
-        self, hits: pd.DataFrame, s, particle_id_counts: dict[int, int]
-    ) -> pd.DataFrame:
+    def sector_hits(self, hits: DF, s: A, particle_id_counts: dict[int, int]) -> DF:
         """Break an event into (optionally) extended sectors."""
 
         if self.n_sectors == 1:
@@ -303,13 +299,13 @@ class PointCloudBuilder:
 
         return extended_sector
 
-    def _get_edge_index(self, particle_id: np.ndarray):
+    def _get_edge_index(self, particle_id: A) -> torch.Tensor:
         if self.add_true_edges:
             return torch.from_numpy(get_truth_edge_index(particle_id)).long()
         else:
             return torch.zeros((2, 0)).long()
 
-    def to_pyg_data(self, hits: pd.DataFrame) -> Data:
+    def to_pyg_data(self, hits: DF) -> Data:
         """Build the output data structure"""
         return Data(
             x=torch.from_numpy(
