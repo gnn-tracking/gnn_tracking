@@ -418,6 +418,7 @@ class GraphBuilder:
         sector = point_cloud.sector.clone().long()
         evtid = torch.tensor([evtid]).long()  # event label
         s = torch.tensor([s]).long()  # sector label
+        eta = point_cloud.eta.clone().float()
 
         if not self.directed:
             row, col = edge_index[0], edge_index[1]
@@ -439,6 +440,7 @@ class GraphBuilder:
             sector=sector,
             evtid=evtid,
             s=s,
+            eta=eta,
         )
         data.edge_attr = data.edge_attr.T
         return data
