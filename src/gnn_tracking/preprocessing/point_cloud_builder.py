@@ -8,6 +8,7 @@ from typing import Any
 import numpy as np
 import pandas as pd
 import torch
+from numba import njit
 from torch_geometric.data import Data
 from trackml.dataset import load_event
 
@@ -17,7 +18,11 @@ from gnn_tracking.utils.log import get_logger
 pd.options.mode.chained_assignment = None  # default='warn'
 
 
+@njit
 def get_truth_edge_index(pids: np.ndarray) -> np.ndarray:
+    """Get edge index for all edges, connecting hits of the same `particle_id`.
+    To save space, only edges in one direction are returned.
+    """
     upids = np.unique(pids[pids > 0])
     mask: np.ndarray = pids.reshape(1, -1) == upids.reshape(-1, 1)  # type: ignore
     edges = []
@@ -49,9 +54,9 @@ _DEFAULT_FEATURE_SCALE = tuple(1 for _ in DEFAULT_FEATURES)
 
 
 # TODO: In need of refactoring: load_point_clouds should be factored out (this should
-# only be used for building the graphs), and the parsing of the filenames should be
-# done with the function that is also used in build_point_clouds
-# Split up in feature building and sectorization?
+#   only be used for building the graphs), and the parsing of the filenames should be
+#   done with the function that is also used in build_point_clouds
+#   Split up in feature building and sectorization?
 class PointCloudBuilder:
     def __init__(
         self,
