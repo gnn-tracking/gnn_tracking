@@ -334,6 +334,7 @@ class MLGraphConstruction(nn.Module, HyperparametersMixin):
             sector=data.sector,
             reconstructable=data.reconstructable,
             edge_attr=edge_features,
+            eta=data.eta,
         )
 
 

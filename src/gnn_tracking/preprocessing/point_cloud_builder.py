@@ -318,6 +318,7 @@ class PointCloudBuilder:
             pt=torch.from_numpy(hits["pt"].to_numpy()).float(),
             reconstructable=torch.from_numpy(hits["reconstructable"].to_numpy()).long(),
             sector=torch.from_numpy(hits["sector"].to_numpy()).long(),
+            eta=torch.from_numpy(hits["eta_pt"].to_numpy()).float(),
         )
 
     def get_measurements(self):
