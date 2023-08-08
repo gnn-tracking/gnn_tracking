@@ -18,9 +18,10 @@ def dbscan(graphs: np.ndarray, eps=0.99, min_samples=1) -> np.ndarray:
 
 
 class OCScanResults:
-    _PARAMETERS = ["eps", "n_pts"]
+    _PARAMETERS = ["eps", "min_samples"]
 
     def __init__(self, df: pd.DataFrame):
+        """Restults of `DBSCANHyperparamScanner`."""
         self._df = df
         gb = self.df.groupby(self._PARAMETERS)
         _df_mean = gb.mean()
@@ -34,14 +35,16 @@ class OCScanResults:
         self._df_mean.reset_index(inplace=True)
 
     @property
-    def df(self):
+    def df(self) -> pd.DataFrame:
         return self._df
 
     @property
-    def df_mean(self):
+    def df_mean(self) -> pd.DataFrame:
+        """Mean and std grouped by hyperparameters."""
         return self._df_mean
 
     def get_foms(self, guide="double_majority_pt0.9") -> dict[str, float]:
+        """Get figures of merit"""
         fom_cols = [col for col in self._df_mean if col not in self._PARAMETERS]
         assert guide in fom_cols
         best_idx = self._df_mean[guide].idxmax()
@@ -65,14 +68,19 @@ class DBSCANHyperParamScanner(HyperparametersMixin):
     # noinspectin PyUnusedLocals
     def __init__(
         self,
-        epsilon_range=(0, 1),
-        n_pts_range=(1, 4),
-        n_trials=100,
+        *,
+        eps_range=(0, 1),
+        min_samples_range=(1, 4),
+        n_trials=10,
         keep_best=0,
         pt_thlds=(0.0, 0.5, 0.9, 1.5),
+        n_jobs: int | None = None,
+        guide: str = "double_majority_pt0.9",
     ):
         super().__init__()
         self.save_hyperparameters()
+        # todo: this is for backwards compatibility, remove in future
+        self.hparams.guide = self.hparams.guide.removeprefix("trk.")
         self._results = []
         self._rng = np.random.default_rng()
         self._trials = []
@@ -92,9 +100,11 @@ class DBSCANHyperParamScanner(HyperparametersMixin):
     def _reset_trials(self) -> None:
         self._trials = self._get_best_trials()
         size_random = self.hparams.n_trials - len(self._trials)
-        eps = self._rng.uniform(*self.hparams.epsilon_range, size=size_random)
-        n_pts = self._rng.integers(*self.hparams.n_pts_range, size=size_random)
-        self._trials = [{"eps": e, "n_pts": n} for e, n in zip(eps, n_pts)]
+        eps = self._rng.uniform(*self.hparams.eps_range, size=size_random)
+        min_samples = self._rng.integers(
+            *self.hparams.min_samples_range, size=size_random
+        )
+        self._trials = [{"eps": e, "min_samples": n} for e, n in zip(eps, min_samples)]
 
     def reset(self):
         """Reset the results. Will be automatically called every time we run on
@@ -121,12 +131,14 @@ class DBSCANHyperParamScanner(HyperparametersMixin):
             self.reset()
         scanner = DBSCANFastRescan(
             out["H"].detach().cpu().numpy(),
+            max_eps=max(v["eps"] for v in self._trials),
+            n_jobs=self.hparams.n_jobs,
         )
         iterator = self._trials
         if progress:
             iterator = tqdm(iterator)
         for trial in iterator:
-            labels = scanner.cluster(eps=trial["eps"], min_pts=trial["n_pts"])
+            labels = scanner.cluster(eps=trial["eps"], min_pts=trial["min_samples"])
             metrics = tracking_metrics(
                 truth=data.particle_id.detach().cpu().numpy(),
                 predicted=labels,
@@ -138,7 +150,7 @@ class DBSCANHyperParamScanner(HyperparametersMixin):
                 {
                     "i_batch": i_batch,
                     "eps": trial["eps"],
-                    "n_pts": trial["n_pts"],
+                    "min_samples": trial["min_samples"],
                     **flatten_track_metrics(metrics),
                 }
             )
