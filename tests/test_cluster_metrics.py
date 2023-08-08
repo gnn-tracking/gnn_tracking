@@ -22,8 +22,10 @@ class ClusterMetricTestCase:
         predicted: list[float],
         pts: None | list[float] = None,
         reconstructable: None | list[bool] = None,
+        etas: None | list[float] = None,
         pt_thld=-1.0,
         predicted_count_thld=1,
+        max_eta=4,
         **kwargs,
     ):
         self.truth = np.array(truth)
@@ -37,17 +39,24 @@ class ClusterMetricTestCase:
             self.reconstructable = np.full_like(self.predicted, True)
         else:
             self.reconstructable = np.array(reconstructable)
+        if etas is None:
+            self.etas = np.full_like(self.predicted, 0)
+        else:
+            self.etas = np.array(etas)
         self.pt_thld = pt_thld
         self.predicted_count_thld = predicted_count_thld
+        self.max_eta = max_eta
 
     def run(self):
         metrics = tracking_metrics(
             truth=self.truth,
             predicted=self.predicted,
             pts=self.pts,
+            eta=self.etas,
             pt_thlds=[self.pt_thld],
             reconstructable=self.reconstructable,
             predicted_count_thld=self.predicted_count_thld,
+            max_eta=self.max_eta,
         )
         assert key_reduction(metrics[self.pt_thld], self.expected) == approx(
             self.expected, nan_ok=True
@@ -320,6 +329,7 @@ def test_fix_cluster_metrics():
     r = tracking_metrics(
         truth=truth,
         predicted=predicted,
+        eta=np.full(n_samples, 0.0),
         pts=pts,
         reconstructable=reconstructable,
         pt_thlds=pt_thlds,

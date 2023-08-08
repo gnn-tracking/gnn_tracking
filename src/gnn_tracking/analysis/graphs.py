@@ -270,7 +270,11 @@ def get_all_graph_construction_stats(data: Data, pt_thld=0.9) -> dict[str, float
 
 
 def get_largest_segment_fracs(
-    data: Data, pt_thld=0.9, n_particles_sampled=None
+    data: Data,
+    *,
+    pt_thld=0.9,
+    n_particles_sampled=None,
+    max_eta=4,
 ) -> np.ndarray:
     """A fast way to get the fraction of hits in the largest segment for each track.
 
@@ -279,6 +283,7 @@ def get_largest_segment_fracs(
         pt_thld:
         n_particles_sampled: If not None, only consider a subsample of the particles.
             This speeds up calculation but introduces statistical fluctuations.
+        max_eta: Maximum pseudorapidity
 
     Returns:
         Array of fractions.
@@ -286,7 +291,10 @@ def get_largest_segment_fracs(
     # This implementation simply looks at the connected components for a graph
     # with all true edges stripped (so connected component = segment).
     basic_hit_mask = (
-        (data.pt > pt_thld) & (data.particle_id > 0) & (data.reconstructable > 0)
+        (data.pt > pt_thld)
+        & (data.particle_id > 0)
+        & (data.reconstructable > 0)
+        & (data.eta.abs() < max_eta)
     )
     unique_pids, counts = torch.unique(
         data.particle_id[basic_hit_mask], return_counts=True
