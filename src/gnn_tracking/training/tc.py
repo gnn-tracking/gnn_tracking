@@ -131,46 +131,13 @@ class TCModule(TrackingModule):
     def _evaluate_cluster_metrics(
         self, out: dict[str, Any], data: Data, batch_idx: int
     ) -> dict[str, float]:
-        """Evaluate cluster metrics.
-
-        The cluster metrics need to be evaluated all at once, so we save the
-        required inputs to CPU memory until the last validation batch and
-        then evaluate the metrics.
-        """
+        """Evaluate cluster metrics."""
         if self.cluster_scanner is None:
             return {}
-        self._save_cluster_input(out, data)
+        self.cluster_scanner(data, out, batch_idx)
         if not self.is_last_val_batch(batch_idx):
             return {}
-        cluster_result = self.cluster_scanner(
-            **self._cluster_scan_input,
-            epoch=self.current_epoch,
-            start_params=self._best_cluster_params,
-        )
-        self._cluster_scan_input.clear()
-        metrics = cluster_result.metrics
-        self._best_cluster_params = cluster_result.best_params
-        # todo: Generalize for multiple cluster scanners
-        metrics |= {
-            f"best_dbscan_{param}": val
-            for param, val in cluster_result.best_params.items()
-        }
-        return metrics
-
-    def _save_cluster_input(self, out: dict[str, Any], data: Data):
-        """Save inputs for cluster analysis."""
-        inpt = {
-            "data": out["H"],
-            "truth": data.particle_id,
-            "sectors": data.sector,
-            "pts": data.pt,
-            "reconstructable": data.reconstructable,
-            "node_mask": out.get("ec_hit_mask", None),
-        }
-        for key, value in inpt.items():
-            if isinstance(value, Tensor):
-                value = value.detach().cpu().numpy()
-            self._cluster_scan_input[key].append(value)
+        return self.cluster_scanner.get_foms()
 
     def highlight_metric(self, metric: str) -> bool:
         return metric in [
