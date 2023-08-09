@@ -16,7 +16,6 @@ from gnn_tracking.models.interaction_network import InteractionNetwork as IN
 from gnn_tracking.models.mlp import MLP
 from gnn_tracking.models.resin import ResIN
 from gnn_tracking.utils.asserts import assert_feat_dim
-from gnn_tracking.utils.graph_masks import edge_subgraph
 from gnn_tracking.utils.lightning import obj_from_or_to_hparams
 
 
@@ -221,7 +220,7 @@ class ModularGraphTCN(nn.Module, HyperparametersMixin):
             data.ec_edge_embedding = ec_result.get("edge_embedding", None)
             edge_weights_unmasked = data.edge_weights.squeeze()
             edge_mask = (data.edge_weights > self.hparams.ec_threshold).squeeze()
-            data = edge_subgraph(data, edge_mask)
+            data = data.edge_subgraph(edge_mask)
 
             if self.hparams.mask_orphan_nodes:
                 # Edge features do not need to be updated since there
