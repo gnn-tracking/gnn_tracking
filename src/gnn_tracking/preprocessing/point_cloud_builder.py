@@ -10,7 +10,7 @@ from typing import Any
 import numpy as np
 import pandas as pd
 import torch
-from numba import njit
+from numba import jit
 from numpy import ndarray as A
 from pandas import DataFrame as DF
 from torch_geometric.data import Data
@@ -22,7 +22,7 @@ from gnn_tracking.utils.log import get_logger
 pd.options.mode.chained_assignment = None  # default='warn'
 
 
-@njit
+@jit(forceobj=True)
 def get_truth_edge_index(pids: A) -> A:
     """Get edge index for all edges, connecting hits of the same `particle_id`.
     To save space, only edges in one direction are returned.
