@@ -10,7 +10,7 @@ import torch_geometric
 from torch import Tensor
 from torch_geometric.data import Data
 
-from gnn_tracking.utils.graph_masks import edge_subgraph, get_good_node_mask
+from gnn_tracking.utils.graph_masks import get_good_node_mask
 
 
 def shortest_path_length_catch_no_path(graph: nx.Graph, source, target) -> int | float:
@@ -163,7 +163,7 @@ def get_track_graph_info_from_data(
     if w is not None:
         assert not torch.isnan(w).any()
         edge_mask = (w > threshold).squeeze()
-        data_subgraph = edge_subgraph(data, edge_mask)
+        data_subgraph = data.edge_subgraph(edge_mask)
         if threshold <= 0:
             assert edge_mask.all()
             assert data_subgraph.num_edges == data.num_edges
