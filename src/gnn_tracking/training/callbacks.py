@@ -8,6 +8,7 @@ from pytorch_lightning.loggers import TensorBoardLogger, WandbLogger
 from rich.console import Console
 from rich.table import Table
 
+import gnn_tracking
 from gnn_tracking.utils.dictionaries import to_floats
 from gnn_tracking.utils.log import logger
 from gnn_tracking.utils.versioning import get_commit_hash
@@ -136,6 +137,7 @@ class ExpandWandbConfig(Callback):
                 "data": trainer.datamodule.hparams,
                 "_SLURM_JOB_ID": os.environ.get("SLURM_JOB_ID"),
                 "gnn_tracking_hash": get_commit_hash(),
+                "gnn_tracking_version": gnn_tracking.__version__,
                 **pl_module.hparams,
             }
         )
