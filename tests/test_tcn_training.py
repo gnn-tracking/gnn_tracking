@@ -10,6 +10,7 @@ from gnn_tracking.models.track_condensation_networks import (
     PerfectECGraphTCN,
     PreTrainedECGraphTCN,
 )
+from gnn_tracking.postprocessing.dbscanscanner import DBSCANHyperParamScanner
 from gnn_tracking.training.tc import TCModule
 from gnn_tracking.utils.loading import TestTrackingDataModule
 from gnn_tracking.utils.log import logger
@@ -136,9 +137,11 @@ def test_train(built_graphs, t: TestTrainCase) -> None:
         msg = f"Unknown model type {t.model}"
         raise ValueError(msg)
 
-    lmodel = TCModule(
-        model=model,
-    )
+    cluster_scanner = DBSCANHyperParamScanner(n_trials=2, keep_best=1)
+    if t.tc_params.get("mask_orphan_nodes"):
+        cluster_scanner = None
+
+    lmodel = TCModule(model=model, cluster_scanner=cluster_scanner)
     logger.debug(lmodel.hparams)
     # Avoid testing with TPS
     trainer = Trainer(max_steps=1, accelerator="cpu")

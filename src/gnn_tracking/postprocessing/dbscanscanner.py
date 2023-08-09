@@ -1,77 +1,156 @@
-# Ignore unused arguments because of save_hyperparameters
-# ruff: noqa: ARG002
-
-from typing import Callable, Sequence
+import math
 
 import numpy as np
+import pandas as pd
 from pytorch_lightning.core.mixins import HyperparametersMixin
 from sklearn.cluster import DBSCAN
+from torch import Tensor as T
+from torch_geometric.data import Data
+from tqdm import tqdm
 
-from gnn_tracking.metrics.cluster_metrics import common_metrics
-from gnn_tracking.postprocessing.clusterscanner import (
-    ClusterHyperParamScanner,
-    ClusterScanResult,
-)
-from gnn_tracking.utils.lightning import obj_from_or_to_hparams
+from gnn_tracking.metrics.cluster_metrics import flatten_track_metrics, tracking_metrics
+from gnn_tracking.postprocessing.fastrescanner import DBSCANFastRescan
+from gnn_tracking.utils.dictionaries import add_key_prefix
 
 
 def dbscan(graphs: np.ndarray, eps=0.99, min_samples=1) -> np.ndarray:
     return DBSCAN(eps=eps, min_samples=min_samples).fit_predict(graphs)
 
 
+class OCScanResults:
+    _PARAMETERS = ["eps", "min_samples"]
+
+    def __init__(self, df: pd.DataFrame):
+        """Restults of `DBSCANHyperparamScanner`."""
+        self._df = df
+        gb = self.df.groupby(self._PARAMETERS)
+        _df_mean = gb.mean()
+        _df_std = gb.std() / math.sqrt(len(_df_mean))
+        self._df_mean = _df_mean.merge(
+            _df_std,
+            left_on=self._PARAMETERS,
+            right_on=self._PARAMETERS,
+            suffixes=("", "_std"),
+        )
+        self._df_mean.reset_index(inplace=True)
+
+    @property
+    def df(self) -> pd.DataFrame:
+        return self._df
+
+    @property
+    def df_mean(self) -> pd.DataFrame:
+        """Mean and std grouped by hyperparameters."""
+        return self._df_mean
+
+    def get_foms(self, guide="double_majority_pt0.9") -> dict[str, float]:
+        """Get figures of merit"""
+        fom_cols = [col for col in self._df_mean if col not in self._PARAMETERS]
+        assert guide in fom_cols
+        best_idx = self._df_mean[guide].idxmax()
+        best_series = self._df_mean.iloc[best_idx]
+        foms = add_key_prefix(best_series[fom_cols].to_dict(), "trk.")
+        for param in self._PARAMETERS:
+            foms[f"best_dbscan_{param}"] = best_series[param]
+        return foms
+
+    def get_n_best_trials(
+        self, n: int, guide="double_majority_pt0.9"
+    ) -> list[dict[str, float]]:
+        return (
+            self._df_mean.sort_values(guide, ascending=False)
+            .head(n)[self._PARAMETERS]
+            .to_dict(orient="records")
+        )
+
+
 class DBSCANHyperParamScanner(HyperparametersMixin):
-    # noinspection PyUnusedLocal
+    # noinspectin PyUnusedLocals
     def __init__(
         self,
         *,
-        eps_range: tuple[float, float] = (1e-5, 1.0),
-        min_samples_range: tuple[int, int] = (1, 1),
-        n_trials: int | Callable | Sequence = 10,
-        n_jobs: int = 1,
-        guide="trk.double_majority_pt0.9",
+        eps_range=(0, 1),
+        min_samples_range=(1, 4),
+        n_trials=10,
+        keep_best=0,
+        pt_thlds=(0.0, 0.5, 0.9, 1.5),
+        n_jobs: int | None = None,
+        guide: str = "double_majority_pt0.9",
     ):
-        """Class to scan hyperparameters of DBSCAN.
-
-        For a convenience wrapper, take a look at `dbscan_scan`.
-
-        Args:
-            eps_range: Range of epsilons to sample from
-            min_samples_range: Range of min_samples to sample from
-            n_trials: Number of trials to run. If callable: Function that returns
-                the number for given epoch. If sequence: Will be indexed by epoch.
-            n_jobs: Number of jobs to run in parallel.
-            guide: Guiding metric
-        """
         super().__init__()
-        self.save_hyperparameters(ignore="n_trials")
-        self._n_trials = obj_from_or_to_hparams(self, "n_trials", n_trials)
+        self.save_hyperparameters()
+        # todo: this is for backwards compatibility, remove in future
+        self.hparams.guide = self.hparams.guide.removeprefix("trk.")
+        self._results = []
+        self._rng = np.random.default_rng()
+        self._trials = []
+        self.reset()
 
-    def _get_n_trials(self, epoch: int) -> int:
-        if isinstance(self._n_trials, int):
-            return self._n_trials
-        elif isinstance(self._n_trials, Sequence):
-            if len(self._n_trials) <= epoch:
-                return self._n_trials[-1]
-            return self._n_trials[epoch]
-        return self._n_trials(epoch)
+    def get_results(self) -> OCScanResults:
+        return OCScanResults(pd.DataFrame.from_records(self._results))
 
-    def __call__(self, epoch=None, start_params=None, **kwargs) -> ClusterScanResult:
-        def suggest(trial):
-            eps = trial.suggest_float("eps", *self.hparams.eps_range)
-            min_samples = trial.suggest_int(
-                "min_samples", *self.hparams.min_samples_range
-            )
-            return {"eps": eps, "min_samples": min_samples}
+    def get_foms(self) -> dict[str, float]:
+        return self.get_results().get_foms()
 
-        chps = ClusterHyperParamScanner(
-            algorithm=dbscan,
-            suggest=suggest,
-            guide=self.hparams.guide,
-            metrics=common_metrics,
-            **kwargs,
+    def _get_best_trials(self) -> list[dict[str, float]]:
+        if not self._results:
+            return []
+        return self.get_results().get_n_best_trials(self.hparams.keep_best)
+
+    def _reset_trials(self) -> None:
+        self._trials = self._get_best_trials()
+        size_random = self.hparams.n_trials - len(self._trials)
+        eps = self._rng.uniform(*self.hparams.eps_range, size=size_random)
+        min_samples = self._rng.integers(
+            *self.hparams.min_samples_range, size=size_random
         )
-        return chps.scan(
-            start_params=start_params,
-            n_trials=self._get_n_trials(epoch),
+        self._trials = [{"eps": e, "min_samples": n} for e, n in zip(eps, min_samples)]
+
+    def reset(self):
+        """Reset the results. Will be automatically called every time we run on
+        a batch with `i_batch == 0`.
+        """
+        self._reset_trials()
+        self._best_trials = []
+        self._results = []
+
+    def __call__(
+        self,
+        data: Data,
+        out: dict[str, T],
+        i_batch: int,
+        *,
+        progress=False,
+    ):
+        if (ec_hist_mask := out.get("ec_hit_mask")) is not None:
+            if not ec_hist_mask.all():
+                raise NotImplementedError(
+                    "Handling of orphan node pruning not implemented"
+                )
+        if i_batch == 0:
+            self.reset()
+        scanner = DBSCANFastRescan(
+            out["H"].detach().cpu().numpy(),
+            max_eps=max(v["eps"] for v in self._trials),
             n_jobs=self.hparams.n_jobs,
         )
+        iterator = self._trials
+        if progress:
+            iterator = tqdm(iterator)
+        for trial in iterator:
+            labels = scanner.cluster(eps=trial["eps"], min_pts=trial["min_samples"])
+            metrics = tracking_metrics(
+                truth=data.particle_id.detach().cpu().numpy(),
+                predicted=labels,
+                pts=data.pt.detach().cpu().numpy(),
+                reconstructable=data.reconstructable.detach().cpu().numpy(),
+                pt_thlds=self.hparams.pt_thlds,
+            )
+            self._results.append(
+                {
+                    "i_batch": i_batch,
+                    "eps": trial["eps"],
+                    "min_samples": trial["min_samples"],
+                    **flatten_track_metrics(metrics),
+                }
+            )
