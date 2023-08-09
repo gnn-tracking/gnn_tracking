@@ -76,6 +76,7 @@ class DBSCANHyperParamScanner(HyperparametersMixin):
         pt_thlds=(0.0, 0.5, 0.9, 1.5),
         n_jobs: int | None = None,
         guide: str = "double_majority_pt0.9",
+        max_eta: float = 4.0,
     ):
         super().__init__()
         self.save_hyperparameters()
@@ -143,8 +144,10 @@ class DBSCANHyperParamScanner(HyperparametersMixin):
                 truth=data.particle_id.detach().cpu().numpy(),
                 predicted=labels,
                 pts=data.pt.detach().cpu().numpy(),
+                eta=data.eta.detach().cpu().numpy(),
                 reconstructable=data.reconstructable.detach().cpu().numpy(),
                 pt_thlds=self.hparams.pt_thlds,
+                max_eta=self.hparams.max_eta,
             )
             self._results.append(
                 {

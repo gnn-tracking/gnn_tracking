@@ -15,11 +15,19 @@ from gnn_tracking.analysis.graphs import (
 )
 from gnn_tracking.metrics.binary_classification import BinaryClassificationStats
 from gnn_tracking.utils.dictionaries import add_key_suffix
-from gnn_tracking.utils.graph_masks import get_edge_mask_from_node_mask
+from gnn_tracking.utils.graph_masks import (
+    get_edge_mask_from_node_mask,
+    get_good_node_mask,
+)
 
 
 def get_all_ec_stats(
-    threshold: float, w: torch.Tensor, data: Data, pt_thld=0.9
+    threshold: float,
+    w: torch.Tensor,
+    data: Data,
+    *,
+    pt_thld=0.9,
+    max_eta=4,
 ) -> dict[str, float]:
     """Evaluate edge classification/graph construction performance for a single batch.
     Similar to `get_all_graph_construction_stats`, but also includes edge classification
@@ -36,9 +44,11 @@ def get_all_ec_stats(
     Returns:
         Dictionary of metrics
     """
-    pt_edge_mask = get_edge_mask_from_node_mask(data.pt > pt_thld, data.edge_index)
+    edge_mask = get_edge_mask_from_node_mask(
+        get_good_node_mask(data, pt_thld=pt_thld, max_eta=max_eta), data.edge_index
+    )
     bcs_thld = BinaryClassificationStats(
-        output=w[pt_edge_mask], y=data.y[pt_edge_mask].long(), thld=threshold
+        output=w[edge_mask], y=data.y[edge_mask].long(), thld=threshold
     )
     bcs = BinaryClassificationStats(output=w, y=data.y.long(), thld=threshold)
     return (
