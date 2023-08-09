@@ -48,9 +48,10 @@ def point_clouds_path(tmp_path_factory) -> Path:
         n_sectors=2,
         pixel_only=True,
         redo=False,
-        measurement_mode=False,
+        measurement_mode=True,
         thld=0.9,
         detector_config=trackml_test_data_dir / "detectors.csv.gz",
+        add_true_edges=True,
     )
     pc_builder.process()
     return out_path
