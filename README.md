@@ -2,6 +2,7 @@
 
 # GNNs for Charged Particle Tracking
 
+[![DOI](https://zenodo.org/badge/516883615.svg)](https://zenodo.org/badge/latestdoi/516883615)
 [![CalVer YY.0M.MICRO](https://img.shields.io/badge/calver-YY.0M.MICRO-22bfda.svg)][calver]
 [![Documentation Status](https://readthedocs.org/projects/gnn-tracking/badge/?version=latest)](https://gnn-tracking.readthedocs.io/en/latest/?badge=latest)
 [![pre-commit.ci status](https://results.pre-commit.ci/badge/github/gnn-tracking/gnn_tracking/main.svg)](https://results.pre-commit.ci/latest/github/gnn-tracking/gnn_tracking/main)
