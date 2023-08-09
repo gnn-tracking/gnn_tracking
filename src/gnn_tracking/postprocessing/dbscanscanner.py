@@ -65,7 +65,7 @@ class OCScanResults:
 
 
 class DBSCANHyperParamScanner(HyperparametersMixin):
-    # noinspectin PyUnusedLocals
+    # noinspection PyUnusedLocal
     def __init__(
         self,
         *,
@@ -73,11 +73,26 @@ class DBSCANHyperParamScanner(HyperparametersMixin):
         min_samples_range=(1, 4),
         n_trials=10,
         keep_best=0,
-        pt_thlds=(0.0, 0.5, 0.9, 1.5),
         n_jobs: int | None = None,
         guide: str = "double_majority_pt0.9",
+        pt_thlds=(0.0, 0.5, 0.9, 1.5),
         max_eta: float = 4.0,
     ):
+        """Scan for hyperparameters of DBSCAN
+
+        Args:
+            eps_range: Range of DBSCAN radii to scan
+            min_samples_range: Range (INCLUSIVE!) of minimum number of samples for
+                DBSCAN
+            n_trials: Total number of trials
+            keep_best: Keep this number of the best `(eps, min_samples)` pairs from
+                the current epoch and make sure to scan over them again in the next
+                epoch.
+            n_jobs: Number of jobs to use for parallelization
+            guide: Report tracking metrics for parameters that maximize this metric
+            pt_thlds: list of pT thresholds for the tracking metrics
+            max_eta: Max eta for tracking metrics
+        """
         super().__init__()
         self.save_hyperparameters()
         # todo: this is for backwards compatibility, remove in future
@@ -85,6 +100,7 @@ class DBSCANHyperParamScanner(HyperparametersMixin):
         self._results = []
         self._rng = np.random.default_rng()
         self._trials = []
+        self._rng = np.random.default_rng()
         self.reset()
 
     def get_results(self) -> OCScanResults:
@@ -103,7 +119,9 @@ class DBSCANHyperParamScanner(HyperparametersMixin):
         size_random = self.hparams.n_trials - len(self._trials)
         eps = self._rng.uniform(*self.hparams.eps_range, size=size_random)
         min_samples = self._rng.integers(
-            *self.hparams.min_samples_range, size=size_random
+            self.hparams.min_samples_range[0],
+            self.hparams.min_samples_range[1] + 1,
+            size=size_random,
         )
         self._trials = [{"eps": e, "min_samples": n} for e, n in zip(eps, min_samples)]
 
