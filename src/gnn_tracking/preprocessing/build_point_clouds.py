@@ -44,7 +44,7 @@ def get_parser() -> argparse.ArgumentParser:
 
 if __name__ == "__main__":
     args = get_parser().parse_args()
-    # Yes, we need the kaggle version of this file, the codalab one has the pitch
+    # We need the kaggle version of this file, the codalab one has the pitch
     # in terms of x and y rather than u and v. They are exactly the same otherwise,
     # so nothing in terms of the geometry is changed between the files.
     detector_config_path = Path(
@@ -69,4 +69,4 @@ if __name__ == "__main__":
     stop = None
     if args.batch_size > 0:
         stop = start + args.batch_size
-    pc_builder.process(start=start, stop=stop, ignore_loading_errors=True)
+    pc_builder.process(start=start, stop=stop, ignore_loading_errors=False)

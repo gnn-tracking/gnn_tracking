@@ -1,3 +1,5 @@
+"""Build point clouds from the input data files."""
+
 import collections
 import itertools
 import logging
@@ -87,6 +89,7 @@ class PointCloudBuilder:
         Args:
             outdir: Directory for the output files
             indir: Directory for the input files
+            detector_config: Path to the detector configuration file
             n_sectors: Total number of sectors
             redo: Re-compute the point cloud even if it is found
             pixel_only: Construct tracks only from pixel layers
@@ -98,6 +101,8 @@ class PointCloudBuilder:
             write_output: Store the point clouds in a torch .pt file
             log_level: Specify INFO (0) or DEBUG (>0)
             collect_data: Collect data in memory
+            feature_names: Names of features to add
+            feature_scale: Scale of features
             add_true_edges: Add true edges to the point cloud
         """
         self.outdir = Path(outdir)
