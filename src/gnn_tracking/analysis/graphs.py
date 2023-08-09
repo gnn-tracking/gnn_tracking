@@ -10,7 +10,7 @@ import torch_geometric
 from torch import Tensor
 from torch_geometric.data import Data
 
-from gnn_tracking.utils.graph_masks import edge_subgraph
+from gnn_tracking.utils.graph_masks import edge_subgraph, get_good_node_mask
 
 
 def shortest_path_length_catch_no_path(graph: nx.Graph, source, target) -> int | float:
@@ -141,7 +141,12 @@ def get_track_graph_info(
 
 
 def get_track_graph_info_from_data(
-    data: Data, *, w: Tensor | None = None, pt_thld=0.9, threshold: float | None = None
+    data: Data,
+    *,
+    w: Tensor | None = None,
+    pt_thld=0.9,
+    threshold: float | None = None,
+    max_eta: float = 4.0,
 ) -> pd.DataFrame:
     """Get DataFrame of track graph information for every particle ID in the data.
     This function basically applies `get_track_graph_info` to every particle ID.
@@ -171,7 +176,7 @@ def get_track_graph_info_from_data(
     )
     # Can't check edge numbers because of directed vs undirected edges
     particle_ids = data.particle_id[
-        (data.particle_id > 0) & (data.pt > pt_thld)
+        get_good_node_mask(data, pt_thld=pt_thld, max_eta=max_eta)
     ].unique()
     results = []
     for pid in particle_ids:
@@ -227,12 +232,12 @@ class OrphanCount(NamedTuple):
     n_orphan_total: int
 
 
-def get_orphan_counts(data: Data, pt_thld=0.9) -> OrphanCount:
+def get_orphan_counts(data: Data, *, pt_thld=0.9, max_eta: float = 4.0) -> OrphanCount:
     """Count unmber of orphan nodes in a graph. See `OrphanCount` for details."""
     connected_nodes = data.edge_index.flatten().unique()
     orphan_mask = torch.zeros_like(data.particle_id, dtype=torch.bool)
     orphan_mask[connected_nodes] = False
-    good_nodes_mask = (data.particle_id) > 0 & (data.pt > pt_thld)
+    good_nodes_mask = get_good_node_mask(data, pt_thld=pt_thld, max_eta=max_eta)
     n_orphan_correct = torch.sum(orphan_mask & ~good_nodes_mask).item()
     n_orphan_incorrect = torch.sum(orphan_mask & good_nodes_mask).item()
     return OrphanCount(
@@ -242,9 +247,11 @@ def get_orphan_counts(data: Data, pt_thld=0.9) -> OrphanCount:
     )
 
 
-def get_basic_counts(data: Data, pt_thld=0.9) -> dict[str, int]:
+def get_basic_counts(
+    data: Data, *, pt_thld: float = 0.9, max_eta: float = 4.0
+) -> dict[str, int]:
     """Get basic counts of edges and nodes"""
-    good_hits_mask = (data.pt > pt_thld) & (data.particle_id > 0)
+    good_hits_mask = get_good_node_mask(data, pt_thld=pt_thld, max_eta=max_eta)
     good_edges_mask = (data.y == 0) & (good_hits_mask[data.edge_index[0, :]] > 0)
 
     return {
@@ -258,19 +265,25 @@ def get_basic_counts(data: Data, pt_thld=0.9) -> dict[str, int]:
     }
 
 
-def get_all_graph_construction_stats(data: Data, pt_thld=0.9) -> dict[str, float]:
+def get_all_graph_construction_stats(
+    data: Data, pt_thld=0.9, max_eta: float = 4.0
+) -> dict[str, float]:
     """Evaluate graph construction performance for a single batch."""
     return (
-        get_orphan_counts(data, pt_thld=pt_thld)._asdict()
+        get_orphan_counts(data, pt_thld=pt_thld, max_eta=max_eta)._asdict()
         | summarize_track_graph_info(
             get_track_graph_info_from_data(data, pt_thld=pt_thld)
         )
-        | get_basic_counts(data, pt_thld=pt_thld)
+        | get_basic_counts(data, pt_thld=pt_thld, max_eta=max_eta)
     )
 
 
 def get_largest_segment_fracs(
-    data: Data, pt_thld=0.9, n_particles_sampled=None
+    data: Data,
+    *,
+    pt_thld=0.9,
+    n_particles_sampled=None,
+    max_eta=4,
 ) -> np.ndarray:
     """A fast way to get the fraction of hits in the largest segment for each track.
 
@@ -279,15 +292,14 @@ def get_largest_segment_fracs(
         pt_thld:
         n_particles_sampled: If not None, only consider a subsample of the particles.
             This speeds up calculation but introduces statistical fluctuations.
+        max_eta: Maximum pseudorapidity
 
     Returns:
         Array of fractions.
     """
     # This implementation simply looks at the connected components for a graph
     # with all true edges stripped (so connected component = segment).
-    basic_hit_mask = (
-        (data.pt > pt_thld) & (data.particle_id > 0) & (data.reconstructable > 0)
-    )
+    basic_hit_mask = get_good_node_mask(data, pt_thld=pt_thld, max_eta=max_eta)
     unique_pids, counts = torch.unique(
         data.particle_id[basic_hit_mask], return_counts=True
     )

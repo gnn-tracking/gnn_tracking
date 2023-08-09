@@ -129,6 +129,7 @@ class GraphConstructionKNNScanner(HyperparametersMixin):
         targets=(0.8, 0.85, 0.88, 0.9, 0.93, 0.95, 0.97, 0.99),
         max_radius=1.0,
         pt_thld=0.9,
+        max_eta=4.0,
         subsample_pids: int | None = None,
         max_edges=5_000_000,
     ):
@@ -231,6 +232,7 @@ class GraphConstructionKNNScanner(HyperparametersMixin):
             data,
             n_particles_sampled=self.hparams.subsample_pids,
             pt_thld=self.hparams.pt_thld,
+            max_eta=self.hparams.max_eta,
         )
         return {
             "k": k,
@@ -238,5 +240,7 @@ class GraphConstructionKNNScanner(HyperparametersMixin):
             "frac75": (lsfs > 0.75).mean().item(),
             "frac100": (lsfs == 1).mean().item(),
             "n_edges": n_edges,
-            **get_efficiency_purity_edges(data, pt_thld=self.hparams.pt_thld),
+            **get_efficiency_purity_edges(
+                data, pt_thld=self.hparams.pt_thld, max_eta=self.hparams.max_eta
+            ),
         }

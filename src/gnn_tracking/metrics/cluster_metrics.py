@@ -118,7 +118,6 @@ def tracking_metric_df(h_df: pd.DataFrame, predicted_count_thld=3) -> pd.DataFra
     particle_properties = list(
         {"pt", "reconstructable", "eta"}.intersection(h_df.columns)
     )
-    # Could to .first() for pt/reconstructable, but we want to average over eta
     pid_to_props = (
         h_df[["id", *particle_properties]].groupby("id")[particle_properties].mean()
     )
@@ -194,8 +193,10 @@ def tracking_metrics(
     predicted: np.ndarray,
     pts: np.ndarray,
     reconstructable: np.ndarray,
+    eta: np.ndarray,
     pt_thlds: Iterable[float],
     predicted_count_thld=3,
+    max_eta=4,
 ) -> dict[float, TrackingMetrics]:
     """Calculate 'custom' metrics for matching tracks and hits.
 
@@ -204,39 +205,54 @@ def tracking_metrics(
         predicted: Predicted labels/cluster index for each hit. Negative labels are
             interpreted as noise (because this is how DBSCAN outputs it) and are
             ignored
-        pts: pt values of the hits
+        pts: true pt value of particle belonging to each hit
         reconstructable: Whether the hit belongs to a "reconstructable tracks" (this
             usually implies a cut on the number of layers that are being hit
             etc.)
+        eta: true pseudorapidity of particle belong to each hit
         pt_thlds: pt thresholds to calculate the metrics for
         predicted_count_thld: Minimal number of hits in a cluster for it to not be
             rejected.
+        max_eta: Maximum eta value to count
 
     Returns:
         See `TrackingMetrics`
     """
-    for ar in (truth, predicted, pts, reconstructable):
-        # Tensors behave differently when counting, so this is absolutely
-        # vital!
+    for ar in (truth, predicted, pts, reconstructable, eta):
+        # Tensors behave differently when counting, so this is absolutely vital!
         assert isinstance(ar, np.ndarray)
     assert predicted.shape == truth.shape == pts.shape, (
         predicted.shape,
         truth.shape,
         pts.shape,
+        eta.shape,
     )
     if len(truth) == 0:
         return {pt: _tracking_metrics_nan_results for pt in pt_thlds}
     h_df = pd.DataFrame(
-        {"c": predicted, "id": truth, "pt": pts, "reconstructable": reconstructable}
+        {
+            "c": predicted,
+            "id": truth,
+            "pt": pts,
+            "reconstructable": reconstructable,
+            "eta": eta,
+        }
     )
     c_df = tracking_metric_df(h_df, predicted_count_thld=predicted_count_thld)
 
     result = dict[float, ClusterMetricType]()
     for pt in pt_thlds:
         c_mask = (
-            (c_df["maj_pt"] >= pt) & c_df["maj_reconstructable"] & c_df["valid_cluster"]
+            (c_df["maj_pt"] >= pt)
+            & c_df["maj_reconstructable"]
+            & (c_df["maj_eta"].abs() < max_eta)
+            & c_df["valid_cluster"]
         )
-        h_mask = (h_df["pt"] >= pt) & h_df["reconstructable"].astype(bool)
+        h_mask = (
+            (h_df["pt"] >= pt)
+            & h_df["reconstructable"].astype(bool)
+            & (h_df["eta"].abs() < max_eta)
+        )
 
         r = count_tracking_metrics(c_df, h_df, c_mask, h_mask)
         result[pt] = r  # type: ignore
