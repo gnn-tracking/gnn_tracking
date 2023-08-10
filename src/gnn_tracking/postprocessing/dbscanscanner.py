@@ -175,3 +175,28 @@ class DBSCANHyperParamScanner(HyperparametersMixin):
                     **flatten_track_metrics(metrics),
                 }
             )
+
+
+class DBSCANHyperParamScannerFixed(DBSCANHyperParamScanner):
+    def __init__(
+        self,
+        trials: list[dict[str, float]],
+        *,
+        n_jobs: int | None = None,
+        pt_thlds=(0.0, 0.5, 0.9, 1.5),
+        max_eta: float = 4.0,
+    ):
+        """Scan grid for hyperparameters of DBSCAN. While `DBSCANHyperParamScanner`
+        is for use in validation steps, this is for use in detailed testing.
+
+        Args:
+            trials: List of trials to run
+            n_jobs: Number of jobs to use for parallelization
+            pt_thlds: list of pT thresholds for the tracking metrics
+            max_eta: Max eta for tracking metrics
+        """
+        super().__init__(n_jobs=n_jobs, pt_thlds=pt_thlds, max_eta=max_eta)
+        self._trials = trials
+
+    def _reset_trials(self) -> None:
+        pass
