@@ -2,18 +2,19 @@ import math
 
 import numpy as np
 import pandas as pd
-from pytorch_lightning.core.mixins import HyperparametersMixin
 from sklearn.cluster import DBSCAN
 from torch import Tensor as T
 from torch_geometric.data import Data
 from tqdm import tqdm
 
 from gnn_tracking.metrics.cluster_metrics import flatten_track_metrics, tracking_metrics
+from gnn_tracking.postprocessing.clusterscanner import ClusterScanner
 from gnn_tracking.postprocessing.fastrescanner import DBSCANFastRescan
 from gnn_tracking.utils.dictionaries import add_key_prefix
 
 
 def dbscan(graphs: np.ndarray, eps=0.99, min_samples=1) -> np.ndarray:
+    """Convenience wrapper around `sklearn`'s DBSCAN implementation."""
     return DBSCAN(eps=eps, min_samples=min_samples).fit_predict(graphs)
 
 
@@ -21,7 +22,7 @@ class OCScanResults:
     _PARAMETERS = ["eps", "min_samples"]
 
     def __init__(self, df: pd.DataFrame):
-        """Restults of `DBSCANHyperparamScanner`."""
+        """Restults of `DBSCANHyperparamScanner` and friends."""
         self._df = df
         gb = self.df.groupby(self._PARAMETERS)
         _df_mean = gb.mean()
@@ -64,7 +65,7 @@ class OCScanResults:
         )
 
 
-class DBSCANHyperParamScanner(HyperparametersMixin):
+class DBSCANHyperParamScanner(ClusterScanner):
     # noinspection PyUnusedLocal
     def __init__(
         self,
@@ -78,7 +79,10 @@ class DBSCANHyperParamScanner(HyperparametersMixin):
         pt_thlds=(0.0, 0.5, 0.9, 1.5),
         max_eta: float = 4.0,
     ):
-        """Scan for hyperparameters of DBSCAN
+        """Scan for hyperparameters of DBSCAN. Use this scanner for validation.
+        Even with few trials, it will eventually apply finer samples to the best
+        region, because it will keep the best trials from the previous epoch
+        (make sure th choose non-zero ``kep_best``).
 
         Args:
             eps_range: Range of DBSCAN radii to scan
