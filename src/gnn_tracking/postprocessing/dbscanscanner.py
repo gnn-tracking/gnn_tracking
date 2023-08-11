@@ -7,7 +7,11 @@ from torch import Tensor as T
 from torch_geometric.data import Data
 from tqdm import tqdm
 
-from gnn_tracking.metrics.cluster_metrics import flatten_track_metrics, tracking_metrics
+from gnn_tracking.metrics.cluster_metrics import (
+    flatten_track_metrics,
+    tracking_metric_df,
+    tracking_metrics,
+)
 from gnn_tracking.postprocessing.clusterscanner import ClusterScanner
 from gnn_tracking.postprocessing.fastrescanner import DBSCANFastRescan
 from gnn_tracking.utils.dictionaries import add_key_prefix
@@ -204,3 +208,55 @@ class DBSCANHyperParamScannerFixed(DBSCANHyperParamScanner):
 
     def _reset_trials(self) -> None:
         pass
+
+
+class DBSCANPerformanceDetails(DBSCANHyperParamScanner):
+    def __init__(self, eps: float, min_samples: int):
+        """Get information about detailed performance for fixed DBSCAN parameters.
+        See `get_results` for outputs.
+
+        Args:
+            eps: DBSCAN epsilon
+            min_samples: DBSCAN min_samples
+        """
+        super().__init__()
+        self.save_hyperparameters()
+        self._h_dfs = []
+        self._c_dfs = []
+
+    def __call__(self, data: Data, out: dict[str, T], i_batch: int) -> None:
+        def prep(tensor):
+            return tensor.detach().cpu().numpy()
+
+        labels = dbscan(
+            out["H"].detach().cpu().numpy(),
+            eps=self.hparams.eps,
+            min_samples=self.hparams.min_samples,
+        )
+        h_df = pd.DataFrame(
+            {
+                "c": labels,
+                "id": prep(data.particle_id),
+                "reconstructable": prep(data.reconstructable),
+                "pt": prep(data.pt),
+                "eta": prep(data.eta),
+            }
+        )
+        c_df = tracking_metric_df(h_df)
+        self._h_dfs.append(h_df)
+        self._c_dfs.append(c_df)
+
+    def get_results(self) -> tuple[list[pd.DataFrame], list[pd.DataFrame]]:
+        """Get results
+
+        Returns:
+            Tuple of (h_dfs, c_dfs), where h_dfs is a list of dataframes with
+            information about all hits and c_dfs is a list of dataframes with
+            information about all clusters.
+            See `tracking_metric_df` for details about the information about both
+            dataframes..
+        """
+        return self._h_dfs, self._c_dfs
+
+    def get_foms(self) -> dict[str, float]:
+        return {}
