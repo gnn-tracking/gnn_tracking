@@ -11,7 +11,7 @@ from torch import Tensor
 from torch_geometric.data import Data
 
 from gnn_tracking.metrics.losses import BackgroundLoss, PotentialLoss
-from gnn_tracking.postprocessing.dbscanscanner import DBSCANHyperParamScanner
+from gnn_tracking.postprocessing.clusterscanner import ClusterScanner
 from gnn_tracking.training.base import TrackingModule
 from gnn_tracking.utils.dictionaries import add_key_suffix, to_floats
 from gnn_tracking.utils.lightning import obj_from_or_to_hparams
@@ -25,7 +25,7 @@ class TCModule(TrackingModule):
         *,
         potential_loss: PotentialLoss = PotentialLoss(),  # noqa: B008
         background_loss: BackgroundLoss | None = BackgroundLoss(),  # noqa: B008
-        cluster_scanner: DBSCANHyperParamScanner | None = None,
+        cluster_scanner: ClusterScanner | None = None,
         lw_repulsive: float = 1.0,
         lw_background: float = 1.0,
         **kwargs,
