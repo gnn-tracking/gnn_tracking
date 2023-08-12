@@ -24,7 +24,7 @@ See the [readme of the organization][organization-readme] for an overview of the
   hooks and callbacks, everything remains modular and maintainable.
 * ✅ Tested: Most of the code is guaranteed to run
 
-[pytorch lightning]: lightning.ai/
+[pytorch lightning]: https://lightning.ai/
 
 ## 🔥 Installation
 
