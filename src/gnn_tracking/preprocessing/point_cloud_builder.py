@@ -307,8 +307,7 @@ class PointCloudBuilder:
     def _get_edge_index(self, particle_id: A) -> torch.Tensor:
         if self.add_true_edges:
             return torch.from_numpy(get_truth_edge_index(particle_id)).long()
-        else:
-            return torch.zeros((2, 0)).long()
+        return torch.zeros((2, 0)).long()
 
     def to_pyg_data(self, hits: DF) -> Data:
         """Build the output data structure"""
@@ -354,7 +353,7 @@ class PointCloudBuilder:
 
         """
         for f in self.prefixes[start:stop]:
-            self.logger.debug(f"Processing {f}")
+            self.logger.debug("Processing %s", f)
 
             evtid = int(f.name[-9:])
 
@@ -395,21 +394,20 @@ class PointCloudBuilder:
                     if self._collect_data:
                         data = torch.load(self.outdir / name)
                         self.data_list.append(data)
-                    self.logger.debug(f"skipping {name}")
+                    self.logger.debug("skipping %s", name)
                     continue
-                else:
-                    sector = self.sector_hits(
-                        hits, s, particle_id_counts=particle_id_counts
-                    )
-                    n_sector_hits += len(sector)
-                    n_sector_particles += len(np.unique(sector.particle_id.to_numpy()))
-                    sector = self.to_pyg_data(sector)
-                    outfile = self.outdir / name
-                    if self.write_output:
-                        torch.save(sector, outfile)
-                    if self._collect_data:
-                        self.data_list.append(sector)
-                    self.logger.debug(f"wrote {outfile}")
+                sector = self.sector_hits(
+                    hits, s, particle_id_counts=particle_id_counts
+                )
+                n_sector_hits += len(sector)
+                n_sector_particles += len(np.unique(sector.particle_id.to_numpy()))
+                sector = self.to_pyg_data(sector)
+                outfile = self.outdir / name
+                if self.write_output:
+                    torch.save(sector, outfile)
+                if self._collect_data:
+                    self.data_list.append(sector)
+                self.logger.debug("wrote %s", outfile)
 
             self.stats[evtid] = {
                 "n_hits": n_hits,
@@ -419,10 +417,12 @@ class PointCloudBuilder:
                 "n_sector_particles": n_sector_particles,
             }
 
-        self.logger.debug("Output statistics:", self.stats[evtid])
+        self.logger.debug("Output statistics: %s", self.stats[evtid])
         if self.measurement_mode:
             measurements = pd.DataFrame(self.measurements)
             means = measurements.mean()
             stds = measurements.std()
             for var in stds.index:
-                self.logger.debug(f"{var}: {means[var]:.4f}+/-{stds[var]:.4f}")
+                self.logger.debug(
+                    f"{var}: {means[var]:.4f}+/-{stds[var]:.4f}"
+                )  # noqa: G004

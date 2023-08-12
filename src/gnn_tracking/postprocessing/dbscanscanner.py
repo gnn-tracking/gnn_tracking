@@ -16,6 +16,9 @@ from gnn_tracking.postprocessing.clusterscanner import ClusterScanner
 from gnn_tracking.postprocessing.fastrescanner import DBSCANFastRescan
 from gnn_tracking.utils.dictionaries import add_key_prefix
 
+# For parameters saved as lightning hyperparameters
+# ruff: noqa: ARG002
+
 
 def dbscan(graphs: np.ndarray, eps=0.99, min_samples=1) -> np.ndarray:
     """Convenience wrapper around `sklearn`'s DBSCAN implementation."""
@@ -23,21 +26,20 @@ def dbscan(graphs: np.ndarray, eps=0.99, min_samples=1) -> np.ndarray:
 
 
 class OCScanResults:
-    _PARAMETERS = ["eps", "min_samples"]
-
     def __init__(self, df: pd.DataFrame):
         """Restults of `DBSCANHyperparamScanner` and friends."""
+        self._parameters = ["eps", "min_samples"]
         self._df = df
-        gb = self.df.groupby(self._PARAMETERS)
+        gb = self.df.groupby(self._parameters)
         _df_mean = gb.mean()
         _df_std = gb.std() / math.sqrt(len(_df_mean))
         self._df_mean = _df_mean.merge(
             _df_std,
-            left_on=self._PARAMETERS,
-            right_on=self._PARAMETERS,
+            left_on=self._parameters,
+            right_on=self._parameters,
             suffixes=("", "_std"),
         )
-        self._df_mean.reset_index(inplace=True)
+        self._df_mean = self._df_mean.reset_index()
 
     @property
     def df(self) -> pd.DataFrame:
@@ -50,12 +52,12 @@ class OCScanResults:
 
     def get_foms(self, guide="double_majority_pt0.9") -> dict[str, float]:
         """Get figures of merit"""
-        fom_cols = [col for col in self._df_mean if col not in self._PARAMETERS]
+        fom_cols = [col for col in self._df_mean if col not in self._parameters]
         assert guide in fom_cols
         best_idx = self._df_mean[guide].idxmax()
         best_series = self._df_mean.iloc[best_idx]
         foms = add_key_prefix(best_series[fom_cols].to_dict(), "trk.")
-        for param in self._PARAMETERS:
+        for param in self._parameters:
             foms[f"best_dbscan_{param}"] = best_series[param]
         return foms
 
@@ -64,7 +66,7 @@ class OCScanResults:
     ) -> list[dict[str, float]]:
         return (
             self._df_mean.sort_values(guide, ascending=False)
-            .head(n)[self._PARAMETERS]
+            .head(n)[self._parameters]
             .to_dict(orient="records")
         )
 
@@ -149,11 +151,11 @@ class DBSCANHyperParamScanner(ClusterScanner):
         *,
         progress=False,
     ):
-        if (ec_hist_mask := out.get("ec_hit_mask")) is not None:
-            if not ec_hist_mask.all():
-                raise NotImplementedError(
-                    "Handling of orphan node pruning not implemented"
-                )
+        if (
+            ec_hist_mask := out.get("ec_hit_mask")
+        ) is not None and not ec_hist_mask.all():
+            msg = "Handling of orphan node pruning not implemented"
+            raise NotImplementedError(msg)
         if i_batch == 0:
             self.reset()
         scanner = DBSCANFastRescan(

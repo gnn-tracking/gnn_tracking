@@ -27,14 +27,14 @@ def load_detector(detector_path: Path) -> tuple[pd.DataFrame, dict]:
     detector_preproc = detector_path.parent / (detector_path.stem + ".pickle")
     try:
         cf_logger.info("Loading detector...")
-        with open(detector_preproc, "rb") as f:
+        with detector_preproc.open("rb") as f:
             detector = pickle.load(f)
         cf_logger.info("Detector loaded.")
     except FileNotFoundError:
         cf_logger.info("Failed to load preprocessed detector. Building...")
         detector = preprocess_detector(detector_orig)
         try:
-            with open(detector_preproc, "xb") as f:
+            with detector_preproc.open("xb") as f:
                 pickle.dump(detector, f)
         except FileExistsError:
             cf_logger.warning(

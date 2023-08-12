@@ -39,8 +39,10 @@ def save_sub_hyperparameters(
             logger.warning(msg, type(obj))
             return
         if errors == "raise":
-            raise ValueError(msg % type(obj))
-        raise ValueError(f"Unknown value for `errors`: {errors}")
+            _ = msg % type(obj)
+            raise ValueError(_)
+        _ = f"Unknown value for `errors`: {errors}"
+        raise ValueError(_)
 
     assert key not in self.hparams
     if isinstance(obj, dict):

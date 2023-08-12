@@ -49,7 +49,7 @@ class EventPlotter:
 
     def get_hits(self, evtid=None):
         if evtid is None:
-            evtid = 21000 + np.random.randint(999, size=1)[0]
+            evtid = 21000 + np.random.default_rng().integers(999, size=1)[0]
         prefix = f"event{evtid:09}"
         path = self.indir / prefix
         hits, particles, truth = load_event(path, parts=["hits", "particles", "truth"])
@@ -232,7 +232,7 @@ class GraphPlotter:
         colors = ["red", "green", "purple", "yellow", "orange"]
         for i in range(len(colors)):
             particle_id = graph.particle_id
-            mask = particle_id == np.random.choice(
+            mask = particle_id == np.random.default_rng().choice(
                 particle_id[particle_id != 0], size=None
             )
             kwargs = {"marker": ".", "ms": 8, "zorder": 100, "color": colors[i]}
@@ -432,7 +432,7 @@ def plot_rz(X, idxs, y, savefig=False, filename="rz.png"):
     plt.show()
 
 
-def plot_3d(X, idxs, y, savefig=False, filename="rz.png"):
+def plot_3d(X, idxs, y):
     X = np.array(X)
     r, phi, z = X[:, 0], X[:, 1], X[:, 2]
     pred = y

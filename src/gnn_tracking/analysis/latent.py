@@ -74,7 +74,9 @@ class SelectedPidsPlot:
                 "No PIDs selected, using random PIDs (no pt threshold applied). "
             )
             selected_pids = torch.Tensor(
-                np.random.choice(self._pids[self._pids > 0], 10).astype("int64")
+                np.random.default_rng()
+                .choice(self._pids[self._pids > 0], 10)
+                .astype("int64")
             )
         self._selected_pids = selected_pids
 
