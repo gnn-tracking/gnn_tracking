@@ -318,7 +318,7 @@ def get_largest_segment_fracs(
     segments: list[Set[int]] = nx.connected_components(gx)
     pid_to_largest_segment = defaultdict(int)
     for segment in segments:
-        pid = rdata.particle_id[list(segment)[0]].item()
+        pid = rdata.particle_id[next(iter(segment))].item()
         pid_to_largest_segment[pid] = max(
             pid_to_largest_segment[pid], len(segment) / pid2count[pid]
         )

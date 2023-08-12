@@ -25,7 +25,7 @@ from gnn_tracking.utils.log import logger
 
 
 class KScanResults:
-    _extra_metrics = ["k", "frac75", "frac100", "efficiency", "purity"]
+    _extra_metrics = ("k", "frac75", "frac100", "efficiency", "purity")
 
     def __init__(
         self,

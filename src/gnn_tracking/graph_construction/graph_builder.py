@@ -13,6 +13,8 @@ from tqdm import tqdm
 from gnn_tracking.preprocessing.point_cloud_builder import DEFAULT_FEATURES
 from gnn_tracking.utils.log import get_logger, logger
 
+# ruff: noqa: G004
+
 
 def get_two_hop_tuples(tuples: list[tuple[int, int]]) -> set[tuple[int, int]]:
     """Given a list of tuples `(a, b)`, returns the set of tuples `(x, y)`

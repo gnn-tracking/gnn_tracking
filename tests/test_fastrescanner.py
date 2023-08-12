@@ -5,7 +5,7 @@ from gnn_tracking.postprocessing.fastrescanner import DBSCANFastRescan
 
 
 def test_fastrescan_equal_slowrescan():
-    x = np.random.uniform(size=(100, 2))
+    x = np.random.default_rng().uniform(size=(100, 2))
     fr = DBSCANFastRescan(x, max_eps=0.15)
     for eps in [0.1, 0.05]:
         for min_pts in [1, 2]:
