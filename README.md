@@ -18,6 +18,14 @@
 This repository holds the main python package for the GNN Tracking project.
 See the [readme of the organization][organization-readme] for an overview of the task.
 
+* 🔋 Batteries included: This repository implements a hole pipeline: from preprocessing to models,
+  to the evaluation of the final performance metrics.
+* ⚡ Built around [pytorch lightning][], our models are easy to train and to restore. By using
+  hooks and callbacks, everything remains modular and maintainable.
+* ✅ Tested: Most of the code is guaranteed to run 
+
+[pytorch lightning]: lightning.ai/
+
 ## 🔥 Installation
 
 1. Install mamba or micromamba ([installation instructions][mamba install]).
@@ -30,7 +38,7 @@ See the [readme of the organization][organization-readme] for an overview of the
 5. For development: Install [pre-commit][] hooks: `pre-commit install` (from this directory)
 
 A good place to get started are the [demo notebooks][demo].
-This package is versioned based on the [![CalVer YY.0M.MICRO](https://img.shields.io/badge/calver-YY.0M.MICRO-22bfda.svg) CalVer scheme][calver].
+This package is versioned as [![CalVer YY.0M.MICRO](https://img.shields.io/badge/calver-YY.0M.MICRO-22bfda.svg)][calver].
 
 [mamba install]: https://mamba.readthedocs.io/en/latest/installation.html
 [demo]: https://github.com/gnn-tracking/tutorials
