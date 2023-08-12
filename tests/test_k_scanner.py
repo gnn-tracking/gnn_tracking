@@ -10,4 +10,5 @@ def test_k_scanner(test_graph):
     assert len(gscanner.results_raw) == 2
     gscanner(test_graph, i_batch=1)
     kscan_results = gscanner.get_results()
+    kscan_results.plot()
     assert "n_edges_frac_segment50_0" in kscan_results.get_foms()
