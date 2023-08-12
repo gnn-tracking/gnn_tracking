@@ -5,9 +5,8 @@
 
 from typing import Any
 
-from torch import Tensor
+from torch import Tensor, nn
 from torch import Tensor as T
-from torch import nn
 from torch_geometric.data import Data
 
 from gnn_tracking.metrics.binary_classification import (

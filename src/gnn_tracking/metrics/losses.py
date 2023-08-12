@@ -10,9 +10,8 @@ from typing import Any, Mapping, Protocol, Union
 
 import torch
 from pytorch_lightning.core.mixins import HyperparametersMixin
-from torch import Tensor
+from torch import Tensor, nn
 from torch import Tensor as T
-from torch import nn
 from torch.linalg import norm
 from torch.nn.functional import binary_cross_entropy, mse_loss, relu
 from torch_cluster import radius_graph

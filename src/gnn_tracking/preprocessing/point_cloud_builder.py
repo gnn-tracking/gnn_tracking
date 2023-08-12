@@ -423,6 +423,5 @@ class PointCloudBuilder:
             means = measurements.mean()
             stds = measurements.std()
             for var in stds.index:
-                self.logger.debug(
-                    f"{var}: {means[var]:.4f}+/-{stds[var]:.4f}"
-                )  # noqa: G004
+                _ = f"{var}: {means[var]:.4f}+/-{stds[var]:.4f}"
+                self.logger.debug(_)
