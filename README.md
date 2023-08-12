@@ -22,7 +22,7 @@ See the [readme of the organization][organization-readme] for an overview of the
   to the evaluation of the final performance metrics.
 * ⚡ Built around [pytorch lightning][], our models are easy to train and to restore. By using
   hooks and callbacks, everything remains modular and maintainable.
-* ✅ Tested: Most of the code is guaranteed to run 
+* ✅ Tested: Most of the code is guaranteed to run
 
 [pytorch lightning]: lightning.ai/
 
