@@ -4,6 +4,7 @@ algorithm for tracking.
 
 
 import functools
+import itertools
 from collections import Counter
 from typing import Callable, Iterable, Protocol, TypedDict
 
@@ -257,6 +258,101 @@ def tracking_metrics(
         r = count_tracking_metrics(c_df, h_df, c_mask, h_mask)
         result[pt] = r  # type: ignore
     return result  # type: ignore
+
+
+def tracking_metrics_vs_pt(
+    h_dfs: list[pd.DataFrame],
+    c_dfs: list[pd.DataFrame],
+    pts: list[float],
+    *,
+    max_eta: float = 4.0,
+) -> pd.DataFrame:
+    """Calculate tracking metrics for pt slices.
+
+    Args:
+        h_dfs: List of hit dataframes for different batches (see `tracking_metrics_df`)
+        c_dfs: List of cluster dataframes for different batches (see
+            `tracking_metrics_df`)
+        pts: List of pt points to calculate the metrics for
+        max_eta: Maximum eta value to count
+
+    Returns:
+        Dataframe with tracking metrics for each pt slice
+    """
+    results = []
+    for pt_min, pt_max in itertools.pairwise(pts):
+        _results = []
+        for h_df, c_df in zip(h_dfs, c_dfs):
+            c_mask = (
+                (c_df["maj_pt"] < pt_max)
+                & (c_df["maj_pt"] >= pt_min)
+                & c_df["maj_reconstructable"]
+                & (c_df["maj_eta"] < max_eta)
+                & c_df["valid_cluster"]
+            )
+            h_mask = (
+                (h_df["pt"] < pt_max)
+                & (h_df["pt"] >= pt_min)
+                & (h_df["eta"] < max_eta)
+                & h_df["reconstructable"].astype(bool)
+            )
+            result = count_tracking_metrics(c_df, h_df, c_mask, h_mask)
+            _results.append(result)
+        _results = pd.DataFrame.from_records(_results)
+        result = _results.mean().to_dict()
+        for k in list(result.keys()):
+            result[k + "_std"] = _results[k].std()
+        result["pt_min"] = pt_min
+        result["pt_max"] = pt_max
+        results.append(result)
+    return pd.DataFrame.from_records(results)
+
+
+def tracking_metrics_vs_eta(
+    h_dfs: list[pd.DataFrame],
+    c_dfs: list[pd.DataFrame],
+    etas: list[float],
+    pt_thld: float = 0.9,
+) -> pd.DataFrame:
+    """
+
+    Args:
+        h_dfs: List of hit dataframes for different batches (see `tracking_metrics_df`)
+        c_dfs: List of cluster dataframes for different batches (see
+            `tracking_metrics_df`)
+        etas: Eta points to calculate metrics for
+        pt_thld:
+
+    Returns:
+         Dataframe with tracking metrics for each pt slice
+    """
+    results = []
+    for eta_min, eta_max in itertools.pairwise(etas):
+        _results = []
+        for h_df, c_df in zip(h_dfs, c_dfs):
+            c_mask = (
+                (c_df["maj_eta"] < eta_max)
+                & (c_df["maj_eta"] >= eta_min)
+                & c_df["maj_reconstructable"]
+                & (c_df["maj_pt"] >= pt_thld)
+                & c_df["valid_cluster"]
+            )
+            h_mask = (
+                (h_df["eta"] < eta_max)
+                & (h_df["eta"] >= eta_min)
+                & (h_df["pt"] >= pt_thld)
+                & h_df["reconstructable"].astype(bool)
+            )
+            result = count_tracking_metrics(c_df, h_df, c_mask, h_mask)
+            _results.append(result)
+        _results = pd.DataFrame.from_records(_results)
+        result = _results.mean().to_dict()
+        for k in list(result.keys()):
+            result[k + "_std"] = _results[k].std()
+        result["eta_min"] = eta_min
+        result["eta_max"] = eta_max
+        results.append(result)
+    return pd.DataFrame.from_records(results)
 
 
 def flatten_track_metrics(
