@@ -46,7 +46,7 @@ class ImprovedLogLM(LightningModule):
             batch_size=batch_size,
         )
         for k, v in dct.items():
-            if f"{k}_std" in dct:
+            if f"{k}_std" in dct or k.endswith("_std"):
                 continue
             self._uncertainties[k](torch.Tensor([v]))
 
