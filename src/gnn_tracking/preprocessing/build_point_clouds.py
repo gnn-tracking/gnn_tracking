@@ -53,7 +53,7 @@ if __name__ == "__main__":
     pc_builder = PointCloudBuilder(
         indir=args.indir,
         outdir=args.outdir,
-        n_sectors=1,
+        n_sectors=32,
         pixel_only=True,
         redo=True,
         measurement_mode=False,
@@ -62,7 +62,7 @@ if __name__ == "__main__":
         thld=0.9,
         log_level=logging.WARNING,
         collect_data=False,
-        add_true_edges=True,
+        add_true_edges=False,
         detector_config=detector_config_path,
     )
     start = args.start * args.batch_size

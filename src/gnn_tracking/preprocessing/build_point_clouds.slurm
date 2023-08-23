@@ -33,7 +33,7 @@ echo "Part: ${PART}"
 python \
   build_point_clouds.py \
   --indir /scratch/gpfs/IOJALVO/gnn-tracking/object_condensation/codalab-data/part_${PART} \
-  --outdir /scratch/gpfs/IOJALVO/gnn-tracking/object_condensation/point_clouds_v6/part_${PART} \
+  --outdir /scratch/gpfs/IOJALVO/gnn-tracking/object_condensation/point_clouds_v7/part_${PART} \
   --batch-size 210
 
 echo "Finished"
