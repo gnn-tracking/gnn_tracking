@@ -9,7 +9,7 @@
 #SBATCH --cpus-per-task=1              # cpu-cores per task (>1 if multi-threaded tasks)
 #SBATCH --mem=45G                      # total memory per node (4 GB per cpu-core is default)
 #SBATCH --time=3:00:00                 # total run time limit (HH:MM:SS)
-#SBATCH --output=build-graphs-%j-%a.log
+#SBATCH --output=build-graphs-%A-%a.log
 #SBATCH --array=0-20 # total jobs in array
 
 # bash strict mode
