@@ -294,12 +294,7 @@ def _fast_condensation_loss(
     unmasked_attraction_edges[1, ~alpha_hits_filter] = alpha_indices
 
     # Apply mask to attraction edges
-    noisy_attraction_edges = unmasked_attraction_edges[:, mask]
-
-    # Filter out noise edges from attraction edges
-    attraction_edges = noisy_attraction_edges[
-        :, particle_id[noisy_attraction_edges[0, :]] > 0
-    ]
+    attraction_edges = unmasked_attraction_edges[:, mask]
 
     # -- 4. Calculate loss --
     repulsion_distances = radius_threshold - torch.sqrt(
