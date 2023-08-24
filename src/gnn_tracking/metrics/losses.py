@@ -368,16 +368,15 @@ class PotentialLoss(torch.nn.Module, HyperparametersMixin):
                 q_min=self.q_min,
                 radius_threshold=self.radius_threshold,
             )
-        else:
-            return _fast_condensation_loss(
-                beta=beta,
-                x=x,
-                particle_id=particle_id,
-                mask=mask,
-                q_min=self.q_min,
-                radius_threshold=self.radius_threshold,
-                max_num_neighbors=self.max_neighbors,
-            )
+        return _fast_condensation_loss(
+            beta=beta,
+            x=x,
+            particle_id=particle_id,
+            mask=mask,
+            q_min=self.q_min,
+            radius_threshold=self.radius_threshold,
+            max_num_neighbors=self.max_neighbors,
+        )
 
 
 # _first_occurrences prevents jit
