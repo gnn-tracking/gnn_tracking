@@ -478,7 +478,7 @@ class LossFctType(Protocol):
 loss_weight_type = Union[float, dict[str, float], list[float]]
 
 
-def unpack_loss_returns(key, returns) -> dict[str, float | Tensor]:
+def unpack_loss_returns(key: str, returns: Any) -> dict[str, float | Tensor]:
     """Some of our loss functions return a dictionary or a list of individual losses.
     This function unpacks these into a dictionary of individual losses with appropriate
     keys.
