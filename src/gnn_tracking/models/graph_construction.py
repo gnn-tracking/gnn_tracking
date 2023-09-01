@@ -43,7 +43,7 @@ class GraphConstructionFCNN(nn.Module, HyperparametersMixin):
             hidden_dim: Hidden dimension
             out_dim: Output dimension = embedding space
             depth: Number of layers
-            beta: Strength of residual connections
+            beta: 1-Strength of residual connection
         """
 
         super().__init__()

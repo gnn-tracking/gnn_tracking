@@ -3,6 +3,7 @@
 
 import math
 from abc import ABC, abstractmethod
+from itertools import pairwise
 from typing import Any
 
 import torch
@@ -15,7 +16,7 @@ from gnn_tracking.models.interaction_network import InteractionNetwork
 
 
 @torch.jit.script
-def _convex_combination(
+def _sqconvex_combination(
     *,
     delta: T,
     residue: T,
@@ -23,10 +24,10 @@ def _convex_combination(
 ) -> T:
     """Helper function for JIT compilation. Use `convext_combination` instead."""
     assert 0 <= alpha_residue <= 1
-    return alpha_residue * residue + (1 - alpha_residue) * delta
+    return math.sqrt(alpha_residue) * residue + math.sqrt(1 - alpha_residue) * delta
 
 
-def convex_combination(
+def sqconvex_combination(
     *,
     delta: T,
     residue: T | None,
@@ -37,7 +38,7 @@ def convex_combination(
         return delta
     if math.isclose(alpha_residue, 0.0):
         return delta
-    return _convex_combination(
+    return _sqconvex_combination(
         delta=delta, residue=residue, alpha_residue=alpha_residue
     )
 
@@ -100,10 +101,11 @@ class Skip1ResidualNetwork(ResidualNetwork):
         self, x: T, edge_index: T, edge_attr: T
     ) -> tuple[T, T, list[T] | None]:
         edge_attrs = [edge_attr] if self._collect_hidden_edge_embeds else None
-        for layer in self.layers:
-            delta_x, edge_attr = layer(x, edge_index, edge_attr)
-            x = convex_combination(
-                delta=relu(delta_x),
+        for i_layer, layer in enumerate(self.layers):
+            activation = relu if i_layer > 0 else nn.Identity()
+            delta_x, edge_attr = layer(activation(x), edge_index, activation(edge_attr))
+            x = sqconvex_combination(
+                delta=delta_x,
                 residue=x,
                 alpha_residue=self._alpha,
             )
@@ -152,20 +154,21 @@ class Skip2ResidualNetwork(ResidualNetwork):
         self, x: T, edge_index: T, edge_attr: T
     ) -> tuple[T, T, list[T] | None]:
         edge_attrs = [edge_attr] if self._collect_hidden_edge_embeds else None
-        for i_layer_pair in range(len(self.layers) // 2):
-            i0 = 2 * i_layer_pair
+        for i0, i1 in pairwise(range(len(self.layers))):
+            activation0 = relu if i0 > 0 else nn.Identity()
             hidden_x, hidden_edge_attr = self.layers[i0](
-                relu(self._node_batch_norms[i0](x)),
+                activation0(self._node_batch_norms[i0](x)),
                 edge_index,
-                relu(self._edge_batch_norms[i0](edge_attr)),
+                activation0(self._edge_batch_norms[i0](edge_attr)),
             )
-            i1 = 2 * i_layer_pair + 1
             delta_x, edge_attr = self.layers[i1](
                 relu(self._node_batch_norms[i1](hidden_x)),
                 edge_index,
                 relu(self._edge_batch_norms[i1](hidden_edge_attr)),
             )
-            x = convex_combination(delta=delta_x, residue=x, alpha_residue=self._alpha)
+            x = sqconvex_combination(
+                delta=delta_x, residue=x, alpha_residue=self._alpha
+            )
             if self._collect_hidden_edge_embeds:
                 edge_attrs.append(edge_attr)
         return x, edge_attr, edge_attrs
@@ -193,13 +196,17 @@ class SkipTopResidualNetwork(ResidualNetwork):
     def _forward(self, x: T, edge_index: T, edge_attr: T) -> tuple[T, T, list[T]]:
         edge_attrs = [edge_attr] if self._collect_hidden_edge_embeds else None
         x_residue = None
-        for i_layer in range(len(self.layers)):
+        for i_layer, layer in enumerate(self.layers):
             if i_layer == self._residual_layer:
                 x_residue = x
-            delta_x, edge_attr = self.layers[i_layer](x, edge_index, edge_attr)
-            x = convex_combination(
-                delta=relu(delta_x), residue=x_residue, alpha_residue=self._alpha
-            )
+            activation = relu if i_layer > 0 else nn.Identity()
+            delta_x, edge_attr = layer(activation(x), edge_index, activation(edge_attr))
+            if x_residue is not None:
+                x = sqconvex_combination(
+                    delta=delta_x, residue=x_residue, alpha_residue=self._alpha
+                )
+            else:
+                x = delta_x
             if self._collect_hidden_edge_embeds:
                 edge_attrs.append(edge_attr)
         return x, edge_attr, edge_attrs
