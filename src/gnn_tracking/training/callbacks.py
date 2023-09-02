@@ -89,6 +89,7 @@ class ExpandWandbConfig(Callback):
 
     * Information about the optimizer/scheduler.
     * Information from the datamodule
+    * Information about version numbers and git hashes
     * SLURM job id (if set)
 
     This will also avoid problems where hyperparameters are not synced at the beginning

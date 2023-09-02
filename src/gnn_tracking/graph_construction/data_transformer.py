@@ -9,18 +9,15 @@ from tqdm import tqdm
 from gnn_tracking.utils.log import logger
 
 
-class MLGraphBuilder:
+class DataTransformer:
     def __init__(
         self,
-        gc: nn.Module,
+        transform: nn.Module,
     ):
-        """Applies a metric learning graph construction to all point clouds and saves
+        """Applies a transformation function to all data files and saves
         them on disk.
-
-        Args:
-
         """
-        self._gc = gc
+        self._transform = transform
 
     def process(
         self,
@@ -39,7 +36,7 @@ class MLGraphBuilder:
         output_dir.mkdir(parents=True, exist_ok=True)
         out_path = output_dir / filename
         data = torch.load(in_path)
-        transformed = self._gc(data)
+        transformed = self._transform(data)
         torch.save(transformed, out_path)
 
     def _save_hparams(
@@ -49,7 +46,7 @@ class MLGraphBuilder:
     ) -> None:
         """Save hyperparameters to disk"""
         output_dir.mkdir(parents=True, exist_ok=True)
-        hparams = dict(self._gc.hparams)
+        hparams = dict(self._transform.hparams)
         hparams["input_dir"] = input_dir
         (output_dir / "hparams").write_text(yaml.dump(hparams))
 
