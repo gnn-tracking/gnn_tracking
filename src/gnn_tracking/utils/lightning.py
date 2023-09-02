@@ -95,7 +95,11 @@ def get_object_from_path(path: str, init_args: dict[str, Any] | None = None) -> 
 
 
 def get_lightning_module(
-    class_path: str, chkpt_path: str = "", *, freeze: bool = True
+    class_path: str,
+    chkpt_path: str = "",
+    *,
+    freeze: bool = True,
+    device: str | None = None,
 ) -> LightningModule | None:
     """Get model (specified by `class_path`, a string) and
     load a checkpoint.
@@ -111,7 +115,9 @@ def get_lightning_module(
     model_class: type = get_object_from_path(class_path)
     assert issubclass(model_class, LightningModule)
     logger.debug("Loading checkpoint %s", chkpt_path)
-    model = model_class.load_from_checkpoint(chkpt_path, strict=False)
+    model = model_class.load_from_checkpoint(
+        chkpt_path, strict=False, map_location=device
+    )
     logger.debug("Checkpoint loaded. Model ready to go.")
     if freeze:
         model.freeze()
@@ -123,6 +129,7 @@ def get_model(
     chkpt_path: str = "",
     freeze: bool = False,
     whole_module: bool = False,
+    device: None | str = None,
 ) -> nn.Module | None:
     """Get torch model (specified by `class_path`, a string) and load a checkpoint.
     Uses `get_lightning_module` to get the model.
@@ -133,10 +140,11 @@ def get_model(
             return None.
         freeze: Whether to freeze the model
         whole_module: Whether to return the whole lightning module or just the model
+        device:
     """
     if not chkpt_path:
         return None
-    lm = get_lightning_module(class_path, chkpt_path, freeze=freeze)
+    lm = get_lightning_module(class_path, chkpt_path, freeze=freeze, device=device)
     if lm is None:
         return None
     if whole_module:
