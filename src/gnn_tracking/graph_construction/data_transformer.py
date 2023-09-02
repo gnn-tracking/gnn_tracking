@@ -3,9 +3,12 @@ from pathlib import Path
 
 import torch
 import yaml
+from pytorch_lightning.core.mixins import HyperparametersMixin
 from torch import nn
+from torch_geometric.data import Data
 from tqdm import tqdm
 
+from gnn_tracking.models.edge_classifier import ECFromChkpt
 from gnn_tracking.utils.log import logger
 
 
@@ -25,7 +28,7 @@ class DataTransformer:
         output_dir: os.PathLike,
         filename: str,
         *,
-        redo=False
+        redo=False,
     ) -> None:
         """Process single file"""
         input_dir = Path(input_dir)
@@ -57,7 +60,7 @@ class DataTransformer:
         *,
         redo=True,
         progress=True,
-        _first_only=False
+        _first_only=False,
     ) -> None:
         """Process all files in the input directories and save them to the output
         directories.
@@ -88,3 +91,28 @@ class DataTransformer:
                 self.process(input_dir, output_dir, filename, redo=redo)
                 if _first_only:
                     break
+
+
+class ECCut(nn.Module, HyperparametersMixin):
+    # noinspection PyUnusedLocal
+    def __init__(
+        self,
+        chkpt_path: str,
+        thld: float,  # noqa: ARG002
+        *,
+        class_name="gnn_tracking.training.ec.ECModule",
+    ):
+        """Applies a cut to the edge classifier output and saves the trimmed down
+        graphs.
+
+        Args:
+        """
+        super().__init__()
+        self.save_hyperparameters()
+        self._model = ECFromChkpt(chkpt_path, class_name=class_name)
+
+    def __forward__(self, data) -> Data:
+        w = self._model(data)["W"]
+        mask = w > self.hparams.thld
+        data.ec_score = w
+        return data.edge_subgraph(mask)
