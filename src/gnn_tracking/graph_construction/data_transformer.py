@@ -101,6 +101,7 @@ class ECCut(nn.Module, HyperparametersMixin):
         thld: float,  # noqa: ARG002
         *,
         class_name="gnn_tracking.training.ec.ECModule",
+        device: str | None = None,
     ):
         """Applies a cut to the edge classifier output and saves the trimmed down
         graphs.
@@ -109,7 +110,7 @@ class ECCut(nn.Module, HyperparametersMixin):
         """
         super().__init__()
         self.save_hyperparameters()
-        self._model = ECFromChkpt(chkpt_path, class_name=class_name)
+        self._model = ECFromChkpt(chkpt_path, class_name=class_name, device=device)
 
     def __forward__(self, data) -> Data:
         w = self._model(data)["W"]

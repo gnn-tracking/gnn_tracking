@@ -171,6 +171,7 @@ class ECFromChkpt(nn.Module, HyperparametersMixin):
         *,
         class_name="gnn_tracking.training.ec.ECModule",
         freeze: bool = True,
+        device: str | None = None,
     ):
         """For easy loading of an pretrained EC from a lightning yaml config.
 
@@ -180,4 +181,4 @@ class ECFromChkpt(nn.Module, HyperparametersMixin):
                 Default should work for most cases.
             freeze: If True, the model is frozen (i.e., its parameters are not trained).
         """
-        return get_model(class_name, chkpt_path, freeze=freeze)
+        return get_model(class_name, chkpt_path, freeze=freeze, device=device)
