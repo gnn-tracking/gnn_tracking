@@ -32,7 +32,7 @@ def save_sub_hyperparameters(
     """
     if not hasattr(obj, "hparams"):
         msg = (
-            "Can't save hyperparameters to object of type %s. Make sure to "
+            "Can't save hyperparameters from object of type %s. Make sure to "
             "inherit from HyperparametersMixin."
         )
         if errors == "warn":
