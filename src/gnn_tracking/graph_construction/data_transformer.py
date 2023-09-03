@@ -1,4 +1,5 @@
 import os
+from functools import partial
 from pathlib import Path
 
 import torch
@@ -6,7 +7,7 @@ import yaml
 from pytorch_lightning.core.mixins import HyperparametersMixin
 from torch import nn
 from torch_geometric.data import Data
-from tqdm import tqdm
+from tqdm.contrib.concurrent import process_map
 
 from gnn_tracking.utils.lightning import save_sub_hyperparameters
 from gnn_tracking.utils.log import logger
@@ -24,10 +25,10 @@ class DataTransformer:
 
     def process(
         self,
-        input_dir: os.PathLike,
-        output_dir: os.PathLike,
         filename: str,
         *,
+        input_dir: os.PathLike,
+        output_dir: os.PathLike,
         redo=False,
     ) -> None:
         """Process single file"""
@@ -59,7 +60,8 @@ class DataTransformer:
         output_dirs: list[os.PathLike],
         *,
         redo=True,
-        progress=True,
+        max_processes=1,
+        chunk_size=1,
         _first_only=False,
     ) -> None:
         """Process all files in the input directories and save them to the output
@@ -69,7 +71,8 @@ class DataTransformer:
             input_dirs:
             output_dirs:
             redo: If True, overwrite existing files
-            progress: Show progress bar
+            max_processes: Maximum number of processes to use
+            chunk_size: Number of files to process in one batch
             _first_only: Only process the first file. Useful for testing.
 
         Returns:
@@ -84,13 +87,14 @@ class DataTransformer:
         for input_dir, output_dir in directories:
             self._save_hparams(input_dir, output_dir)
             input_filenames = [p.name for p in input_dir.glob("*.pt")]
-            iterator = input_filenames
-            if progress:
-                iterator = tqdm(iterator)
-            for filename in iterator:
-                self.process(input_dir, output_dir, filename, redo=redo)
-                if _first_only:
-                    break
+            process_map(
+                partial(
+                    self.process, input_dir=input_dir, output_dir=output_dir, redo=redo
+                ),
+                input_filenames,
+                max_workers=max_processes,
+                chunksize=chunk_size,
+            )
 
 
 class ECCut(nn.Module, HyperparametersMixin):
