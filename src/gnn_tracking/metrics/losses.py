@@ -226,15 +226,15 @@ def _condensation_loss(
     }
 
 
-def _first_occurrences(input_array: T):
-    # Function that determines the first occurrence of each unique element in a 1D array
+def _first_occurrences(input_array: T) -> T:
+    """Return the first occurrence of each unique element in a 1D array"""
     return torch.tensor(
         np.unique(input_array.cpu(), return_index=True)[1], device=input_array.device
     )
 
 
-def _square_distances(edges: T, positions: T):
-    # Function that calculates the squared distances between two sets of points
+def _square_distances(edges: T, positions: T) -> T:
+    """Returns squared distances between two sets of points"""
     return torch.sum((positions[edges[0]] - positions[edges[1]]) ** 2, dim=-1)
 
 
