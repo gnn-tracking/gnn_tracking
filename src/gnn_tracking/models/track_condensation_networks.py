@@ -260,8 +260,9 @@ class ModularGraphTCN(nn.Module, HyperparametersMixin):
         # Run the track condenser
         h_hc, _, _ = self.hc_in(h_hc, data.edge_index, edge_attr_hc)
         beta = torch.sigmoid(self.p_beta(h_hc))
-        # protect against nans
-        beta = beta + torch.ones_like(beta) * 10e-9
+        # Soft clipping to protect against nans when calling arctanh(beta)
+        epsilon = 1e-9
+        beta = epsilon + (1 - 2 * epsilon) * beta
 
         h = self.p_cluster(h_hc)
         if alpha := self.hparams.alpha_latent:
