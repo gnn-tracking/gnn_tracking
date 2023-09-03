@@ -118,6 +118,7 @@ def get_lightning_module(
     model = model_class.load_from_checkpoint(
         chkpt_path, strict=False, map_location=device
     )
+    model.hparams["restored_chkpt_path"] = chkpt_path
     logger.debug("Checkpoint loaded. Model ready to go.")
     if freeze:
         model.freeze()
