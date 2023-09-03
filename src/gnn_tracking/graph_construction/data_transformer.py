@@ -29,14 +29,11 @@ class DataTransformer:
         *,
         input_dir: os.PathLike,
         output_dir: os.PathLike,
-        redo=False,
     ) -> None:
         """Process single file"""
         input_dir = Path(input_dir)
         output_dir = Path(output_dir)
         in_path = input_dir / filename
-        if not redo and in_path.exists():
-            logger.debug("File %s already exists, skipping", in_path)
         output_dir.mkdir(parents=True, exist_ok=True)
         out_path = output_dir / filename
         data = torch.load(in_path)
@@ -86,11 +83,16 @@ class DataTransformer:
         directories = list(zip(input_dirs, output_dirs))
         for input_dir, output_dir in directories:
             self._save_hparams(input_dir, output_dir)
-            input_filenames = [p.name for p in input_dir.glob("*.pt")]
+            input_filenames = {p.name for p in input_dir.glob("*.pt")}
+            if not redo:
+                existing_output_filenames = {p.name for p in output_dir.glob("*.pt")}
+                assert existing_output_filenames.issubset(input_filenames)
+                logger.info(
+                    "Skipping %d existing files", len(existing_output_filenames)
+                )
+                input_filenames = sorted(input_filenames - existing_output_filenames)
             process_map(
-                partial(
-                    self.process, input_dir=input_dir, output_dir=output_dir, redo=redo
-                ),
+                partial(self.process, input_dir=input_dir, output_dir=output_dir),
                 input_filenames,
                 max_workers=max_processes,
                 chunksize=chunk_size,
