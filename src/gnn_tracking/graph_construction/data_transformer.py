@@ -8,7 +8,7 @@ from torch import nn
 from torch_geometric.data import Data
 from tqdm import tqdm
 
-from gnn_tracking.models.edge_classifier import ECFromChkpt
+from gnn_tracking.utils.lightning import save_sub_hyperparameters
 from gnn_tracking.utils.log import logger
 
 
@@ -97,11 +97,8 @@ class ECCut(nn.Module, HyperparametersMixin):
     # noinspection PyUnusedLocal
     def __init__(
         self,
-        chkpt_path: str,
+        ec: nn.Module,
         thld: float,  # noqa: ARG002
-        *,
-        class_name="gnn_tracking.training.ec.ECModule",
-        device: str | None = None,
     ):
         """Applies a cut to the edge classifier output and saves the trimmed down
         graphs.
@@ -109,10 +106,11 @@ class ECCut(nn.Module, HyperparametersMixin):
         Args:
         """
         super().__init__()
-        self.save_hyperparameters()
-        self._model = ECFromChkpt(chkpt_path, class_name=class_name, device=device)
+        self.save_hyperparameters(ignore=["ec"])
+        save_sub_hyperparameters(self, "ec", ec)
+        self._model = ec
 
-    def __forward__(self, data) -> Data:
+    def forward(self, data) -> Data:
         w = self._model(data)["W"]
         mask = w > self.hparams.thld
         data.ec_score = w
