@@ -261,7 +261,8 @@ class ModularGraphTCN(nn.Module, HyperparametersMixin):
         h_hc, _, _ = self.hc_in(h_hc, data.edge_index, edge_attr_hc)
         beta = torch.sigmoid(self.p_beta(h_hc))
         # Soft clipping to protect against nans when calling arctanh(beta)
-        epsilon = 1e-9
+        assert not torch.isnan(beta).any()
+        epsilon = 1e-6
         beta = epsilon + (1 - 2 * epsilon) * beta
 
         h = self.p_cluster(h_hc)
