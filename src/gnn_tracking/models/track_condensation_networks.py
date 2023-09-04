@@ -239,6 +239,8 @@ class ModularGraphTCN(nn.Module, HyperparametersMixin):
                 hit_mask = torch.ones(
                     data.num_nodes, dtype=torch.bool, device=data.x.device
                 )
+        if self.ec is None and self.hparams.feed_edge_weights:
+            data.edge_weights = data.ec_score.reshape((-1, 1))
 
         # Get the encoded inputs for the track condenser
         _edge_attrs = [data.edge_attr]
