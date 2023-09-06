@@ -165,7 +165,7 @@ class StandardError(Metric):
         self.add_state("values", default=torch.tensor([]), dist_reduce_fx="cat")
 
     def update(self, x: Tensor):
-        self.values = torch.cat((self.values, x))  # noqa: PD011
+        self.values = torch.cat((self.values, x))
 
     def compute(self):
         return torch.std(self.values) / math.sqrt(len(self.values))
