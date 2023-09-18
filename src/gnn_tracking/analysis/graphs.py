@@ -7,7 +7,7 @@ import numpy as np
 import pandas as pd
 import torch
 import torch_geometric
-from torch import Tensor
+from torch import Tensor as T
 from torch_geometric.data import Data
 
 from gnn_tracking.utils.graph_masks import get_good_node_mask
@@ -143,7 +143,7 @@ def get_track_graph_info(
 def get_track_graph_info_from_data(
     data: Data,
     *,
-    w: Tensor | None = None,
+    w: T | None = None,
     pt_thld=0.9,
     threshold: float | None = None,
     max_eta: float = 4.0,
@@ -326,3 +326,16 @@ def get_largest_segment_fracs(
     for pid in missing_pids:
         pid_to_largest_segment[pid] = 1 / pid2count[pid]
     return np.array(list(pid_to_largest_segment.values()))
+
+
+def get_cc_labels(edge_index: T, num_nodes: int) -> T:
+    """Get labels for connected components of a graph."""
+    gx = nx.Graph()
+    gx.add_nodes_from(list(range(num_nodes)))
+    gx.add_edges_from(edge_index.T.detach().cpu().numpy())
+    components = nx.connected_components(gx)
+    # todo: this is slow
+    index_mapping = {
+        node: index for index, node_set in enumerate(components) for node in node_set
+    }
+    return T([index_mapping[node] for node in gx.nodes()])
