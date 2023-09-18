@@ -11,6 +11,7 @@ from typing import Callable, Iterable, Protocol, TypedDict
 import numpy as np
 import pandas as pd
 from sklearn import metrics
+from torch_geometric.data import Data
 
 from gnn_tracking.utils.math import zero_division_gives_nan
 from gnn_tracking.utils.nomenclature import denote_pt
@@ -258,6 +259,36 @@ def tracking_metrics(
         r = count_tracking_metrics(c_df, h_df, c_mask, h_mask)
         result[pt] = r  # type: ignore
     return result  # type: ignore
+
+
+def tracking_metrics_data(
+    data: Data,
+    labels,
+    pt_thlds: Iterable[float],
+    predicted_count_thld=3,
+    max_eta=4,
+) -> dict[float, TrackingMetrics]:
+    """Convenience function to apply `tracking_metrics` to a Data object.
+
+    Args:
+        data: Data object
+        labels: Predicted labels/cluster index for each hit. Negative labels are
+            treated as noise
+        pt_thlds: pt thresholds to calculate the metrics for
+        predicted_count_thld: Minimal number of hits in a cluster for it to not be
+            rejected.
+        max_eta: Maximum eta value to count
+    """
+    return tracking_metrics(
+        truth=data.particle_id.detach().cpu().numpy(),
+        predicted=labels,
+        pts=data.pt.detach().cpu().numpy(),
+        reconstructable=data.reconstructable.detach().cpu().numpy(),
+        eta=data.eta.detach().cpu().numpy(),
+        pt_thlds=pt_thlds,
+        max_eta=max_eta,
+        predicted_count_thld=predicted_count_thld,
+    )
 
 
 def tracking_metrics_vs_pt(

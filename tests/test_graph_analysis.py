@@ -3,10 +3,12 @@ from typing import NamedTuple
 import networkx as nx
 import numpy as np
 import pytest
+import torch
 
 from gnn_tracking.analysis.graphs import (
     TrackGraphInfo,
     get_all_graph_construction_stats,
+    get_cc_labels,
     get_track_graph_info,
 )
 
@@ -95,3 +97,11 @@ def test_fixed_graph_construction(built_graphs):
             1526,
         ],
     )
+
+
+def test_get_cc_labels():
+    ei = torch.Tensor([[0, 1], [1, 0]])
+    assert (get_cc_labels(ei, num_nodes=2) == torch.Tensor([0, 0])).all()
+    assert (get_cc_labels(ei, num_nodes=3) == torch.Tensor([0, 0, 1])).all()
+    ei = torch.Tensor([[], []])
+    assert (get_cc_labels(ei, num_nodes=3) == torch.Tensor([0, 1, 2])).all()
