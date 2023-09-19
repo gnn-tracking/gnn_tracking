@@ -59,7 +59,8 @@ class DataTransformer:
         redo=True,
         max_processes=1,
         chunk_size=1,
-        _first_only=False,
+        start=0,
+        n_files=0,
     ) -> None:
         """Process all files in the input directories and save them to the output
         directories.
@@ -69,9 +70,10 @@ class DataTransformer:
             output_dirs:
             redo: If True, overwrite existing files
             max_processes: Maximum number of processes to use
-            chunk_size: Number of files to process in one batch
-            _first_only: Only process the first file. Useful for testing.
-
+            chunk_size: Number of files to process in one batch for multiprocessing
+            start: Index of first file to process
+            n_files: Number of files to process. If 0, process all files from `start`
+                on
         Returns:
             None
         """
@@ -91,6 +93,10 @@ class DataTransformer:
                     "Skipping %d existing files", len(existing_output_filenames)
                 )
                 input_filenames = sorted(input_filenames - existing_output_filenames)
+            end = None
+            if n_files > 0:
+                end = start + n_files
+            input_filenames = sorted(input_filenames)[start:end]
             process_map(
                 partial(self.process, input_dir=input_dir, output_dir=output_dir),
                 input_filenames,

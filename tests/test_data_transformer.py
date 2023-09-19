@@ -26,7 +26,7 @@ def test_data_transformer(test_graph: Data, tmp_path):
     ml_graph_builder.process_directories(
         input_dirs=[graph_test_data_dir],
         output_dirs=[tmp_path / "transformed"],
-        _first_only=True,
+        n_files=1,
     )
 
 
@@ -43,5 +43,5 @@ def test_eccut(test_graph: Data, tmp_path):
     dt.process_directories(
         input_dirs=[graph_test_data_dir],
         output_dirs=[tmp_path / "transformed"],
-        _first_only=True,
+        n_files=1,
     )
