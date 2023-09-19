@@ -269,8 +269,8 @@ def _fast_condensation_loss(
     # Now filter out everything that doesn't include a CP or connects two hits of the
     # same particle
     _to_cp = torch.isin(_radius_edges[0], alphas)
-    _is_repulsive = particle_id[_to_cp[0]] != particle_id[_to_cp[1]]
-    repulsion_edges = _to_cp[:, _is_repulsive & _to_cp]
+    _is_repulsive = particle_id[_radius_edges[0]] != particle_id[_radius_edges[1]]
+    repulsion_edges = _radius_edges[:, _is_repulsive & _to_cp]
 
     # -- 3. Edges for attractive loss --
     # 1D array (n_nodes): 1 for CPs, 0 otherwise
