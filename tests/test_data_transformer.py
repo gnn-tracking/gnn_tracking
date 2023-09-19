@@ -44,4 +44,5 @@ def test_eccut(test_graph: Data, tmp_path):
         input_dirs=[graph_test_data_dir],
         output_dirs=[tmp_path / "transformed"],
         n_files=1,
+        seed=1,
     )

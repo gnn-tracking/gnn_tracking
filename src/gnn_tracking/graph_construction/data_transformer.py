@@ -1,4 +1,5 @@
 import os
+import random
 from functools import partial
 from pathlib import Path
 
@@ -29,6 +30,7 @@ class DataTransformer:
         *,
         input_dir: os.PathLike,
         output_dir: os.PathLike,
+        redo: bool = True,
     ) -> None:
         """Process single file"""
         input_dir = Path(input_dir)
@@ -36,6 +38,11 @@ class DataTransformer:
         in_path = input_dir / filename
         output_dir.mkdir(parents=True, exist_ok=True)
         out_path = output_dir / filename
+        if not redo and out_path.is_file():
+            # Even though we pre-filter the files, if the user wants to speed up
+            # processing by submitting multiple jobs (with different batching), we
+            # need to check again here
+            return
         data = torch.load(in_path)
         transformed = self._transform(data)
         torch.save(transformed, out_path)
@@ -61,6 +68,7 @@ class DataTransformer:
         chunk_size=1,
         start=0,
         n_files=0,
+        seed=None,
     ) -> None:
         """Process all files in the input directories and save them to the output
         directories.
@@ -74,6 +82,10 @@ class DataTransformer:
             start: Index of first file to process
             n_files: Number of files to process. If 0, process all files from `start`
                 on
+            seed: Seed for shuffling of input files. If None, no shuffling. Shuffling
+                with `redo=False` can help to submit more worker jobs later on for
+                faster processing.
+
         Returns:
             None
         """
@@ -96,7 +108,11 @@ class DataTransformer:
             end = None
             if n_files > 0:
                 end = start + n_files
-            input_filenames = sorted(input_filenames)[start:end]
+            input_filenames = sorted(input_filenames)
+            if seed is not None:
+                random.seed(seed)
+                random.shuffle(input_filenames)
+            input_filenames = input_filenames[start:end]
             process_map(
                 partial(self.process, input_dir=input_dir, output_dir=output_dir),
                 input_filenames,
