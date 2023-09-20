@@ -10,7 +10,7 @@
 #SBATCH --mem=45G                      # total memory per node (4 GB per cpu-core is default)
 #SBATCH --time=1:45:00                 # total run time limit (HH:MM:SS)
 #SBATCH --output=build-graphs-%A-%a.log
-#SBATCH --array=0-40 # total jobs in array
+#SBATCH --array=0-20 # total jobs in array
 
 # bash strict mode
 set -euo pipefail
@@ -31,8 +31,8 @@ echo "Executing on machine: $(hostname)"
 echo "Part: ${PART}"
 
 python build_graphs.py \
-  --indir /scratch/gpfs/IOJALVO/gnn-tracking/object_condensation/point_clouds_v7/part_${PART} \
-  --outdir /scratch/gpfs/IOJALVO/gnn-tracking/object_condensation/graphs_v7/part_${PART} \
-  --batch-size 768
+  --indir /scratch/gpfs/IOJALVO/gnn-tracking/object_condensation/point_clouds_v6/part_${PART} \
+  --outdir /scratch/gpfs/IOJALVO/gnn-tracking/object_condensation/graphs_v8/part_${PART} \
+  --batch-size 48
 
 echo "Finished"
