@@ -86,15 +86,15 @@ def test_fixed_graph_construction(built_graphs):
     _test_for_all(
         lambda g: len(g.y),
         [
-            6752,
-            5796,
+            5972.0,
+            5234.0,
         ],
     )
     _test_for_all(
         lambda g: sum(g.y),
         [
-            1860,
-            1526,
+            1888.0,
+            1578.0,
         ],
     )
 

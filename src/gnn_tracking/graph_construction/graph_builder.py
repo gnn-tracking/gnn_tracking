@@ -189,13 +189,18 @@ class GraphBuilder:
         z0 = hit_pairs.z_1 - hit_pairs.r_1 * dz / dr
 
         # apply the intersecting line cut
-        if (layer1 == 0) and (layer2 in [4, 11]):
+        if (layer1 == 7) and (layer2 in [6, 11]):
             # 0th barrel layer to left EC or right EC
-            z_coord = 71.56298065185547 * dz / dr + z0
+            # We calculate the z coordinate that the edge passes through when it is on
+            # the r height of layer 1. We check if it is between the z range of layer
+            # 1 to see if the edge intersects layer 1
+            layer_1_r = 71.56298065185547
+            z_coord = layer_1_r * dz / dr + z0
             intersected_layer = np.logical_and(z_coord > -490.975, z_coord < 490.975)
-        elif (layer1 == 1) and (layer2 in [4, 11]):
+        elif (layer1 == 8) and (layer2 in [6, 11]):
             # 1st barrel layer to the left EC or right EC
-            z_coord = 115.37811279296875 * dz / dr + z0
+            layer_2_r = 115.37811279296875
+            z_coord = layer_2_r * dz / dr + z0
             intersected_layer = np.logical_and(z_coord > -490.975, z_coord < 490.975)
         else:
             intersected_layer = dr.abs() < -1
@@ -237,24 +242,24 @@ class GraphBuilder:
         """
         # layer indices for barrel-to-endcap edges
         barrel_to_endcaps = {
-            (0, 4),
-            (1, 4),
-            (2, 4),
-            (3, 4),  # barrel to l-EC
-            (0, 11),
-            (1, 11),
-            (2, 11),
-            (3, 11),
+            (7, 6),
+            (8, 6),
+            (9, 6),
+            (10, 6),  # barrel to l-EC
+            (7, 11),
+            (8, 11),
+            (9, 11),
+            (10, 11),
         }  # barrel to r-EC
         precedence = {
-            (0, 4): 0,
-            (1, 4): 1,
-            (2, 4): 2,
-            (3, 4): 3,
-            (0, 11): 0,
-            (1, 11): 1,
-            (2, 11): 2,
-            (3, 11): 3,
+            (7, 6): 0,
+            (8, 6): 1,
+            (9, 6): 2,
+            (10, 6): 3,
+            (7, 11): 0,
+            (8, 11): 1,
+            (9, 11): 2,
+            (10, 11): 3,
         }
 
         # group hits by particle id, get layer indices
@@ -313,23 +318,23 @@ class GraphBuilder:
         """
         if self.pixel_only:
             layer_pairs = [
-                (0, 1),
-                (1, 2),
-                (2, 3),  # barrel-barrel
-                (0, 4),
-                (1, 4),
-                (2, 4),
-                (3, 4),  # barrel-LEC
-                (0, 11),
-                (1, 11),
-                (2, 11),
-                (3, 11),  # barrel-REC
-                (4, 5),
-                (5, 6),
-                (6, 7),
                 (7, 8),
                 (8, 9),
-                (9, 10),  # LEC-LEC
+                (9, 10),  # barrel-barrel
+                (7, 6),
+                (8, 6),
+                (9, 6),
+                (10, 6),  # barrel-LEC
+                (7, 11),
+                (8, 11),
+                (9, 11),
+                (10, 11),  # barrel-REC
+                (0, 1),
+                (1, 2),
+                (2, 3),
+                (3, 4),
+                (4, 5),
+                (5, 6),  # LEC-LEC
                 (11, 12),
                 (12, 13),
                 (13, 14),
