@@ -45,6 +45,7 @@ if __name__ == "__main__":
         dR_max=1.797,
         log_level=0,
         collect_data=False,
+        remove_intersecting=False,
     )
     start = args.start * args.batch_size
     stop = None
