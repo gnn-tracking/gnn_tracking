@@ -149,7 +149,7 @@ class TrackingDataModule(LightningDataModule):
                 dct[key] = int(dct[key])
         return dct
 
-    def _get_dataset(self, key) -> TrackingDataset:
+    def _get_dataset(self, key: str) -> TrackingDataset:
         config = self._configs[key]
         if not config:
             msg = f"DataLoaderConfig for key {key} is None."
@@ -173,7 +173,7 @@ class TrackingDataModule(LightningDataModule):
             _ = f"Unknown stage '{stage}'"
             raise ValueError(_)
 
-    def _get_dataloader(self, key):
+    def _get_dataloader(self, key: str) -> DataLoader:
         sampler = None
         dataset = self._datasets[key]
         n_samples = len(dataset)
