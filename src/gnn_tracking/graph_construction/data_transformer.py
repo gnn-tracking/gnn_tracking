@@ -143,3 +143,17 @@ class ECCut(nn.Module, HyperparametersMixin):
         mask = w > self.hparams.thld
         data.ec_score = w
         return data.edge_subgraph(mask)
+
+
+class ECCutRefine(nn.Module, HyperparametersMixin):
+    # noinspection PyUnusedLocal
+    def __init__(self, thld: float, name="ec_score"):  # noqa: ARG002
+        """Similar to `ECCut`, but assumes that the edge classifier output is in a
+        field named
+        """
+        super().__init__()
+        self.save_hyperparameters()
+
+    def forward(self, data: Data) -> Data:
+        mask = data[self.hparams.name] > self.hparams.thld
+        return data.edge_subgraph(mask)  # type: ignore
