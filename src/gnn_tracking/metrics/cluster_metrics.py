@@ -332,7 +332,7 @@ def tracking_metrics_vs_pt(
         _results = pd.DataFrame.from_records(_results)
         result = _results.mean().to_dict()
         for k in list(result.keys()):
-            result[k + "_std"] = _results[k].std()
+            result[k + "_err"] = _results[k].std() / np.sqrt(len(_results))
         result["pt_min"] = pt_min
         result["pt_max"] = pt_max
         results.append(result)
@@ -379,7 +379,7 @@ def tracking_metrics_vs_eta(
         _results = pd.DataFrame.from_records(_results)
         result = _results.mean().to_dict()
         for k in list(result.keys()):
-            result[k + "_std"] = _results[k].std()
+            result[k + "_err"] = _results[k].std() / np.sqrt(len(_results))
         result["eta_min"] = eta_min
         result["eta_max"] = eta_max
         results.append(result)
