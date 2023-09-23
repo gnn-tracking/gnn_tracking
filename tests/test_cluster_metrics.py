@@ -342,8 +342,8 @@ def test_fix_cluster_metrics():
             "perfect": 0.0,
             "double_majority": 0.1,
             "lhc": 0.0,
-            "fake_perfect": 0.4,
-            "fake_double_majority": 0.3,
+            "fake_perfect": 1,
+            "fake_double_majority": 0.75,  # (4-0.1*10)/4
             "fake_lhc": 1.0,
         },
         0.5: {
@@ -352,8 +352,8 @@ def test_fix_cluster_metrics():
             "perfect": 0.0,
             "double_majority": 0.125,
             "lhc": 0.0,
-            "fake_perfect": 0.5,
-            "fake_double_majority": 0.375,
+            "fake_perfect": 1.0,
+            "fake_double_majority": 0.75,  # (4-0.125*8)/4
             "fake_lhc": 1.0,
         },
         0.9: {
@@ -362,8 +362,8 @@ def test_fix_cluster_metrics():
             "perfect": 0.0,
             "double_majority": 0.16666666666666666,
             "lhc": 0.0,
-            "fake_perfect": 0.5,
-            "fake_double_majority": 0.3333333333333333,
+            "fake_perfect": 1.0,
+            "fake_double_majority": 0.66666666666666,  # (3-0.166*6)/3
             "fake_lhc": 1.0,
         },
     }

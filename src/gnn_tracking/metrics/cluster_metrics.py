@@ -182,8 +182,8 @@ def count_tracking_metrics(
         "perfect": zero_division_gives_nan(n_perfect_match, n_particles),
         "double_majority": zero_division_gives_nan(n_double_majority, n_particles),
         "lhc": zero_division_gives_nan(n_lhc_match, n_clusters),
-        "fake_perfect": zero_division_gives_nan(fake_pm, n_particles),
-        "fake_double_majority": zero_division_gives_nan(fake_dm, n_particles),
+        "fake_perfect": zero_division_gives_nan(fake_pm, n_clusters),
+        "fake_double_majority": zero_division_gives_nan(fake_dm, n_clusters),
         "fake_lhc": zero_division_gives_nan(fake_lhc, n_clusters),
     }
     return r
