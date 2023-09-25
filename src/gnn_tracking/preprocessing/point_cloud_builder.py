@@ -61,6 +61,9 @@ _DEFAULT_FEATURE_SCALE = tuple(1 for _ in DEFAULT_FEATURES)
 #   only be used for building the graphs), and the parsing of the filenames should be
 #   done with the function that is also used in build_point_clouds
 #   Split up in feature building and sectorization?
+#   Class should be refactored as well: Most methods, attributes are private, many are
+#   static. Refactoring to be subclass of HyperparametersMixin would allow to easily
+#   save all hyperparameters in yaml output file which could be useful for versioning
 class PointCloudBuilder:
     def __init__(
         self,
@@ -329,7 +332,7 @@ class PointCloudBuilder:
             n_layers_hit=torch.from_numpy(hits["n_layers_hit"].to_numpy()).long(),
         )
 
-    def get_measurements(self):
+    def get_measurements(self) -> dict[str, float]:
         measurements = pd.DataFrame(self.measurements)
         means = measurements.mean()
         stds = measurements.std()
