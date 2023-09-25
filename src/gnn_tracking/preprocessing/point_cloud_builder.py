@@ -222,7 +222,9 @@ class PointCloudBuilder:
         hits["v"] = hits["y"] / (hits["x"] ** 2 + hits["y"] ** 2)
         return hits.merge(truth[["hit_id", "particle_id", "pt", "eta_pt"]], on="hit_id")
 
-    def sector_hits(self, hits: DF, s: A, particle_id_counts: dict[int, int]) -> DF:
+    def sector_hits(
+        self, hits: DF, sector_id: int, particle_id_counts: dict[int, int]
+    ) -> DF:
         """Break an event into (optionally) extended sectors."""
 
         if self.n_sectors == 1:
@@ -232,11 +234,11 @@ class PointCloudBuilder:
         # build sectors in each 2*np.pi/self.n_sectors window
         theta = np.pi / self.n_sectors
         slope = np.arctan(theta)
-        hits["ur"] = hits["u"] * np.cos(2 * s * theta) - hits["v"] * np.sin(
-            2 * s * theta
+        hits["ur"] = hits["u"] * np.cos(2 * sector_id * theta) - hits["v"] * np.sin(
+            2 * sector_id * theta
         )
-        hits["vr"] = hits["u"] * np.sin(2 * s * theta) + hits["v"] * np.cos(
-            2 * s * theta
+        hits["vr"] = hits["u"] * np.sin(2 * sector_id * theta) + hits["v"] * np.cos(
+            2 * sector_id * theta
         )
         sector = hits[
             ((hits.vr > -slope * hits.ur) & (hits.vr < slope * hits.ur) & (hits.ur > 0))
@@ -250,7 +252,7 @@ class PointCloudBuilder:
             hits_in_sector = len(sector[sector.particle_id == pid])
             hits_for_pid = particle_id_counts[pid]
             if (hits_in_sector / hits_for_pid) >= 0.5:
-                particle_id_sectors[pid] = s
+                particle_id_sectors[pid] = sector_id
 
         lower_bound = -self.sector_ds * slope * hits.ur - self.sector_di
         upper_bound = self.sector_ds * slope * hits.ur + self.sector_di
