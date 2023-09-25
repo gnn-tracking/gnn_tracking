@@ -93,10 +93,15 @@ class TrackingModule(ImprovedLogLM):
             "UntypedStorage will be the only storage class.",
         )
 
-    def forward(self, data: Data) -> Tensor:
-        if self.preproc is not None:
-            data = self.preproc(data)
+    def forward(self, data: Data, _preprocessed=False) -> Tensor | dict[str, Tensor]:
+        if not _preprocessed:
+            data = self.data_preproc(data)
         return self.model.forward(data)
+
+    def data_preproc(self, data) -> Data:
+        if self.preproc is not None:
+            return self.preproc(data)
+        return data
 
     def configure_optimizers(self) -> Any:
         optimizer = self.optimizer(self.parameters())
