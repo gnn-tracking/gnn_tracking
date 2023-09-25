@@ -325,6 +325,8 @@ class PointCloudBuilder:
             reconstructable=torch.from_numpy(hits["reconstructable"].to_numpy()).long(),
             sector=torch.from_numpy(hits["sector"].to_numpy()).long(),
             eta=torch.from_numpy(hits["eta_pt"].to_numpy()).float(),
+            n_hits=torch.from_numpy(hits["n_hits"].to_numpy()).long(),
+            n_layers_hit=torch.from_numpy(hits["n_layers_hit"].to_numpy()).long(),
         )
 
     def get_measurements(self):
@@ -384,6 +386,8 @@ class PointCloudBuilder:
                 for pid, counts in pid_layers_hit.items()
             }
             hits["reconstructable"] = hits.particle_id.map(reconstructable)
+            hits["n_layers_hit"] = hits.particle_id.map(pid_layers_hit)
+            hits["n_hits"] = hits.particle_id.map(particle_id_counts)
 
             n_particles = len(np.unique(hits.particle_id.to_numpy()))
             n_hits = len(hits)
