@@ -110,7 +110,8 @@ class TCModule(TrackingModule):
 
     @tolerate_some_oom_errors
     def training_step(self, data: Data, batch_idx: int) -> Tensor:
-        out = self(data)
+        data = self.data_preproc(data)
+        out = self(data, _preprocessed=True)
         loss, loss_dct = self.get_losses(out, data)
         self.log_dict(
             add_key_suffix(loss_dct, "_train"),
@@ -121,7 +122,8 @@ class TCModule(TrackingModule):
         return loss
 
     def validation_step(self, data: Data, batch_idx: int) -> None:
-        out = self(data)
+        data = self.data_preproc(data)
+        out = self(data, _preprocessed=True)
         loss, metrics = self.get_losses(out, data)
         metrics |= self._evaluate_cluster_metrics(out, data, batch_idx)
         self.log_dict_with_errors(
