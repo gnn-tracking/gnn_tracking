@@ -61,6 +61,9 @@ _DEFAULT_FEATURE_SCALE = tuple(1 for _ in DEFAULT_FEATURES)
 #   only be used for building the graphs), and the parsing of the filenames should be
 #   done with the function that is also used in build_point_clouds
 #   Split up in feature building and sectorization?
+#   Class should be refactored as well: Most methods, attributes are private, many are
+#   static. Refactoring to be subclass of HyperparametersMixin would allow to easily
+#   save all hyperparameters in yaml output file which could be useful for versioning
 class PointCloudBuilder:
     def __init__(
         self,
@@ -222,7 +225,9 @@ class PointCloudBuilder:
         hits["v"] = hits["y"] / (hits["x"] ** 2 + hits["y"] ** 2)
         return hits.merge(truth[["hit_id", "particle_id", "pt", "eta_pt"]], on="hit_id")
 
-    def sector_hits(self, hits: DF, s: A, particle_id_counts: dict[int, int]) -> DF:
+    def sector_hits(
+        self, hits: DF, sector_id: int, particle_id_counts: dict[int, int]
+    ) -> DF:
         """Break an event into (optionally) extended sectors."""
 
         if self.n_sectors == 1:
@@ -232,11 +237,11 @@ class PointCloudBuilder:
         # build sectors in each 2*np.pi/self.n_sectors window
         theta = np.pi / self.n_sectors
         slope = np.arctan(theta)
-        hits["ur"] = hits["u"] * np.cos(2 * s * theta) - hits["v"] * np.sin(
-            2 * s * theta
+        hits["ur"] = hits["u"] * np.cos(2 * sector_id * theta) - hits["v"] * np.sin(
+            2 * sector_id * theta
         )
-        hits["vr"] = hits["u"] * np.sin(2 * s * theta) + hits["v"] * np.cos(
-            2 * s * theta
+        hits["vr"] = hits["u"] * np.sin(2 * sector_id * theta) + hits["v"] * np.cos(
+            2 * sector_id * theta
         )
         sector = hits[
             ((hits.vr > -slope * hits.ur) & (hits.vr < slope * hits.ur) & (hits.ur > 0))
@@ -250,7 +255,7 @@ class PointCloudBuilder:
             hits_in_sector = len(sector[sector.particle_id == pid])
             hits_for_pid = particle_id_counts[pid]
             if (hits_in_sector / hits_for_pid) >= 0.5:
-                particle_id_sectors[pid] = s
+                particle_id_sectors[pid] = sector_id
 
         lower_bound = -self.sector_ds * slope * hits.ur - self.sector_di
         upper_bound = self.sector_ds * slope * hits.ur + self.sector_di
@@ -323,9 +328,11 @@ class PointCloudBuilder:
             reconstructable=torch.from_numpy(hits["reconstructable"].to_numpy()).long(),
             sector=torch.from_numpy(hits["sector"].to_numpy()).long(),
             eta=torch.from_numpy(hits["eta_pt"].to_numpy()).float(),
+            n_hits=torch.from_numpy(hits["n_hits"].to_numpy()).long(),
+            n_layers_hit=torch.from_numpy(hits["n_layers_hit"].to_numpy()).long(),
         )
 
-    def get_measurements(self):
+    def get_measurements(self) -> dict[str, float]:
         measurements = pd.DataFrame(self.measurements)
         means = measurements.mean()
         stds = measurements.std()
@@ -377,11 +384,13 @@ class PointCloudBuilder:
             pid_layers_hit = {
                 pid: len(np.unique(hit_group.layer)) for pid, hit_group in hits_by_pid
             }
-            self.reconstructable = {
+            reconstructable = {
                 pid: ((counts >= 3) and (pid > 0))
                 for pid, counts in pid_layers_hit.items()
             }
-            hits["reconstructable"] = hits.particle_id.map(self.reconstructable)
+            hits["reconstructable"] = hits.particle_id.map(reconstructable)
+            hits["n_layers_hit"] = hits.particle_id.map(pid_layers_hit)
+            hits["n_hits"] = hits.particle_id.map(particle_id_counts)
 
             n_particles = len(np.unique(hits.particle_id.to_numpy()))
             n_hits = len(hits)
