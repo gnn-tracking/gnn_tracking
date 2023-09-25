@@ -377,11 +377,11 @@ class PointCloudBuilder:
             pid_layers_hit = {
                 pid: len(np.unique(hit_group.layer)) for pid, hit_group in hits_by_pid
             }
-            self.reconstructable = {
+            reconstructable = {
                 pid: ((counts >= 3) and (pid > 0))
                 for pid, counts in pid_layers_hit.items()
             }
-            hits["reconstructable"] = hits.particle_id.map(self.reconstructable)
+            hits["reconstructable"] = hits.particle_id.map(reconstructable)
 
             n_particles = len(np.unique(hits.particle_id.to_numpy()))
             n_hits = len(hits)
