@@ -55,7 +55,7 @@ if __name__ == "__main__":
         outdir=args.outdir,
         n_sectors=1,
         pixel_only=True,
-        redo=True,
+        redo=False,
         measurement_mode=False,
         sector_di=0,
         sector_ds=1.3,
@@ -69,4 +69,4 @@ if __name__ == "__main__":
     stop = None
     if args.batch_size > 0:
         stop = start + args.batch_size
-    pc_builder.process(start=start, stop=stop, ignore_loading_errors=False)
+    pc_builder.process(start=start, stop=stop, ignore_loading_errors=True)
