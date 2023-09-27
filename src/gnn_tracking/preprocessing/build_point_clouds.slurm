@@ -7,8 +7,8 @@
 #SBATCH --nodes=1                      # node count
 #SBATCH --ntasks=1                     # total number of tasks across all nodes
 #SBATCH --cpus-per-task=1              # cpu-cores per task (>1 if multi-threaded tasks)
-#SBATCH --mem=16G                      # total memory per node (4 GB per cpu-core is default)
-#SBATCH --time=2:00:00                 # total run time limit (HH:MM:SS)
+#SBATCH --mem=32G                      # total memory per node (4 GB per cpu-core is default)
+#SBATCH --time=5:00:00                 # total run time limit (HH:MM:SS)
 #SBATCH --output=build-point-clouds-%A-%a.log
 #SBATCH --array=0-4                   # total jobs in array
 
@@ -33,7 +33,7 @@ echo "Part: ${PART}"
 python \
   build_point_clouds.py \
   --indir /scratch/gpfs/IOJALVO/gnn-tracking/object_condensation/codalab-data/part_${PART} \
-  --outdir /scratch/gpfs/IOJALVO/gnn-tracking/object_condensation/point_clouds_v6/part_${PART} \
+  --outdir /scratch/gpfs/IOJALVO/gnn-tracking/object_condensation/point_clouds_v9/part_${PART} \
   --batch-size 210
 
 echo "Finished"
