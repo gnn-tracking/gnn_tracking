@@ -87,9 +87,11 @@ class TrackingDataset(Dataset):
 
 
 class TrackingDataModule(LightningDataModule):
+    # noinspection PyUnusedLocal
     def __init__(
         self,
         *,
+        identifier: str,  # noqa: ARG002
         train: dict | None = None,
         val: dict | None = None,
         test: dict | None = None,
@@ -99,6 +101,7 @@ class TrackingDataModule(LightningDataModule):
         ML pipeline.
 
         Args:
+            identifier: Identifier of the dataset (e.g., `graph_v5`)
             train: Config dictionary for training data (see below)
             val: Config dictionary for validation data (see below)
             test: Config dictionary for test data (see below)

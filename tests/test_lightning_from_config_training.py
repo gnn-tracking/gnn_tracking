@@ -16,6 +16,7 @@ AVAILABLE_CONFIGS: list[Path] = list(test_config_dir.glob("*.yml"))
 class TrackingDataModuleForTests(TrackingDataModule):
     def __new__(cls, *args, **kwargs) -> TrackingDataModule:
         return TrackingDataModule(
+            identifier="test",
             train={"dirs": [test_data_dir / "graphs"]},
             val={"dirs": [test_data_dir / "graphs"]},
         )
