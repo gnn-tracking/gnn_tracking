@@ -347,7 +347,11 @@ class MLGraphConstruction(nn.Module, HyperparametersMixin):
             )
         if self._ef is not None:
             w = self._ef(edge_features)["W"]
-            edge_index = edge_index[:, w > self.hparams.ef_threshold]
+            mask = w > self.hparams.ef_threshold
+            edge_index = edge_index[:, mask]
+            y = y[mask]
+            edge_features = edge_features[mask]
+
         return Data(
             x=x,
             edge_index=edge_index,
