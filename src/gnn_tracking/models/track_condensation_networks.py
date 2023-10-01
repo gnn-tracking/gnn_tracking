@@ -134,6 +134,7 @@ class ModularGraphTCN(nn.Module, HyperparametersMixin):
         mask_orphan_nodes: bool = False,
         use_ec_embeddings_for_hc: bool = False,
         alpha_latent: float = 0.0,
+        n_embedding_coords: int = 0,
     ):
         """Track condensation network based on preconstructed graphs. This module
         combines the following:
@@ -163,6 +164,8 @@ class ModularGraphTCN(nn.Module, HyperparametersMixin):
             alpha_latent: Assume that we're already starting from a latent space given
                 by the first ``h_outdim`` node features. In this case, this is the
                 strength of the residual connection
+            n_embedding_coords: Number of embedding coordinates for which to add a
+                residual connection. To be used with `alpha_latent`.
         """
         super().__init__()
         self.save_hyperparameters(ignore=["ec", "hc_in"])
@@ -269,7 +272,11 @@ class ModularGraphTCN(nn.Module, HyperparametersMixin):
 
         h = self.p_cluster(h_hc)
         if alpha := self.hparams.alpha_latent:
-            h = (1 - alpha) * h + alpha * data.x[:, : self.hparams.h_outdim]
+            nec = self.hparams.n_embedding_coords
+            assert nec > 0
+            assert nec <= h.shape[1]
+            _pad = (0, h.shape[1] - nec)
+            h = (1 - alpha) * h + alpha * nn.functional.pad(data.x[:, :nec], _pad)
         h *= self._latent_normalization
         # track_params, _ = self.p_track_param(
         #     h_hc, data.edge_index, torch.cat(edge_attrs_hc, dim=1)
