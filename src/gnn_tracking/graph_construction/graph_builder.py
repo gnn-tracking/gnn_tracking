@@ -385,7 +385,7 @@ class GraphBuilder:
         pid1 = hits.particle_id.loc[edges.index_1].to_numpy()
         pid2 = hits.particle_id.loc[edges.index_2].to_numpy()
         y = np.zeros(len(pid1))
-        y[:] = (pid1 == pid2) & (pid1 > 0) & (pid2 > 0)
+        y[:] = (pid1 == pid2) & (pid1 > 0)
         if self._remove_intersecting:
             y, _ = self.correct_truth_labels(
                 hits, edges[["index_1", "index_2"]], y, pid1
