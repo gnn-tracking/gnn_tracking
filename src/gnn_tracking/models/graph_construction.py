@@ -318,7 +318,7 @@ class MLGraphConstruction(nn.Module, HyperparametersMixin):
         )
         y: T = (  # type: ignore
             data.particle_id[edge_index[0]] == data.particle_id[edge_index[1]]
-        )
+        ) & (data.particle_id[edge_index[0]] > 0)
         if not self._ml or not self.hparams.use_embedding_features:
             x = data.x
         else:
