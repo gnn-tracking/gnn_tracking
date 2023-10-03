@@ -49,7 +49,7 @@ def binary_focal_loss(
     target: T,
     alpha: float = 0.25,
     gamma: float = 2.0,
-    pos_weight: T = T([1]),  # noqa: B008
+    pos_weight: T = None,
 ) -> T:
     """Binary Focal Loss, following https://arxiv.org/abs/1708.02002.
 
@@ -60,6 +60,9 @@ def binary_focal_loss(
         gamma: Focusing parameter
         pos_weight: Can be used to balance precision/recall
     """
+    if pos_weight is None:
+        pos_weight = torch.tensor([1.0], device=inpt.device)
+
     assert gamma >= 0.0
     assert 0 <= alpha <= 1
     assert not torch.isnan(inpt).any()

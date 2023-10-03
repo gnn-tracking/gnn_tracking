@@ -338,4 +338,6 @@ def get_cc_labels(edge_index: T, num_nodes: int) -> T:
     index_mapping = {
         node: index for index, node_set in enumerate(components) for node in node_set
     }
-    return T([index_mapping[node] for node in gx.nodes()])
+    return torch.tensor(
+        [index_mapping[node] for node in gx.nodes()], device=edge_index.device
+    )
