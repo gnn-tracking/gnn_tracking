@@ -143,17 +143,18 @@ class EdgeWeightFocalLoss(FalsifyLowPtEdgeWeightLoss):
         See `binary_focal_loss` for details.
         """
         super().__init__(**kwargs)
-        if pos_weight is None:
-            pos_weight = T([1.0])
         self.save_hyperparameters()
 
     def _forward(self, *, w: T, y: T, **kwargs) -> T:
+        pos_weight = self.hparams.pos_weight
+        if pos_weight is None:
+            pos_weight = torch.tensor([1.0], device=w.device)
         return binary_focal_loss(
             inpt=w,
             target=y,
             alpha=self.hparams.alpha,
             gamma=self.hparams.gamma,
-            pos_weight=self.hparams.pos_weight,
+            pos_weight=pos_weight,
         )
 
 
