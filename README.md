@@ -55,9 +55,13 @@ to trigger a fixup commit from `pre-commit`.
 
 To skip the slowest tests with `pytest`, run `pytest --no-slow`.
 
-## 💚 Contributing
+## 💚 Contributing, contact, citation
 
-A good place to start are the [issues marked with 'good first issue'][gfi]. It is always best to have the issue assigned to you before starting to work on it. You can also [reach us per mail][ml].
+You can [reach us per mail][ml].
+You can cite this software with the zenodo DOI.
+Please also cite our [latest preprint][preprint].
+
+A good place to start contributing are the [issues marked with 'good first issue'][gfi]. It is always best to have the issue assigned to you before starting to work on it.
 
 Core developers ([emoji key](https://allcontributors.org/docs/en/emoji-key)):
 
@@ -102,10 +106,6 @@ Thanks also goes to these wonderful people:
 <!-- ALL-CONTRIBUTORS-LIST:END -->
 
 This project follows the [all-contributors](https://github.com/all-contributors/all-contributors) specification. Contributions of any kind welcome!
-
-## 🖋️ Contact
-
-[Write to our mailing list.][ml]
 
 [organization-readme]: https://github.com/gnn-tracking
 [gfi]: https://github.com/gnn-tracking/gnn_tracking/issues?q=is%3Aissue+is%3Aopen+sort%3Aupdated-desc+label%3A%22good+first+issue%22
