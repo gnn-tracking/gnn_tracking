@@ -57,10 +57,10 @@ To skip the slowest tests with `pytest`, run `pytest --no-slow`.
 ## 💚 Contributing, contact, citation
 
 You can [reach us per mail][ml].
-You can cite this software with the zenodo DOI. 
+You can cite this software with the zenodo DOI.
 Please also cite our [latest preprint][preprint].
 
-A good place to start contributing are the [issues marked with 'good first issue'][gfi]. It is always best to have the issue assigned to you before starting to work on it. 
+A good place to start contributing are the [issues marked with 'good first issue'][gfi]. It is always best to have the issue assigned to you before starting to work on it.
 
 Core developers ([emoji key](https://allcontributors.org/docs/en/emoji-key)):
 
