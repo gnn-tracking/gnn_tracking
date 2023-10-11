@@ -18,6 +18,7 @@
 This repository holds the main python package for the GNN Tracking project.
 See the [readme of the organization][organization-readme] for an overview of the task.
 An early version of the pipeline implemented here is written up in this [preprint][].
+More resources are provided in the reading list [here][organization-readme].
 
 * 🔋 Batteries included: This repository implements a hole pipeline: from preprocessing to models,
   to the evaluation of the final performance metrics.
