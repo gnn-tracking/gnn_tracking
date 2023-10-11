@@ -190,7 +190,7 @@ class HaughtyFocalLoss(torch.nn.Module, HyperparametersMixin):
 
 
 # jit fusion currently doesn't work, see #312
-# @torch.jit.script
+@torch.jit.script
 def _condensation_loss(
     *,
     beta: T,
