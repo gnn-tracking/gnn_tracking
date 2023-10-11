@@ -202,14 +202,16 @@ def _condensation_loss(
 ) -> dict[str, T]:
     """Extracted function for JIT-compilation. See `PotentialLoss` for details."""
     # x: n_nodes x n_outdim
-    pids = torch.unique(particle_id[particle_id > 0])
-    assert len(pids) > 0, "No particles found, cannot evaluate loss"
+    unique_pids = torch.unique(particle_id[particle_id > 0])
+    assert len(unique_pids) > 0, "No particles found, cannot evaluate loss"
     # n_nodes x n_pids
-    pid_masks = particle_id[:, None] == pids[None, :]  # type: ignore
+    # The nodes in every column correspond to the hits of a single particle and
+    # should attract each other
+    attractive_mask = particle_id[:, None] == unique_pids[None, :]  # type: ignore
 
     q = torch.arctanh(beta) ** 2 + q_min
     assert not torch.isnan(q).any(), "q contains NaNs"
-    alphas = torch.argmax(q[:, None] * pid_masks, dim=0)
+    alphas = torch.argmax(q[:, None] * attractive_mask, dim=0)
 
     # n_pids x n_outdim
     x_alphas = x[alphas]
@@ -217,12 +219,12 @@ def _condensation_loss(
     q_alphas = q[alphas][None, :]
 
     # n_nodes x n_pids
-    dist = torch.cdist(x[:, :], x_alphas[:, :])
+    dist = torch.cdist(x, x_alphas)
 
     # Attractive potential (n_nodes x n_pids)
-    va = q[:, None] * pid_masks * torch.square(dist) * q_alphas
+    va = q[:, None] * attractive_mask * torch.square(dist) * q_alphas
     # Repulsive potential (n_nodes x n_pids)
-    vr = q[:, None] * (~pid_masks) * relu(radius_threshold - dist) * q_alphas
+    vr = q[:, None] * (~attractive_mask) * relu(radius_threshold - dist) * q_alphas
 
     return {
         "attractive": torch.sum(torch.mean(va[mask], dim=0)),
