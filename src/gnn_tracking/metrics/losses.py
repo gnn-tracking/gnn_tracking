@@ -217,7 +217,7 @@ def _condensation_loss(
     q_alphas = q[alphas][None, :]
 
     # n_nodes x n_pids
-    dist = torch.cdist(x[:, :], x_alphas[:, :])
+    dist = torch.cdist(x, x_alphas)
 
     # Attractive potential (n_nodes x n_pids)
     va = q[:, None] * pid_masks * torch.square(dist) * q_alphas
