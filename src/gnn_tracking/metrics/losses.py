@@ -17,6 +17,7 @@ from torch.linalg import norm
 from torch.nn.functional import binary_cross_entropy, mse_loss, relu
 from torch_cluster import radius_graph
 
+from gnn_tracking.utils.graph_masks import get_good_node_mask_tensors
 from gnn_tracking.utils.log import logger
 
 
@@ -189,49 +190,6 @@ class HaughtyFocalLoss(torch.nn.Module, HyperparametersMixin):
         )
 
 
-# jit fusion currently doesn't work, see #312
-# @torch.jit.script
-def _condensation_loss(
-    *,
-    beta: T,
-    x: T,
-    particle_id: T,
-    mask: T,
-    q_min: float,
-    radius_threshold: float,
-) -> dict[str, T]:
-    """Extracted function for JIT-compilation. See `PotentialLoss` for details."""
-    # x: n_nodes x n_outdim
-    unique_pids = torch.unique(particle_id[particle_id > 0])
-    assert len(unique_pids) > 0, "No particles found, cannot evaluate loss"
-    # n_nodes x n_pids
-    # The nodes in every column correspond to the hits of a single particle and
-    # should attract each other
-    attractive_mask = particle_id[:, None] == unique_pids[None, :]  # type: ignore
-
-    q = torch.arctanh(beta) ** 2 + q_min
-    assert not torch.isnan(q).any(), "q contains NaNs"
-    alphas = torch.argmax(q[:, None] * attractive_mask, dim=0)
-
-    # n_pids x n_outdim
-    x_alphas = x[alphas]
-    # 1 x n_pids
-    q_alphas = q[alphas][None, :]
-
-    # n_nodes x n_pids
-    dist = torch.cdist(x, x_alphas)
-
-    # Attractive potential (n_nodes x n_pids)
-    va = q[:, None] * attractive_mask * torch.square(dist) * q_alphas
-    # Repulsive potential (n_nodes x n_pids)
-    vr = q[:, None] * (~attractive_mask) * relu(radius_threshold - dist) * q_alphas
-
-    return {
-        "attractive": torch.sum(torch.mean(va[mask], dim=0)),
-        "repulsive": torch.sum(torch.mean(vr, dim=0)),
-    }
-
-
 def _first_occurrences(input_array: T) -> T:
     """Return the first occurrence of each unique element in a 1D array"""
     return torch.tensor(
@@ -244,7 +202,7 @@ def _square_distances(edges: T, positions: T) -> T:
     return torch.sum((positions[edges[0]] - positions[edges[1]]) ** 2, dim=-1)
 
 
-def _fast_condensation_loss(
+def _radius_graph_condensation_loss(
     *,
     beta: T,
     x: T,
@@ -321,27 +279,93 @@ def _fast_condensation_loss(
     }
 
 
-class PotentialLoss(torch.nn.Module, HyperparametersMixin):
-    def __init__(
-        self, q_min=0.01, radius_threshold=1.0, attr_pt_thld=0.9, max_neighbors=0
-    ):
-        """Potential/condensation loss (specific to object condensation approach).
+@torch.compile
+def condensation_loss_tiger(
+    *,
+    beta: T,
+    x: T,
+    object_id: T,
+    object_weights: T,
+    q_min: float,
+    noise_threshold: int,
+    max_n_rep: int,
+) -> dict[str, T]:
+    """Extracted function for torch compilation. See `condensation_loss_tiger` for
+    docstring.
+    """
+    # To protect against nan in divisions
+    eps = 1e-9
 
-        Args:
-            q_min: Minimal charge ``q``
-            radius_threshold: Parameter of repulsive potential
-            attr_pt_thld: Truth-level threshold for hits/tracks to consider in
-                attractive loss [GeV]
-            max_neighbors: Parameter to determine maximum number of edges drawn
-                from each node while calculating repulsive loss. If set to 0,
-                non-approximate loss is calculated.
-        """
+    # x: n_nodes x n_outdim
+    not_noise = object_id > noise_threshold
+    unique_oids = torch.unique(object_id[not_noise])
+    assert len(unique_oids) > 0, "No particles found, cannot evaluate loss"
+    # n_nodes x n_pids
+    # The nodes in every column correspond to the hits of a single particle and
+    # should attract each other
+    attractive_mask = object_id.view(-1, 1) == unique_oids.view(1, -1)
+
+    q = torch.arctanh(beta) ** 2 + q_min
+    assert not torch.isnan(q).any(), "q contains NaNs"
+    # n_objs
+    alphas = torch.argmax(q.view(-1, 1) * attractive_mask, dim=0)
+
+    # _j means indexed by hits
+    # _k means indexed by objects
+
+    # n_objs x n_outdim
+    x_k = x[alphas]
+    # 1 x n_objs
+    q_k = q[alphas].view(1, -1)
+
+    dist_j_k = torch.cdist(x, x_k)
+
+    qw_j_k = object_weights[alphas].view(1, -1) * q.view(-1, 1) * q_k
+
+    att_norm_k = (attractive_mask.sum(dim=0) + eps) * len(unique_oids)
+    qw_att = (qw_j_k / att_norm_k)[attractive_mask]
+
+    # Attractive potential/loss
+    v_att = (qw_att * torch.square(dist_j_k[attractive_mask])).sum()
+
+    repulsive_mask = (~attractive_mask) & (dist_j_k < 1)
+    n_rep_k = (~attractive_mask).sum(dim=0)
+    n_rep = repulsive_mask.sum()
+    # Don't normalize to repulsive_mask, it includes the dist < 1 count,
+    # (less points within the radius 1 ball should translate to lower loss)
+    rep_norm = (n_rep_k + eps) * len(unique_oids)
+    if n_rep > max_n_rep > 0:
+        sampling_freq = max_n_rep / n_rep
+        sampling_mask = (
+            torch.rand_like(repulsive_mask, dtype=torch.float16) < sampling_freq
+        )
+        repulsive_mask &= sampling_mask
+        rep_norm *= sampling_freq
+    qw_rep = (qw_j_k / rep_norm)[repulsive_mask]
+    v_rep = (qw_rep * (1 - dist_j_k[repulsive_mask])).sum()
+
+    l_coward = torch.mean(1 - beta[alphas])
+    l_noise = torch.mean(beta[~not_noise])
+
+    return {
+        "attractive": v_att,
+        "repulsive": v_rep,
+        "coward": l_coward,
+        "noise": l_noise,
+        "n_rep": n_rep,
+    }
+
+
+class CondensationLossTiger(torch.nn.Module, HyperparametersMixin):
+    def __init__(
+        self,
+        q_min: float = 0.01,
+        pt_thld: float = 0.9,
+        max_eta: float = 4.0,
+        max_n_rep: int = 0,
+    ):
         super().__init__()
         self.save_hyperparameters()
-        self.q_min = q_min
-        self.radius_threshold = radius_threshold
-        self.pt_thld = attr_pt_thld
-        self.max_neighbors = max_neighbors
 
     # noinspection PyUnusedLocal
     def forward(
@@ -353,6 +377,7 @@ class PotentialLoss(torch.nn.Module, HyperparametersMixin):
         reconstructable: T,
         pt: T,
         ec_hit_mask: T | None = None,
+        eta: T,
         **kwargs,
     ) -> dict[str, T]:
         if ec_hit_mask is not None:
@@ -362,60 +387,47 @@ class PotentialLoss(torch.nn.Module, HyperparametersMixin):
             particle_id = particle_id[ec_hit_mask]
             reconstructable = reconstructable[ec_hit_mask]
             pt = pt[ec_hit_mask]
-        mask = (reconstructable > 0) & (pt > self.pt_thld)
+        mask = get_good_node_mask_tensors(
+            pt=pt,
+            particle_id=particle_id,
+            reconstructable=reconstructable,
+            eta=eta,
+            pt_thld=self.hparams.pt_thld,
+            max_eta=self.hparams.max_eta,
+        )
         # If there are no hits left after masking, then we get a NaN loss.
         assert mask.sum() > 0, "No hits left after masking"
-        if self.max_neighbors <= 0:
-            return _condensation_loss(
-                beta=beta,
-                x=x,
-                particle_id=particle_id,
-                mask=mask,
-                q_min=self.q_min,
-                radius_threshold=self.radius_threshold,
-            )
-        return _fast_condensation_loss(
+        weights = mask.long()
+        return condensation_loss_tiger(
             beta=beta,
             x=x,
-            particle_id=particle_id,
-            mask=mask,
-            q_min=self.q_min,
-            radius_threshold=self.radius_threshold,
-            max_num_neighbors=self.max_neighbors,
+            object_id=particle_id,
+            object_weights=weights,
+            q_min=self.hparams.q_min,
+            noise_threshold=0.0,
+            max_n_rep=self.hparams.max_n_rep,
         )
 
 
 # _first_occurrences prevents jit
 # @torch.jit.script
-def _background_loss(*, beta: T, particle_id: T, sb: float) -> T:
-    """Extracted function for JIT-compilation. See `BackgroundLoss` for details."""
+def _background_loss(*, beta: T, particle_id: T) -> T:
+    """Extracted function for JIT-compilation."""
     sorted_indices = torch.argsort(beta, descending=True)
     ids_sorted = particle_id[sorted_indices]
     noisy_alphas = sorted_indices[_first_occurrences(ids_sorted)]
     alphas = noisy_alphas[particle_id[noisy_alphas] > 0]
 
     beta_alphas = beta[alphas]
-    loss = torch.mean(1 - beta_alphas)
+    coward_loss = torch.mean(1 - beta_alphas)
     noise_mask = particle_id == 0
+    noise_loss = 0
     if noise_mask.any():
-        loss += sb * torch.mean(beta[noise_mask])
-    return loss
-
-
-class BackgroundLoss(torch.nn.Module, HyperparametersMixin):
-    def __init__(self, sb=0.1):
-        super().__init__()
-        #: Strength of noise suppression
-        self.sb = sb
-        self.save_hyperparameters()
-
-    # noinspection PyUnusedLocal
-    def forward(
-        self, *, beta: T, particle_id: T, ec_hit_mask: T | None = None, **kwargs
-    ) -> T:
-        if ec_hit_mask is not None:
-            particle_id = particle_id[ec_hit_mask]
-        return _background_loss(beta=beta, particle_id=particle_id, sb=self.sb)
+        noise_loss = torch.mean(beta[noise_mask])
+    return {
+        "coward": coward_loss,
+        "noise": noise_loss,
+    }
 
 
 class ObjectLoss(torch.nn.Module):
