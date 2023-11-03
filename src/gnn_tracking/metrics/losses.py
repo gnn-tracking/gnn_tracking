@@ -285,20 +285,24 @@ def condensation_loss_tiger(
     beta: T,
     x: T,
     object_id: T,
-    object_weights: T,
+    object_mask: T,
     q_min: float,
     noise_threshold: int,
     max_n_rep: int,
 ) -> dict[str, T]:
     """Extracted function for torch compilation. See `condensation_loss_tiger` for
     docstring.
+
+    Args:
+        object_mask: Mask for the particles that should be considered for the loss
+            this is broadcased to n_hits
     """
     # To protect against nan in divisions
     eps = 1e-9
 
     # x: n_nodes x n_outdim
     not_noise = object_id > noise_threshold
-    unique_oids = torch.unique(object_id[not_noise])
+    unique_oids = torch.unique(object_id[object_mask])
     assert len(unique_oids) > 0, "No particles found, cannot evaluate loss"
     # n_nodes x n_pids
     # The nodes in every column correspond to the hits of a single particle and
@@ -320,7 +324,7 @@ def condensation_loss_tiger(
 
     dist_j_k = torch.cdist(x, x_k)
 
-    qw_j_k = object_weights[alphas].view(1, -1) * q.view(-1, 1) * q_k
+    qw_j_k = q.view(-1, 1) * q_k
 
     att_norm_k = (attractive_mask.sum(dim=0) + eps) * len(unique_oids)
     qw_att = (qw_j_k / att_norm_k)[attractive_mask]
@@ -345,6 +349,7 @@ def condensation_loss_tiger(
     v_rep = (qw_rep * (1 - dist_j_k[repulsive_mask])).sum()
 
     l_coward = torch.mean(1 - beta[alphas])
+    # todo: Should we use object_mask instead of not noise?
     l_noise = torch.mean(beta[~not_noise])
 
     return {
@@ -397,12 +402,11 @@ class CondensationLossTiger(torch.nn.Module, HyperparametersMixin):
         )
         # If there are no hits left after masking, then we get a NaN loss.
         assert mask.sum() > 0, "No hits left after masking"
-        weights = mask.long()
         return condensation_loss_tiger(
             beta=beta,
             x=x,
             object_id=particle_id,
-            object_weights=weights,
+            object_mask=mask,
             q_min=self.hparams.q_min,
             noise_threshold=0.0,
             max_n_rep=self.hparams.max_n_rep,
