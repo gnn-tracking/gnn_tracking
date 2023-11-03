@@ -6,11 +6,25 @@ def get_good_node_mask(data: Data, *, pt_thld: float = 0.9, max_eta: float = 4.0
     """Get a mask for nodes that are included in metrics and more.
     This includes lower limit on pt, not noise, reconstructable, cut on eta.
     """
+    return get_good_node_mask_tensors(
+        pt=data.pt,
+        particle_id=data.particle_id,
+        reconstructable=data.reconstructable,
+        eta=data.eta,
+        pt_thld=pt_thld,
+        max_eta=max_eta,
+    )
+
+
+def get_good_node_mask_tensors(
+    *, pt, particle_id, reconstructable, eta, pt_thld: float = 0.9, max_eta: float = 4.0
+) -> T:
+    """See `get_good_node_mask`"""
     return (
-        (data.pt > pt_thld)
-        & (data.particle_id > 0)
-        & (data.reconstructable > 0)
-        & (data.eta.abs() < max_eta)
+        (pt > pt_thld)
+        & (particle_id > 0)
+        & (reconstructable > 0)
+        & (eta.abs() < max_eta)
     )
 
 

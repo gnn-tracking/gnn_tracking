@@ -4,13 +4,11 @@
 # ruff: noqa: ARG002
 
 import collections
-import math
 from typing import Any
 
 from torch import Tensor
 from torch_geometric.data import Data
 
-from gnn_tracking.metrics.losses import BackgroundLoss, PotentialLoss
 from gnn_tracking.postprocessing.clusterscanner import ClusterScanner
 from gnn_tracking.training.base import TrackingModule
 from gnn_tracking.utils.dictionaries import add_key_suffix, to_floats
@@ -23,11 +21,11 @@ class TCModule(TrackingModule):
     def __init__(
         self,
         *,
-        potential_loss: PotentialLoss = PotentialLoss(),  # noqa: B008
-        background_loss: BackgroundLoss | None = BackgroundLoss(),  # noqa: B008
+        loss_fct,
         cluster_scanner: ClusterScanner | None = None,
         lw_repulsive: float = 1.0,
-        lw_background: float = 1.0,
+        lw_noise: float = 0.0,
+        lw_coward: float = 0.0,
         **kwargs,
     ):
         """Object condensation for tracks. This lightning module implements
@@ -45,37 +43,15 @@ class TCModule(TrackingModule):
         super().__init__(**kwargs)
         self.save_hyperparameters(
             "lw_repulsive",
-            "lw_background",
+            "lw_noise",
+            "lw_coward",
         )
-        self.potential_loss = obj_from_or_to_hparams(
-            self, "potential_loss", potential_loss
-        )
-        self.background_loss = obj_from_or_to_hparams(
-            self, "background_loss", background_loss
-        )
+        self.loss_fct = obj_from_or_to_hparams(self, "loss_fct", loss_fct)
         self.cluster_scanner = obj_from_or_to_hparams(
             self, "cluster_scanner", cluster_scanner
         )
         self._cluster_scan_input = collections.defaultdict(list)
         self._best_cluster_params = {}
-        self._validate_settings()
-
-    def _validate_settings(self):
-        """Check that settings make sense and warn/raise exceptions otherwise."""
-        if (
-            math.isclose(self.hparams.lw_background, 0.0)
-            and self.background_loss is not None
-        ):
-            self.logg.warning(
-                "Background loss weight is ~0.0. You probably want to set "
-                "background_loss=None to disable it completely (for speedup)."
-            )
-        if (
-            not math.isclose(self.hparams.lw_background, 0.0)
-            and self.background_loss is None
-        ):
-            msg = "Background loss weight is non-zero but background_loss=None"
-            raise ValueError(msg)
 
     def is_last_val_batch(self, batch_idx: int) -> bool:
         """Are we validating the last batch of the validation set?"""
@@ -84,27 +60,23 @@ class TCModule(TrackingModule):
     def get_losses(
         self, out: dict[str, Any], data: Data
     ) -> tuple[Tensor, dict[str, float]]:
-        losses = self.potential_loss(
+        losses = self.loss_fct(
             x=out["H"],
             particle_id=data.particle_id,
             beta=out["B"],
             pt=data.pt,
             reconstructable=data.reconstructable,
+            eta=data.eta,
             ec_hit_mask=out.get("ec_hit_mask", None),
         )
         lws = {
             "attractive": 1.0,
             "repulsive": self.hparams["lw_repulsive"],
-            "background": self.hparams["lw_background"],
+            "noise": self.hparams["lw_noise"],
+            "coward": self.hparams["lw_coward"],
         }
-        if self.background_loss is not None:
-            losses["background"] = self.background_loss(
-                beta=out["B"],
-                particle_id=data.particle_id,
-                ec_hit_mask=out.get("ec_hit_mask", None),
-            )
-        loss = sum(lws[k] * v for k, v in losses.items())
-        losses |= {f"{k}_weighted": v * lws[k] for k, v in losses.items()}
+        loss = sum(weight * losses[k] for k, weight in lws.items())
+        losses |= {f"{k}_weighted": losses[k] * weight for k, weight in lws.items()}
         losses["total"] = loss
         return loss, to_floats(losses)
 
