@@ -102,7 +102,7 @@ class PointCloudTCN(nn.Module):
         self,
         data: Data,
         alpha: float = 0.5,
-    ) -> dict[str, Tensor]:
+    ) -> dict[str, Tensor | None]:
         # apply the edge classifier to generate edge weights
         h = data.x
         for layer in self.layers:

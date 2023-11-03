@@ -50,7 +50,7 @@ def binary_focal_loss(
     target: T,
     alpha: float = 0.25,
     gamma: float = 2.0,
-    pos_weight: T = None,
+    pos_weight: T | None = None,
 ) -> T:
     """Binary Focal Loss, following https://arxiv.org/abs/1708.02002.
 
@@ -255,6 +255,7 @@ def _radius_graph_condensation_loss(
     unmasked_attraction_edges = (
         torch.arange(len(particle_id), device=x.device).unsqueeze(0).repeat(2, 1)
     )
+    # fixme: What about the case where there are no associated CPs (noise hits etc)?
     unmasked_attraction_edges[1, ~alpha_hits_filter] = alpha_indices
 
     # Apply mask to attraction edges
@@ -364,10 +365,12 @@ def condensation_loss_tiger(
 class CondensationLossTiger(torch.nn.Module, HyperparametersMixin):
     def __init__(
         self,
+        *,
         q_min: float = 0.01,
         pt_thld: float = 0.9,
         max_eta: float = 4.0,
         max_n_rep: int = 0,
+        sample_pids: float = 1.0,
     ):
         super().__init__()
         self.save_hyperparameters()
@@ -400,6 +403,11 @@ class CondensationLossTiger(torch.nn.Module, HyperparametersMixin):
             pt_thld=self.hparams.pt_thld,
             max_eta=self.hparams.max_eta,
         )
+        if self.hparams.sample_pids < 1:
+            sample_mask = (
+                torch.rand_like(beta, dtype=torch.float16) < self.hparams.sample_pids
+            )
+            mask &= sample_mask
         # If there are no hits left after masking, then we get a NaN loss.
         assert mask.sum() > 0, "No hits left after masking"
         return condensation_loss_tiger(
@@ -415,7 +423,7 @@ class CondensationLossTiger(torch.nn.Module, HyperparametersMixin):
 
 # _first_occurrences prevents jit
 # @torch.jit.script
-def _background_loss(*, beta: T, particle_id: T) -> T:
+def _background_loss(*, beta: T, particle_id: T) -> dict[str, T]:
     """Extracted function for JIT-compilation."""
     sorted_indices = torch.argsort(beta, descending=True)
     ids_sorted = particle_id[sorted_indices]
@@ -425,7 +433,7 @@ def _background_loss(*, beta: T, particle_id: T) -> T:
     beta_alphas = beta[alphas]
     coward_loss = torch.mean(1 - beta_alphas)
     noise_mask = particle_id == 0
-    noise_loss = 0
+    noise_loss = torch.Tensor([0.0])
     if noise_mask.any():
         noise_loss = torch.mean(beta[noise_mask])
     return {
