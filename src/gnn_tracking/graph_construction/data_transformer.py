@@ -28,8 +28,8 @@ class DataTransformer:
         self,
         filename: str,
         *,
-        input_dir: os.PathLike,
-        output_dir: os.PathLike,
+        input_dir: os.PathLike | str,
+        output_dir: os.PathLike | str,
         redo: bool = True,
     ) -> None:
         """Process single file"""
@@ -60,8 +60,8 @@ class DataTransformer:
 
     def process_directories(
         self,
-        input_dirs: list[os.PathLike],
-        output_dirs: list[os.PathLike],
+        input_dirs: list[os.PathLike | str],
+        output_dirs: list[os.PathLike | str],
         *,
         redo=True,
         max_processes=1,
@@ -89,8 +89,8 @@ class DataTransformer:
         Returns:
             None
         """
-        input_dirs = [Path(p) for p in input_dirs]
-        output_dirs = [Path(p) for p in output_dirs]
+        input_dirs: list[Path] = [Path(p) for p in input_dirs]
+        output_dirs: list[Path] = [Path(p) for p in output_dirs]
         if len(input_dirs) != len(output_dirs):
             msg = "input_dirs and output_dirs must have the same length"
             raise ValueError(msg)
