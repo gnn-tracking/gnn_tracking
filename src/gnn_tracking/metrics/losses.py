@@ -277,6 +277,8 @@ def _radius_graph_condensation_loss(
     return {
         "attractive": (1 / mask.sum()) * torch.sum(va),
         "repulsive": (1 / x.size()[0]) * torch.sum(vr),
+        "noise": torch.tensor([0.0], device=beta.device),  # todo
+        "coward": torch.tensor([0.0], device=beta.device),  # todo
     }
 
 
@@ -360,6 +362,64 @@ def condensation_loss_tiger(
         "noise": l_noise,
         "n_rep": n_rep,
     }
+
+
+class CondensationLossRG(torch.nn.Module, HyperparametersMixin):
+    def __init__(
+        self,
+        *,
+        q_min: float = 0.01,
+        pt_thld: float = 0.9,
+        max_eta: float = 4.0,
+        max_num_neighbors: int = 256,
+        sample_pids: float = 1.0,
+    ):
+        super().__init__()
+        self.save_hyperparameters()
+
+    def forward(
+        self,
+        *,
+        beta: T,
+        x: T,
+        particle_id: T,
+        reconstructable: T,
+        pt: T,
+        ec_hit_mask: T | None = None,
+        eta: T,
+        **kwargs,
+    ) -> dict[str, T]:
+        if ec_hit_mask is not None:
+            # If a post-EC node mask was applied in the model, then all model outputs
+            # already include this mask, while everything gotten from the data
+            # does not. Hence, we apply it here.
+            particle_id = particle_id[ec_hit_mask]
+            reconstructable = reconstructable[ec_hit_mask]
+            pt = pt[ec_hit_mask]
+        mask = get_good_node_mask_tensors(
+            pt=pt,
+            particle_id=particle_id,
+            reconstructable=reconstructable,
+            eta=eta,
+            pt_thld=self.hparams.pt_thld,
+            max_eta=self.hparams.max_eta,
+        )
+        if self.hparams.sample_pids < 1:
+            sample_mask = (
+                torch.rand_like(beta, dtype=torch.float16) < self.hparams.sample_pids
+            )
+            mask &= sample_mask
+        # If there are no hits left after masking, then we get a NaN loss.
+        assert mask.sum() > 0, "No hits left after masking"
+        return _radius_graph_condensation_loss(
+            beta=beta,
+            x=x,
+            particle_id=particle_id,
+            mask=mask,
+            q_min=self.hparams.q_min,
+            radius_threshold=1.0,
+            max_num_neighbors=self.hparams.max_num_neighbors,
+        )
 
 
 class CondensationLossTiger(torch.nn.Module, HyperparametersMixin):
