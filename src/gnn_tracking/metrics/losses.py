@@ -262,8 +262,10 @@ def _radius_graph_condensation_loss(
     attraction_edges = unmasked_attraction_edges[:, mask]
 
     # -- 4. Calculate loss --
+    # Protect against sqrt not being differentiable around 0
+    eps = 1e-9
     repulsion_distances = radius_threshold - torch.sqrt(
-        _square_distances(repulsion_edges, x)
+        eps + _square_distances(repulsion_edges, x)
     )
     attraction_distances = _square_distances(attraction_edges, x)
 
@@ -374,6 +376,18 @@ class CondensationLossRG(torch.nn.Module, HyperparametersMixin):
         max_num_neighbors: int = 256,
         sample_pids: float = 1.0,
     ):
+        """Implementation of condensation loss that uses radius graph instead
+        calculating the whole n^2 distance matrix.
+
+        Args:
+            q_min (float, optional): See OC paper. Defaults to 0.01.
+            pt_thld (float, optional): pt thld for interesting particles. Defaults to 0.9.
+            max_eta (float, optional): eta thld for interesting particles. Defaults to 4.0.
+            max_num_neighbors (int, optional): Maximum number of neighbors to consider
+                for radius graphs. Defaults to 256.
+            sample_pids (float, optional): Further subsample particles to conserve
+                memory. Defaults to 1.0 (no sampling)
+        """
         super().__init__()
         self.save_hyperparameters()
 
@@ -432,6 +446,18 @@ class CondensationLossTiger(torch.nn.Module, HyperparametersMixin):
         max_n_rep: int = 0,
         sample_pids: float = 1.0,
     ):
+        """Implementation of condensation loss that directly calculates the n^2
+        distance matrix.
+
+        Args:
+            q_min (float, optional): See OC paper. Defaults to 0.01.
+            pt_thld (float, optional): pt thld for interesting particles. Defaults to 0.9.
+            max_eta (float, optional): eta thld for interesting particles. Defaults to 4.0.
+            max_n_rep (int, optional): Maximum number of repulsive edges to consider.
+                Defaults to 0 (all).
+            sample_pids (float, optional): Further subsample particles to conserve
+                memory. Defaults to 1.0 (no sampling)
+        """
         super().__init__()
         self.save_hyperparameters()
 
@@ -455,6 +481,7 @@ class CondensationLossTiger(torch.nn.Module, HyperparametersMixin):
             particle_id = particle_id[ec_hit_mask]
             reconstructable = reconstructable[ec_hit_mask]
             pt = pt[ec_hit_mask]
+            eta = eta[ec_hit_mask]
         mask = get_good_node_mask_tensors(
             pt=pt,
             particle_id=particle_id,
