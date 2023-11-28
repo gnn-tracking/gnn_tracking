@@ -8,6 +8,9 @@ model:
         edge_indim: 14
         hidden_dim: 3
         L_hc: 2
+    loss_fct:
+      class_path: gnn_tracking.metrics.losses.CondensationLossTiger
+      init_args: {}
     cluster_scanner:
       class_path: gnn_tracking.postprocessing.dbscanscanner.DBSCANHyperParamScanner
       init_args:

@@ -7,16 +7,16 @@ from torch.nn.functional import binary_cross_entropy
 from typing_extensions import TypeAlias
 
 from gnn_tracking.metrics.losses import (
+    CondensationLossRG,
+    CondensationLossTiger,
     EdgeWeightBCELoss,
     LossClones,
     ObjectLoss,
-    PotentialLoss,
-    _background_loss,
     binary_focal_loss,
     unpack_loss_returns,
 )
 
-T: TypeAlias = torch.tensor
+T: TypeAlias = torch.Tensor
 
 
 @dataclass
@@ -46,25 +46,27 @@ td1 = generate_test_data(10, n_particles=3, rng=np.random.default_rng(seed=0))
 td2 = generate_test_data(20, n_particles=3, rng=np.random.default_rng(seed=0))
 
 
-def get_condensation_loss(td: MockData, max_neighbors=0) -> float:
-    l = PotentialLoss(
-        q_min=0.01,
-        radius_threshold=1,
-        max_neighbors=max_neighbors,
-    )
-    loss_dct = l(
+def get_condensation_loss(td: MockData, *, strategy="tiger", **kwargs) -> float:
+    if strategy == "tiger":
+        loss_fct = CondensationLossTiger(
+            **kwargs,
+        )
+    elif strategy == "rg":
+        loss_fct = CondensationLossRG(
+            **kwargs,
+        )
+    else:
+        raise ValueError
+    loss_dct = loss_fct(
         beta=td.beta,
         x=td.x,
         particle_id=td.particle_id,
         reconstructable=torch.full((len(td.x),), True),
         pt=torch.full((len(td.x),), 2),
+        eta=torch.full((len(td.x),), 2.0),
     )
-    assert len(loss_dct) == 2
+    assert len(loss_dct) > 2
     return loss_dct["attractive"] + 10 * loss_dct["repulsive"]
-
-
-def get_background_loss(td: MockData) -> float:
-    return _background_loss(sb=0.1, beta=td.beta, particle_id=td.particle_id).item()
 
 
 def get_object_loss(td: MockData, **kwargs) -> float:
@@ -78,23 +80,8 @@ def get_object_loss(td: MockData, **kwargs) -> float:
 
 
 def test_potential_loss():
-    assert get_condensation_loss(td1) == approx(7.716561306915411)
-    assert get_condensation_loss(td2) == approx(7.189839086949652)
-
-
-def test_potential_loss_mnn1():
-    assert get_condensation_loss(td1, max_neighbors=1) == approx(0.8040101374173787)
-    assert get_condensation_loss(td2, max_neighbors=5) == approx(3.4882505316537546)
-    # should be very close to test_potential_loss
-    assert get_condensation_loss(td1, max_neighbors=10_000) == approx(7.716567176287947)
-    assert get_condensation_loss(td2, max_neighbors=100_000) == approx(
-        7.2796592923845145
-    )
-
-
-def test_background_loss():
-    assert get_background_loss(td1) == approx(0.12870374134954846)
-    assert get_background_loss(td2) == approx(0.16493608241281874)
+    assert get_condensation_loss(td1) == approx(6.459650814283677)
+    assert get_condensation_loss(td2) == approx(5.636204987639555)
 
 
 def test_object_loss_efficiency():
