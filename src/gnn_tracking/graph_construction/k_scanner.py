@@ -88,13 +88,28 @@ class KScanResults:
         return ax
 
     @cached_property
-    def _spline(self):
-        return CubicSpline(self.df["k"], self.df)
+    def _spline(self) -> tuple[CubicSpline, list[str], list[str]]:
+        """Spline object. Do not use this object directly but rather
+        only via `_eval_spline`.
+
+        Returns:
+            Spline object, list of columns that are nan, list of columns that are not
+                nan
+        """
+        # Cubic spline does not work with NaNs, so we need to be defensive
+        nan_col_mask = self.df.isna().any()
+        nan_cols = list(self.df.columns[nan_col_mask])
+        not_nan_cols = list(self.df.columns[~nan_col_mask])
+        return CubicSpline(self.df["k"], self.df[not_nan_cols]), nan_cols, not_nan_cols
 
     def _eval_spline(self, k: float) -> dict[str, float]:
+        spline, nan_cols, not_nan_cols = self._spline
+        _r = spline(k).squeeze().tolist()
         # Unclear why sometimes the spline returns a 2D array
-        _r = self._spline(k).squeeze().tolist()
-        return dict(zip(self.df.columns, _r))
+        result = dict(zip(not_nan_cols, _r))
+        for c in nan_cols:
+            result[c] = float("nan")
+        return result
 
     def _get_target_k(self, target: float) -> float:
         """K at which the 50%-segment fraction = target"""
