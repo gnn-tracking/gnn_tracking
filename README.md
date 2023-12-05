@@ -31,7 +31,7 @@ More resources are provided in the reading list [here][organization-readme].
 
 ## 🔥 Installation
 
-1. Install mamba or micromamba ([installation instructions][mamba install]).
+1. Install micromamba ([installation instructions][mamba install]).
    Conda works as well, but will be slow to solve the environment, so it's not
    recommended.
 2. Set up your environment with one of the `environment/*.yml` files (see the
@@ -43,7 +43,7 @@ More resources are provided in the reading list [here][organization-readme].
 A good place to get started are the [demo notebooks][demo].
 This package is versioned as [![CalVer YY.0M.MICRO](https://img.shields.io/badge/calver-YY.0M.MICRO-22bfda.svg)][calver].
 
-[mamba install]: https://mamba.readthedocs.io/en/latest/installation.html
+[mamba install]: [https://mamba.readthedocs.io/en/latest/installation.html](https://mamba.readthedocs.io/en/latest/installation/micromamba-installation.html)
 [demo]: https://github.com/gnn-tracking/tutorials
 [pre-commit]: https://pre-commit.com
 [calver]: https://calver.org/
