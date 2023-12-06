@@ -7,13 +7,14 @@ from torch.nn.functional import binary_cross_entropy
 from typing_extensions import TypeAlias
 
 from gnn_tracking.metrics.losses import (
+    LossClones,
+    unpack_loss_returns,
+)
+from gnn_tracking.metrics.losses.ec import EdgeWeightBCELoss, binary_focal_loss
+from gnn_tracking.metrics.losses.oc import (
     CondensationLossRG,
     CondensationLossTiger,
-    EdgeWeightBCELoss,
-    LossClones,
     ObjectLoss,
-    binary_focal_loss,
-    unpack_loss_returns,
 )
 
 T: TypeAlias = torch.Tensor

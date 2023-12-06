@@ -4,7 +4,7 @@ from typing import Any
 import pytest
 from pytorch_lightning import Trainer
 
-from gnn_tracking.metrics.losses import CondensationLossTiger
+from gnn_tracking.metrics.losses.oc import CondensationLossTiger
 from gnn_tracking.models.edge_classifier import ECForGraphTCN
 from gnn_tracking.models.track_condensation_networks import (
     GraphTCN,
