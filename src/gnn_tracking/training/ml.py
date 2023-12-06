@@ -12,7 +12,9 @@ from torch import Tensor as T
 from torch_geometric.data import Data
 
 from gnn_tracking.graph_construction.k_scanner import GraphConstructionKNNScanner
-from gnn_tracking.metrics.losses import GraphConstructionHingeEmbeddingLoss
+from gnn_tracking.metrics.losses.metric_learning import (
+    GraphConstructionHingeEmbeddingLoss,
+)
 from gnn_tracking.training.base import TrackingModule
 from gnn_tracking.utils.dictionaries import add_key_suffix, to_floats
 from gnn_tracking.utils.lightning import obj_from_or_to_hparams

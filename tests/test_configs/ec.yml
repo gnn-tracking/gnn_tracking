@@ -8,7 +8,7 @@ model:
         edge_indim: 14
         L_ec: 1
     loss_fct:
-      class_path: gnn_tracking.metrics.losses.EdgeWeightBCELoss
+      class_path: gnn_tracking.metrics.losses.ec.EdgeWeightBCELoss
       init_args: {}
     optimizer:
       class_path: torch.optim.Adam
