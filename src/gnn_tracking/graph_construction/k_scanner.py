@@ -48,6 +48,7 @@ class KScanResults:
         self.targets = targets
 
     def get_foms(self) -> dict[str, float]:
+        """Get figures of merit"""
         foms = {}
         for t in self.targets:
             fat = self._get_foms_at_target(t)
@@ -103,6 +104,9 @@ class KScanResults:
         return CubicSpline(self.df["k"], self.df[not_nan_cols]), nan_cols, not_nan_cols
 
     def _eval_spline(self, k: float) -> dict[str, float]:
+        """Get figures of merit at k, using a spline for evaluation
+        between data points.
+        """
         spline, nan_cols, not_nan_cols = self._spline
         _r = spline(k).squeeze().tolist()
         # Unclear why sometimes the spline returns a 2D array
@@ -127,6 +131,7 @@ class KScanResults:
         ).x.item()
 
     def _get_foms_at_target(self, target: float) -> dict[str, float]:
+        """Get figures of merit at k given by `self._get_target_k`"""
         _nan_results = {k: float("nan") for k in self.df.columns}
         if len(self.df) < 2:
             return _nan_results
@@ -224,6 +229,9 @@ class GraphConstructionKNNScanner(HyperparametersMixin):
             self._results.append(r)
 
     def _evaluate_tracking_metrics_upper_bounds(self, data: Data) -> dict[str, float]:
+        """Evaluate upper bounds of tracking metrics assuming a pipeline with
+        perfect EC. See https://arxiv.org/abs/2309.16754
+        """
         y = data.y.bool()
         ei = data.edge_index[:, y]
         labels = get_cc_labels(ei, num_nodes=data.num_nodes)
