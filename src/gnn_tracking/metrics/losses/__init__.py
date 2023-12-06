@@ -1,15 +1,16 @@
 """This module contains loss functions for the GNN tracking model."""
 
 import copy
-from typing import Any, Mapping, Protocol, Union
+from dataclasses import dataclass, field
+from typing import Any, Mapping, Union
 
 import torch
-from torch import Tensor
+from torch import Tensor as T
 
 from gnn_tracking.utils.log import logger
 
 
-def unpack_loss_returns(key: str, returns: Any) -> dict[str, float | Tensor]:
+def unpack_loss_returns(key: str, returns: Any) -> dict[str, float | T]:
     """Some of our loss functions return a dictionary or a list of individual losses.
     This function unpacks these into a dictionary of individual losses with appropriate
     keys.
@@ -24,18 +25,40 @@ def unpack_loss_returns(key: str, returns: Any) -> dict[str, float | Tensor]:
     if isinstance(returns, Mapping):
         return {f"{key}_{k}": v for k, v in returns.items()}
     if isinstance(returns, (list, tuple)):
-        # Don't put 'Sequence' here, because Tensors are Sequences
+        # Don't put 'Sequence' here, because Ts are Sequences
         return {f"{key}_{i}": v for i, v in enumerate(returns)}
     return {key: returns}
 
 
-class LossFctType(Protocol):
-    """Type of a loss function"""
+@dataclass(kw_only=True)
+class MultiLossFctReturn:
+    """Return type for loss functions that return multiple losses."""
 
-    def __call__(self, *args: Any, **kwargs: Any) -> Tensor:
-        ...
+    #: Split up losses
+    loss_dct: dict[str, T]
+    #: Weights
+    weight_dct: dict[str, T]
+    #: Other things that should be logged
+    extra_metrics: dict[str, Any] = field(default_factory=dict)
 
-    def to(self, device: torch.device) -> "LossFctType":
+    def __post_init__(self) -> None:
+        assert self.loss_dct.keys() == self.weight_dct.keys()
+
+    @property
+    def loss(self) -> T:
+        loss = sum(self.weighted_losses.values())
+        assert isinstance(loss, torch.Tensor)
+        return loss
+
+    @property
+    def weighted_losses(self) -> dict[str, T]:
+        return {k: v * self.weight_dct[k] for k, v in self.loss_dct.items()}
+
+
+class MultiLossFct(torch.nn.Module):
+    """Base class for loss functions that return multiple losses."""
+
+    def forward(self, *args: Any, **kwargs: Any) -> MultiLossFctReturn:
         ...
 
 
@@ -86,7 +109,7 @@ class LossClones(torch.nn.Module):
         self._loss = loss
         self._prefixes = prefixes
 
-    def forward(self, **kwargs) -> dict[str, Tensor]:
+    def forward(self, **kwargs) -> dict[str, T]:
         kwargs = copy.copy(kwargs)
         for prefix in self._prefixes:
             if prefix in kwargs:

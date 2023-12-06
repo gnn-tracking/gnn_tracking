@@ -1,10 +1,11 @@
 import torch
 from pytorch_lightning.core.mixins import HyperparametersMixin
 from torch import Tensor as T
-from torch import nn
 from torch.linalg import norm
 from torch.nn.functional import relu
 from torch_cluster import radius_graph
+
+from gnn_tracking.metrics.losses import MultiLossFct, MultiLossFctReturn
 
 # ruff: noqa: ARG002
 
@@ -34,11 +35,12 @@ def _hinge_loss_components(
     )
 
 
-class GraphConstructionHingeEmbeddingLoss(nn.Module, HyperparametersMixin):
+class GraphConstructionHingeEmbeddingLoss(MultiLossFct, HyperparametersMixin):
     # noinspection PyUnusedLocal
     def __init__(
         self,
         *,
+        lw_repulsive=1.0,
         r_emb=1,
         max_num_neighbors: int = 256,
         attr_pt_thld: float = 0.9,
@@ -48,6 +50,7 @@ class GraphConstructionHingeEmbeddingLoss(nn.Module, HyperparametersMixin):
         """Loss for graph construction using metric learning.
 
         Args:
+            lw_repulsive: Loss weight for repulsive part of potential loss
             r_emb: Radius for edge construction
             max_num_neighbors: Maximum number of neighbors in radius graph building.
                 See https://github.com/rusty1s/pytorch_cluster#radius-graph
@@ -73,7 +76,7 @@ class GraphConstructionHingeEmbeddingLoss(nn.Module, HyperparametersMixin):
     # noinspection PyUnusedLocal
     def forward(
         self, *, x: T, particle_id: T, batch: T, true_edge_index: T, pt: T, **kwargs
-    ) -> dict[str, T]:
+    ) -> MultiLossFctReturn:
         edge_index = self._build_graph(
             x=x, batch=batch, true_edge_index=true_edge_index, pt=pt
         )
@@ -87,7 +90,15 @@ class GraphConstructionHingeEmbeddingLoss(nn.Module, HyperparametersMixin):
             p_attr=self.hparams.p_attr,
             p_rep=self.hparams.p_rep,
         )
-        return {
+        losses = {
             "attractive": attr,
             "repulsive": rep,
         }
+        weights: dict[str, float] = {
+            "attractive": 1.0,
+            "repulsive": self.hparams.lw_repulsive,
+        }
+        return MultiLossFctReturn(
+            loss_dct=losses,
+            weight_dct=weights,
+        )
