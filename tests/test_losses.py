@@ -65,7 +65,7 @@ def get_condensation_loss(td: MockData, *, strategy="tiger", **kwargs) -> float:
         reconstructable=torch.full((len(td.x),), True),
         pt=torch.full((len(td.x),), 2),
         eta=torch.full((len(td.x),), 2.0),
-    )
+    ).loss_dct
     assert len(loss_dct) > 2
     return loss_dct["attractive"] + 10 * loss_dct["repulsive"]
 

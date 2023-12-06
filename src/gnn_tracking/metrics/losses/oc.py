@@ -5,6 +5,7 @@ from torch import Tensor as T
 from torch.nn.functional import mse_loss
 from torch_cluster import radius_graph
 
+from gnn_tracking.metrics.losses import MultiLossFct, MultiLossFctReturn
 from gnn_tracking.utils.graph_masks import get_good_node_mask_tensors
 from gnn_tracking.utils.log import logger
 
@@ -105,10 +106,13 @@ def _radius_graph_condensation_loss(
     }
 
 
-class CondensationLossRG(torch.nn.Module, HyperparametersMixin):
+class CondensationLossRG(MultiLossFct, HyperparametersMixin):
     def __init__(
         self,
         *,
+        lw_repulsive: float = 1.0,
+        lw_noise: float = 0.0,
+        lw_coward: float = 0.0,
         q_min: float = 0.01,
         pt_thld: float = 0.9,
         max_eta: float = 4.0,
@@ -119,6 +123,9 @@ class CondensationLossRG(torch.nn.Module, HyperparametersMixin):
         calculating the whole n^2 distance matrix.
 
         Args:
+            lw_repulsive: Loss weight for repulsive part of potential loss
+            lw_noise: Loss weight for noise loss
+            lw_background: Loss weight for background loss
             q_min (float, optional): See OC paper. Defaults to 0.01.
             pt_thld (float, optional): pt thld for interesting particles. Defaults to 0.9.
             max_eta (float, optional): eta thld for interesting particles. Defaults to 4.0.
@@ -141,7 +148,7 @@ class CondensationLossRG(torch.nn.Module, HyperparametersMixin):
         ec_hit_mask: T | None = None,
         eta: T,
         **kwargs,
-    ) -> dict[str, T]:
+    ) -> MultiLossFctReturn:
         if ec_hit_mask is not None:
             # If a post-EC node mask was applied in the model, then all model outputs
             # already include this mask, while everything gotten from the data
@@ -164,7 +171,7 @@ class CondensationLossRG(torch.nn.Module, HyperparametersMixin):
             mask &= sample_mask
         # If there are no hits left after masking, then we get a NaN loss.
         assert mask.sum() > 0, "No hits left after masking"
-        return _radius_graph_condensation_loss(
+        loss_dict = _radius_graph_condensation_loss(
             beta=beta,
             x=x,
             particle_id=particle_id,
@@ -172,6 +179,17 @@ class CondensationLossRG(torch.nn.Module, HyperparametersMixin):
             q_min=self.hparams.q_min,
             radius_threshold=1.0,
             max_num_neighbors=self.hparams.max_num_neighbors,
+        )
+        weight_dict = {
+            "attractive": 1.0,
+            "repulsive": self.hparams.lw_repulsive,
+            "noise": self.hparams.lw_noise,
+            "coward": self.hparams.lw_coward,
+        }
+        return MultiLossFctReturn(
+            loss=sum(loss_dict[k] * weight_dict[k] for k in loss_dict),
+            loss_dct=loss_dict,
+            weight_dct=weight_dict,
         )
 
 
@@ -185,13 +203,17 @@ def condensation_loss_tiger(
     q_min: float,
     noise_threshold: int,
     max_n_rep: int,
-) -> dict[str, T]:
+) -> tuple[dict[str, T], dict[str, int | float]]:
     """Extracted function for torch compilation. See `condensation_loss_tiger` for
     docstring.
 
     Args:
         object_mask: Mask for the particles that should be considered for the loss
             this is broadcased to n_hits
+
+    Returns:
+        loss_dct: Dictionary of losses
+        extra_dct: Dictionary of extra information
     """
     # To protect against nan in divisions
     eps = 1e-9
@@ -248,19 +270,25 @@ def condensation_loss_tiger(
     # todo: Should we use object_mask instead of not noise?
     l_noise = torch.mean(beta[~not_noise])
 
-    return {
+    loss_dct = {
         "attractive": v_att,
         "repulsive": v_rep,
         "coward": l_coward,
         "noise": l_noise,
+    }
+    extra_dct = {
         "n_rep": n_rep,
     }
+    return loss_dct, extra_dct
 
 
-class CondensationLossTiger(torch.nn.Module, HyperparametersMixin):
+class CondensationLossTiger(MultiLossFct, HyperparametersMixin):
     def __init__(
         self,
         *,
+        lw_repulsive: float = 1.0,
+        lw_noise: float = 0.0,
+        lw_coward: float = 0.0,
         q_min: float = 0.01,
         pt_thld: float = 0.9,
         max_eta: float = 4.0,
@@ -271,6 +299,9 @@ class CondensationLossTiger(torch.nn.Module, HyperparametersMixin):
         distance matrix.
 
         Args:
+            lw_repulsive: Loss weight for repulsive part of potential loss
+            lw_noise: Loss weight for noise loss
+            lw_background: Loss weight for background loss
             q_min (float, optional): See OC paper. Defaults to 0.01.
             pt_thld (float, optional): pt thld for interesting particles. Defaults to 0.9.
             max_eta (float, optional): eta thld for interesting particles. Defaults to 4.0.
@@ -294,7 +325,7 @@ class CondensationLossTiger(torch.nn.Module, HyperparametersMixin):
         ec_hit_mask: T | None = None,
         eta: T,
         **kwargs,
-    ) -> dict[str, T]:
+    ) -> MultiLossFctReturn:
         if ec_hit_mask is not None:
             # If a post-EC node mask was applied in the model, then all model outputs
             # already include this mask, while everything gotten from the data
@@ -318,7 +349,7 @@ class CondensationLossTiger(torch.nn.Module, HyperparametersMixin):
             mask &= sample_mask
         # If there are no hits left after masking, then we get a NaN loss.
         assert mask.sum() > 0, "No hits left after masking"
-        return condensation_loss_tiger(
+        losses, extra = condensation_loss_tiger(
             beta=beta,
             x=x,
             object_id=particle_id,
@@ -326,6 +357,17 @@ class CondensationLossTiger(torch.nn.Module, HyperparametersMixin):
             q_min=self.hparams.q_min,
             noise_threshold=0.0,
             max_n_rep=self.hparams.max_n_rep,
+        )
+        weights = {
+            "attractive": 1.0,
+            "repulsive": self.hparams.lw_repulsive,
+            "noise": self.hparams.lw_noise,
+            "coward": self.hparams.lw_coward,
+        }
+        return MultiLossFctReturn(
+            loss_dct=losses,
+            weight_dct=weights,
+            extra_metrics=extra,
         )
 
 

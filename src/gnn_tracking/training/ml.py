@@ -12,6 +12,7 @@ from torch import Tensor as T
 from torch_geometric.data import Data
 
 from gnn_tracking.graph_construction.k_scanner import GraphConstructionKNNScanner
+from gnn_tracking.metrics.losses import MultiLossFct
 from gnn_tracking.metrics.losses.metric_learning import (
     GraphConstructionHingeEmbeddingLoss,
 )
@@ -26,8 +27,7 @@ class MLModule(TrackingModule):
     def __init__(
         self,
         *,
-        loss_fct: GraphConstructionHingeEmbeddingLoss,
-        lw_repulsive=1.0,
+        loss_fct: MultiLossFct,
         gc_scanner: GraphConstructionKNNScanner | None = None,
         **kwargs,
     ):
@@ -35,7 +35,6 @@ class MLModule(TrackingModule):
         learning approach to graph construction.
         """
         super().__init__(**kwargs)
-        self.save_hyperparameters("lw_repulsive")
         self.loss_fct: GraphConstructionHingeEmbeddingLoss = obj_from_or_to_hparams(
             self, "loss_fct", loss_fct
         )
@@ -47,21 +46,20 @@ class MLModule(TrackingModule):
             # For the point cloud data, we unfortunately saved the true edges
             # simply as edge_index.
             data.true_edge_index = data.edge_index
-        loss_dct = self.loss_fct(
+        losses = self.loss_fct(
             x=out["H"],
             particle_id=data.particle_id,
             batch=data.batch,
             true_edge_index=data.true_edge_index,
             pt=data.pt,
         )
-        lws = {
-            "attractive": 1.0,
-            "repulsive": self.hparams["lw_repulsive"],
-        }
-        loss = sum(lws[k] * v for k, v in loss_dct.items())
-        loss_dct |= {f"{k}_weighted": v * lws[k] for k, v in loss_dct.items()}
-        loss_dct["total"] = loss
-        return loss, to_floats(loss_dct)
+        metrics = (
+            losses.loss_dct
+            | to_floats(add_key_suffix(losses.weighted_losses, "_weighted"))
+            | losses.extra_metrics
+        )
+        metrics["total"] = float(losses.loss)
+        return losses.loss, metrics
 
     @tolerate_some_oom_errors
     def training_step(self, batch: Data, batch_idx: int) -> Tensor | None:

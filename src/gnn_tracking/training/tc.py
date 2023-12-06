@@ -9,6 +9,7 @@ from typing import Any
 from torch import Tensor
 from torch_geometric.data import Data
 
+from gnn_tracking.metrics.losses import MultiLossFct
 from gnn_tracking.postprocessing.clusterscanner import ClusterScanner
 from gnn_tracking.training.base import TrackingModule
 from gnn_tracking.utils.dictionaries import add_key_suffix, to_floats
@@ -21,11 +22,8 @@ class TCModule(TrackingModule):
     def __init__(
         self,
         *,
-        loss_fct,
+        loss_fct: MultiLossFct,
         cluster_scanner: ClusterScanner | None = None,
-        lw_repulsive: float = 1.0,
-        lw_noise: float = 0.0,
-        lw_coward: float = 0.0,
         **kwargs,
     ):
         """Object condensation for tracks. This lightning module implements
@@ -33,19 +31,11 @@ class TCModule(TrackingModule):
 
 
         Args:
-            potential_loss:
-            background_loss:
+            loss_fct:
             cluster_scanner:
-            lw_repulsive: Loss weight for repulsive part of potential loss
-            lw_background: Loss weight for background loss
             **kwargs: Passed on to `TrackingModule`
         """
         super().__init__(**kwargs)
-        self.save_hyperparameters(
-            "lw_repulsive",
-            "lw_noise",
-            "lw_coward",
-        )
         self.loss_fct = obj_from_or_to_hparams(self, "loss_fct", loss_fct)
         self.cluster_scanner = obj_from_or_to_hparams(
             self, "cluster_scanner", cluster_scanner
@@ -69,16 +59,13 @@ class TCModule(TrackingModule):
             eta=data.eta,
             ec_hit_mask=out.get("ec_hit_mask", None),
         )
-        lws = {
-            "attractive": 1.0,
-            "repulsive": self.hparams["lw_repulsive"],
-            "noise": self.hparams["lw_noise"],
-            "coward": self.hparams["lw_coward"],
-        }
-        loss = sum(weight * losses[k] for k, weight in lws.items())
-        losses |= {f"{k}_weighted": losses[k] * weight for k, weight in lws.items()}
-        losses["total"] = loss
-        return loss, to_floats(losses)
+        metrics = (
+            losses.loss_dct
+            | to_floats(add_key_suffix(losses.weighted_losses, "_weighted"))
+            | losses.extra_metrics
+        )
+        metrics["total"] = float(losses.loss)
+        return losses.loss, metrics
 
     @tolerate_some_oom_errors
     def training_step(self, data: Data, batch_idx: int) -> Tensor:
@@ -91,6 +78,7 @@ class TCModule(TrackingModule):
             on_step=True,
             batch_size=self.trainer.train_dataloader.batch_size,
         )
+        assert isinstance(loss, Tensor)
         return loss
 
     def validation_step(self, data: Data, batch_idx: int) -> None:
