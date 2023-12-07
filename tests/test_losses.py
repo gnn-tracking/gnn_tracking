@@ -15,6 +15,7 @@ from gnn_tracking.metrics.losses.oc import (
     CondensationLossTiger,
     ObjectLoss,
 )
+from gnn_tracking.utils.dictionaries import to_floats
 
 T: TypeAlias = torch.Tensor
 
@@ -57,16 +58,16 @@ def get_condensation_loss(td: MockData, *, strategy="tiger", **kwargs) -> float:
         )
     else:
         raise ValueError
-    loss_dct = loss_fct(
-        beta=td.beta,
-        x=td.x,
-        particle_id=td.particle_id,
-        reconstructable=torch.full((len(td.x),), True),
-        pt=torch.full((len(td.x),), 2),
-        eta=torch.full((len(td.x),), 2.0),
-    ).loss_dct
-    assert len(loss_dct) > 2
-    return loss_dct["attractive"] + 10 * loss_dct["repulsive"]
+    return to_floats(
+        loss_fct(
+            beta=td.beta,
+            x=td.x,
+            particle_id=td.particle_id,
+            reconstructable=torch.full((len(td.x),), True),
+            pt=torch.full((len(td.x),), 2),
+            eta=torch.full((len(td.x),), 2.0),
+        ).loss_dct
+    )
 
 
 def get_object_loss(td: MockData, **kwargs) -> float:
@@ -79,17 +80,50 @@ def get_object_loss(td: MockData, **kwargs) -> float:
     )
 
 
-def test_potential_loss():
-    assert get_condensation_loss(td1) == approx(6.459650814283677)
-    assert get_condensation_loss(td2) == approx(5.636204987639555)
+def test_pin_condensation_losses_tiger():
+    assert get_condensation_loss(td1) == approx(
+        {
+            "attractive": 0.8338060530831202,
+            "repulsive": 0.5625844761200557,
+            "coward": 0.12582866850597973,
+            "noise": 0.02875057973236189,
+        }
+    )
+    assert get_condensation_loss(td2) == approx(
+        {
+            "attractive": 0.5407472117522135,
+            "repulsive": 0.5095457775887342,
+            "coward": 0.10376164981233127,
+            "noise": 0.6117443924150829,
+        }
+    )
 
 
-def test_object_loss_efficiency():
+def test_pin_condensation_losses_rg():
+    assert get_condensation_loss(td1, strategy="rg") == approx(
+        {
+            "attractive": 1.005005335056053,
+            "repulsive": 0.6912557021450921,
+            "coward": 0.12582866850597968,
+            "noise": 0.02875057973236189,
+        }
+    )
+    assert get_condensation_loss(td2, strategy="rg") == approx(
+        {
+            "attractive": 0.42965914163139446,
+            "repulsive": 0.6889077680825523,
+            "coward": 0.10376164981233121,
+            "noise": 0.611744392415083,
+        }
+    )
+
+
+def test_pin_object_loss_efficiency():
     assert get_object_loss(td1) == approx(0.29833901913542193)
     assert get_object_loss(td2) == approx(0.7724552036470809)
 
 
-def test_object_loss_purity():
+def test_pin_object_loss_purity():
     assert get_object_loss(td1, mode="purity") == approx(0.03643221467901364)
     assert get_object_loss(td2, mode="purity") == approx(0.038949206999806044)
 
@@ -120,3 +154,10 @@ def test_loss_clones():
     assert len(evaluated) == 2
     assert "0" in evaluated
     assert "suffix" in evaluated
+
+
+if __name__ == "__main__":
+    for strategy in ["tiger", "rg"]:
+        print(f"{strategy=}")  # noqa: T201
+        print(get_condensation_loss(td1, strategy=strategy))  # noqa: T201
+        print(get_condensation_loss(td2, strategy=strategy))  # noqa: T201

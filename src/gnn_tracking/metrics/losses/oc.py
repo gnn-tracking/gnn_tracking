@@ -98,11 +98,13 @@ def _radius_graph_condensation_loss(
         vr = torch.tensor([[0.0]])
         logger.warning("Repulsive loss is NaN")
 
+    hit_is_noise = particle_id == 0
+
     return {
         "attractive": (1 / mask.sum()) * torch.sum(va),
         "repulsive": (1 / x.size()[0]) * torch.sum(vr),
-        "noise": torch.tensor([0.0], device=beta.device),  # todo
-        "coward": torch.tensor([0.0], device=beta.device),  # todo
+        "coward": torch.mean(1 - beta[alphas]),
+        "noise": torch.mean(beta[hit_is_noise]),
     }
 
 
@@ -187,7 +189,6 @@ class CondensationLossRG(MultiLossFct, HyperparametersMixin):
             "coward": self.hparams.lw_coward,
         }
         return MultiLossFctReturn(
-            loss=sum(loss_dict[k] * weight_dict[k] for k in loss_dict),
             loss_dct=loss_dict,
             weight_dct=weight_dict,
         )
@@ -267,7 +268,6 @@ def condensation_loss_tiger(
     v_rep = (qw_rep * (1 - dist_j_k[repulsive_mask])).sum()
 
     l_coward = torch.mean(1 - beta[alphas])
-    # todo: Should we use object_mask instead of not noise?
     l_noise = torch.mean(beta[~not_noise])
 
     loss_dct = {
