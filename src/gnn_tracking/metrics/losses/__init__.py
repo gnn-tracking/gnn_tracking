@@ -2,32 +2,12 @@
 
 import copy
 from dataclasses import dataclass, field
-from typing import Any, Mapping, Union
+from typing import Any
 
 import torch
 from torch import Tensor as T
 
 from gnn_tracking.utils.log import logger
-
-
-def unpack_loss_returns(key: str, returns: Any) -> dict[str, float | T]:
-    """Some of our loss functions return a dictionary or a list of individual losses.
-    This function unpacks these into a dictionary of individual losses with appropriate
-    keys.
-
-    Args:
-        key: str (name of the loss function)
-        returns: dict or list or single value
-
-    Returns:
-        dict of individual losses
-    """
-    if isinstance(returns, Mapping):
-        return {f"{key}_{k}": v for k, v in returns.items()}
-    if isinstance(returns, (list, tuple)):
-        # Don't put 'Sequence' here, because Ts are Sequences
-        return {f"{key}_{i}": v for i, v in enumerate(returns)}
-    return {key: returns}
 
 
 @dataclass(kw_only=True)
@@ -60,9 +40,6 @@ class MultiLossFct(torch.nn.Module):
 
     def forward(self, *args: Any, **kwargs: Any) -> MultiLossFctReturn:
         ...
-
-
-loss_weight_type = Union[float, dict[str, float], list[float]]
 
 
 class LossClones(torch.nn.Module):

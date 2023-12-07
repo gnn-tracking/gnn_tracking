@@ -8,7 +8,6 @@ from typing_extensions import TypeAlias
 
 from gnn_tracking.metrics.losses import (
     LossClones,
-    unpack_loss_returns,
 )
 from gnn_tracking.metrics.losses.ec import EdgeWeightBCELoss, binary_focal_loss
 from gnn_tracking.metrics.losses.oc import (
@@ -105,13 +104,6 @@ def test_focal_loss_vs_bce():
             target,
         )
     )
-
-
-def test_unpack_loss_returns():
-    assert unpack_loss_returns("a", 2) == {"a": 2}
-    assert unpack_loss_returns("a", {"b": 2}) == {"a_b": 2}
-    assert unpack_loss_returns("a", [2]) == {"a_0": 2}
-    assert unpack_loss_returns("a", []) == {}
 
 
 def test_loss_clones():
