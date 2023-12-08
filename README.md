@@ -17,7 +17,7 @@
 
 This repository holds the main python package for the GNN Tracking project.
 See the [readme of the organization][organization-readme] for an overview of the task.
-An early version of the pipeline implemented here is written up in this [preprint][].
+Detailed write-ups of our progress are available in [arXiv:2309.16754][preprint1] and [arXiv:2312.03823][preprint2].
 More resources are provided in the reading list [here][organization-readme].
 
 * 🔋 Batteries included: This repository implements a hole pipeline: from preprocessing to models,
@@ -27,7 +27,8 @@ More resources are provided in the reading list [here][organization-readme].
 * ✅ Tested: Most of the code is guaranteed to run
 
 [pytorch lightning]: https://lightning.ai/
-[preprint]: https://arxiv.org/abs/2309.16754
+[preprint2]: http://arxiv.org/abs/2312.03823
+[preprint1]: https://arxiv.org/abs/2309.16754
 
 ## 🔥 Installation
 
