@@ -1,3 +1,5 @@
+from typing import Any
+
 import numpy as np
 import torch
 from pytorch_lightning.core.mixins import HyperparametersMixin
@@ -33,20 +35,25 @@ def _radius_graph_condensation_loss(
     mask: T,
     radius_threshold: float,
     max_num_neighbors: int,
-) -> dict[str, T]:
+) -> tuple[dict[str, T], dict[str, Any]]:
     """Extracted function for condensation loss. See `PotentialLoss` for details."""
     # For better readability, variables that are only relevant in one "block"
     # are prefixed with an underscore
+    # _j means indexed as hits (... x n_hits)
+    # _k means indexed as objects (... x n_objects_of_interest)
+    # _e means indexed by edge
+    # where n_objects_of_interest = len(unique(particle_id[mask]))
 
     # -- 1. Determine indices of condensation points (CPs) and q --
-    _sorted_indices = torch.argsort(beta, descending=True)
-    _pids_sorted = particle_id[_sorted_indices]
-    _alphas = _sorted_indices[_first_occurrences(_pids_sorted)]
+    _sorted_indices_j = torch.argsort(beta, descending=True)
+    _pids_sorted = particle_id[_sorted_indices_j]
+    _alphas = _sorted_indices_j[_first_occurrences(_pids_sorted)]
     # Index of condensation points in node array
-    alphas = _alphas[particle_id[_alphas] > 0]
-    assert alphas.size()[0] > 0, "No particles found, cannot evaluate loss"
-    q = torch.arctanh(beta) ** 2 + q_min
-    assert not torch.isnan(q).any(), "q contains NaNs"
+    alphas_k = _alphas[particle_id[_alphas] > 0]
+    assert alphas_k.size()[0] > 0, "No particles found, cannot evaluate loss"
+    # "Charge"
+    q_j = torch.arctanh(beta) ** 2 + q_min
+    assert not torch.isnan(q_j).any(), "q contains NaNs"
 
     # -- 2. Edges for repulsion loss --
     _radius_edges = radius_graph(
@@ -54,58 +61,56 @@ def _radius_graph_condensation_loss(
     )
     # Now filter out everything that doesn't include a CP or connects two hits of the
     # same particle
-    _to_cp = torch.isin(_radius_edges[0], alphas)
-    _is_repulsive = particle_id[_radius_edges[0]] != particle_id[_radius_edges[1]]
-    repulsion_edges = _radius_edges[:, _is_repulsive & _to_cp]
+    _to_cp_e = torch.isin(_radius_edges[0], alphas_k)
+    _is_repulsive_e = particle_id[_radius_edges[0]] != particle_id[_radius_edges[1]]
+    repulsion_edges_e = _radius_edges[:, _is_repulsive_e & _to_cp_e]
 
     # -- 3. Edges for attractive loss --
     # 1D array (n_nodes): 1 for CPs, 0 otherwise
-    alpha_hits_filter = torch.zeros(
-        len(particle_id), dtype=bool, device=x.device
-    ).scatter_(0, alphas, 1)
-    # indices of all non-CPs
-    non_alpha_indices = torch.arange(len(particle_id), device=x.device)[
-        ~alpha_hits_filter
-    ]
-
+    is_cp_j = torch.zeros(len(particle_id), dtype=bool, device=x.device).scatter_(
+        0, alphas_k, 1
+    )
+    # hit-indices of all non-CPs
+    _non_cp_indices = torch.arange(len(particle_id), device=x.device)[~is_cp_j]
     # for each non-CP hit, the index of the corresponding CP
-    alpha_indices = _alphas[
-        torch.searchsorted(particle_id[_alphas], particle_id[non_alpha_indices])
+    corresponding_alpha = _alphas[
+        torch.searchsorted(particle_id[_alphas], particle_id[_non_cp_indices])
     ]
-
     # Insert alpha indices into their respective positions to form attraction edges
-    unmasked_attraction_edges = (
+    _attraction_edges_e = (
         torch.arange(len(particle_id), device=x.device).unsqueeze(0).repeat(2, 1)
     )
-    # fixme: What about the case where there are no associated CPs (noise hits etc)?
-    unmasked_attraction_edges[1, ~alpha_hits_filter] = alpha_indices
-
+    _attraction_edges_e[1, ~is_cp_j] = corresponding_alpha
     # Apply mask to attraction edges
-    attraction_edges = unmasked_attraction_edges[:, mask]
+    attraction_edges_e = _attraction_edges_e[:, mask]
 
     # -- 4. Calculate loss --
     # Protect against sqrt not being differentiable around 0
     eps = 1e-9
-    repulsion_distances = radius_threshold - torch.sqrt(
-        eps + _square_distances(repulsion_edges, x)
+    repulsion_distances_e = radius_threshold - torch.sqrt(
+        eps + _square_distances(repulsion_edges_e, x)
     )
-    attraction_distances = _square_distances(attraction_edges, x)
+    attraction_distances_e = _square_distances(attraction_edges_e, x)
 
-    va = attraction_distances * q[attraction_edges[0]] * q[attraction_edges[1]]
-    vr = repulsion_distances * q[repulsion_edges[0]] * q[repulsion_edges[1]]
+    va = (
+        attraction_distances_e * q_j[attraction_edges_e[0]] * q_j[attraction_edges_e[1]]
+    )
+    vr = repulsion_distances_e * q_j[repulsion_edges_e[0]] * q_j[repulsion_edges_e[1]]
 
     if torch.isnan(vr).any():
         vr = torch.tensor([[0.0]])
         logger.warning("Repulsive loss is NaN")
 
-    hit_is_noise = particle_id == 0
+    hit_is_noise_j = particle_id == 0
 
-    return {
+    losses = {
         "attractive": (1 / mask.sum()) * torch.sum(va),
         "repulsive": (1 / x.size()[0]) * torch.sum(vr),
-        "coward": torch.mean(1 - beta[alphas]),
-        "noise": torch.mean(beta[hit_is_noise]),
+        "coward": torch.mean(1 - beta[alphas_k]),
+        "noise": torch.mean(beta[hit_is_noise_j]),
     }
+    extra = {}
+    return losses, extra
 
 
 class CondensationLossRG(MultiLossFct, HyperparametersMixin):
@@ -173,7 +178,7 @@ class CondensationLossRG(MultiLossFct, HyperparametersMixin):
             mask &= sample_mask
         # If there are no hits left after masking, then we get a NaN loss.
         assert mask.sum() > 0, "No hits left after masking"
-        loss_dict = _radius_graph_condensation_loss(
+        loss_dict, extra_dict = _radius_graph_condensation_loss(
             beta=beta,
             x=x,
             particle_id=particle_id,
@@ -191,6 +196,7 @@ class CondensationLossRG(MultiLossFct, HyperparametersMixin):
         return MultiLossFctReturn(
             loss_dct=loss_dict,
             weight_dct=weight_dict,
+            extra_metrics=extra_dict,
         )
 
 
