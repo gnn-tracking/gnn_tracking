@@ -66,6 +66,7 @@ def _radius_graph_condensation_loss(
     )
     # Now filter out everything that doesn't include a CP or connects two hits of the
     # same particle
+    # 1D array (n_nodes): 1 for CPs, 0 otherwise
     _is_cp_j = torch.zeros_like(particle_id, dtype=torch.bool).scatter_(0, alphas_k, 1)
     _to_cp_e = _is_cp_j[_radius_edges[0]]
     _is_repulsive_e = particle_id[_radius_edges[0]] != particle_id[_radius_edges[1]]
@@ -73,7 +74,6 @@ def _radius_graph_condensation_loss(
     repulsion_edges_e = _radius_edges[:, _is_repulsive_e & _to_cp_e]
 
     # -- 3. Edges for attractive loss --
-    # 1D array (n_nodes): 1 for CPs, 0 otherwise
     # hit-indices of all non-CPs
     _non_cp_indices = torch.nonzero(~_is_cp_j & mask).squeeze()
     # for each non-CP hit, the index of the corresponding CP
@@ -235,31 +235,31 @@ def condensation_loss_tiger(
     # To protect against nan in divisions
     eps = 1e-9
 
-    # x: n_nodes x n_outdim
-    unique_oids = torch.unique(object_id[object_mask])
-    assert len(unique_oids) > 0, "No particles of interest found, cannot evaluate loss"
+    unique_oids_k = torch.unique(object_id[object_mask])
+    assert (
+        len(unique_oids_k) > 0
+    ), "No particles of interest found, cannot evaluate loss"
     # n_nodes x n_pids
     # The nodes in every column correspond to the hits of a single particle and
     # should attract each other
-    attractive_mask_jk = object_id.view(-1, 1) == unique_oids.view(1, -1)
+    attractive_mask_jk = object_id.view(-1, 1) == unique_oids_k.view(1, -1)
 
-    q = torch.arctanh(beta) ** 2 + q_min
-    assert not torch.isnan(q).any(), "q contains NaNs"
+    q_j = torch.arctanh(beta) ** 2 + q_min
+    assert not torch.isnan(q_j).any(), "q contains NaNs"
+
     # Index of condensation points in node array
-    alphas_k = torch.argmax(q.view(-1, 1) * attractive_mask_jk, dim=0)
+    alphas_k = torch.argmax(q_j.view(-1, 1) * attractive_mask_jk, dim=0)
+
+    # 1 x n_objs
+    q_k = q_j[alphas_k].view(1, -1)
+    qw_jk = q_j.view(-1, 1) * q_k
 
     # n_objs x n_outdim
     x_k = x[alphas_k]
-    # 1 x n_objs
-    q_k = q[alphas_k].view(1, -1)
-
-    dist_j_k = torch.cdist(x, x_k)
-
-    qw_j_k = q.view(-1, 1) * q_k
-
-    qw_att = qw_j_k[attractive_mask_jk]
+    dist_jk = torch.cdist(x, x_k)
 
     # Calculate normalization factors
+    # -------------------------------
     n_hits = len(object_mask)
     # oi = of interest = not masked
     n_hits_oi = object_mask.sum()
@@ -270,20 +270,26 @@ def condensation_loss_tiger(
     norm_att = eps + n_hits_oi - n_particles_oi
 
     # Attractive potential/loss
-    v_att = (qw_att * torch.square(dist_j_k[attractive_mask_jk])).sum() / norm_att
+    # -------------------------
+    qw_att = qw_jk[attractive_mask_jk]
+    v_att = (qw_att * torch.square(dist_jk[attractive_mask_jk])).sum() / norm_att
 
-    repulsive_mask = (~attractive_mask_jk) & (dist_j_k < 1)
-    n_rep = repulsive_mask.sum()
+    # Repulsive potential
+    # -------------------
+    repulsive_mask_jk = (~attractive_mask_jk) & (dist_jk < 1)
+    n_rep = repulsive_mask_jk.sum()
     if n_rep > max_n_rep > 0:
         sampling_freq = max_n_rep / n_rep
         sampling_mask = (
-            torch.rand_like(repulsive_mask, dtype=torch.float16) < sampling_freq
+            torch.rand_like(repulsive_mask_jk, dtype=torch.float16) < sampling_freq
         )
-        repulsive_mask &= sampling_mask
+        repulsive_mask_jk &= sampling_mask
         norm_rep *= sampling_freq
-    qw_rep = qw_j_k[repulsive_mask]
-    v_rep = (qw_rep * (1 - dist_j_k[repulsive_mask])).sum() / norm_rep
+    qw_rep_jk = qw_jk[repulsive_mask_jk]
+    v_rep = (qw_rep_jk * (1 - dist_jk[repulsive_mask_jk])).sum() / norm_rep
 
+    # Other losses
+    # ------------
     l_coward = torch.mean(1 - beta[alphas_k])
     not_noise_j = object_id > noise_threshold
     l_noise = torch.mean(beta[~not_noise_j])
