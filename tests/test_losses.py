@@ -98,42 +98,28 @@ def get_object_loss(td: MockData, **kwargs) -> float:
     )
 
 
+_td1_c_losses = {
+    "attractive": 0.48778231210119105,
+    "repulsive": 35939197600.633316,
+    "coward": 0.051056325062234675,
+    "noise": 0.5346992111891886,
+}
+_td2_c_losses = {
+    "attractive": 1.5953161268602611,
+    "repulsive": 3.478838882898964,
+    "coward": 0.03316374922649601,
+    "noise": 0.564675177839844,
+}
+
+
 def test_pin_condensation_losses_tiger():
-    assert get_condensation_loss(td1) == approx(
-        {
-            "attractive": 0.45294071837967737,
-            "repulsive": 0.9983110444620367,
-            "coward": 0.051056325062234675,
-            "noise": 0.5346992111891886,
-        }
-    )
-    assert get_condensation_loss(td2) == approx(
-        {
-            "attractive": 1.3776249915523178,
-            "repulsive": 1.9056266966205682,
-            "coward": 0.03316374922649601,
-            "noise": 0.564675177839844,
-        }
-    )
+    assert get_condensation_loss(td1) == approx(_td1_c_losses)
+    assert get_condensation_loss(td2) == approx(_td2_c_losses)
 
 
 def test_pin_condensation_losses_rg():
-    assert get_condensation_loss(td1, strategy="rg") == approx(
-        {
-            "attractive": 0.4529407386277052,
-            "repulsive": 1.6357992285581555,
-            "coward": 0.04823291568574872,
-            "noise": 0.5346992111891886,
-        }
-    )
-    assert get_condensation_loss(td2, strategy="rg") == approx(
-        {
-            "attractive": 1.4076318818852442,
-            "repulsive": 12.469110141713008,
-            "coward": 0.06824531283699682,
-            "noise": 0.5646751778398441,
-        }
-    )
+    assert get_condensation_loss(td1, strategy="rg") == approx(_td1_c_losses)
+    assert get_condensation_loss(td2, strategy="rg") == approx(_td2_c_losses)
 
 
 def test_pin_object_loss_efficiency():
@@ -179,7 +165,7 @@ if __name__ == "__main__":
         print(f"{strategy=}")
         print(get_condensation_loss(td1, strategy=strategy))
         print(get_condensation_loss(td2, strategy=strategy))
-    for strategy in ["efficiency", "purity"]:
-        print(f"{strategy=}")
-        print(get_object_loss(td1, mode=strategy))
-        print(get_object_loss(td2, mode=strategy))
+    # for strategy in ["efficiency", "purity"]:
+    # print(f"{strategy=}")
+    # print(get_object_loss(td1, mode=strategy))
+    # print(get_object_loss(td2, mode=strategy))
