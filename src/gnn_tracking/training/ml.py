@@ -52,6 +52,8 @@ class MLModule(TrackingModule):
             batch=data.batch,
             true_edge_index=data.true_edge_index,
             pt=data.pt,
+            eta=data.eta,
+            reconstructable=data.reconstructable,
         )
         metrics = (
             losses.loss_dct

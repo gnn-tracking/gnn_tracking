@@ -17,7 +17,7 @@ class MultiLossFctReturn:
     #: Split up losses
     loss_dct: dict[str, T]
     #: Weights
-    weight_dct: dict[str, T]
+    weight_dct: dict[str, T] | dict[str, float]
     #: Other things that should be logged
     extra_metrics: dict[str, Any] = field(default_factory=dict)
 
