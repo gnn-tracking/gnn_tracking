@@ -395,27 +395,6 @@ class CondensationLossTiger(MultiLossFct, HyperparametersMixin):
         )
 
 
-# _first_occurrences prevents jit
-# @torch.jit.script
-def _background_loss(*, beta: T, particle_id: T) -> dict[str, T]:
-    """Extracted function for JIT-compilation."""
-    sorted_indices = torch.argsort(beta, descending=True)
-    ids_sorted = particle_id[sorted_indices]
-    noisy_alphas = sorted_indices[_first_occurrences(ids_sorted)]
-    alphas = noisy_alphas[particle_id[noisy_alphas] > 0]
-
-    beta_alphas = beta[alphas]
-    coward_loss = torch.mean(1 - beta_alphas)
-    noise_mask = particle_id == 0
-    noise_loss = torch.Tensor([0.0])
-    if noise_mask.any():
-        noise_loss = torch.mean(beta[noise_mask])
-    return {
-        "coward": coward_loss,
-        "noise": noise_loss,
-    }
-
-
 class ObjectLoss(torch.nn.Module):
     def __init__(self, mode="efficiency"):
         """Loss functions for predicted object properties."""
