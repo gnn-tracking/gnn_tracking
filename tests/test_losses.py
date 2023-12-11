@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+from typing import Callable
 
 import numpy as np
 import torch
@@ -10,11 +11,15 @@ from gnn_tracking.metrics.losses import (
     LossClones,
 )
 from gnn_tracking.metrics.losses.ec import EdgeWeightBCELoss, binary_focal_loss
+from gnn_tracking.metrics.losses.metric_learning import (
+    GraphConstructionHingeEmbeddingLoss,
+)
 from gnn_tracking.metrics.losses.oc import (
     CondensationLossRG,
     CondensationLossTiger,
     ObjectLoss,
 )
+from gnn_tracking.preprocessing.point_cloud_builder import get_truth_edge_index
 from gnn_tracking.utils.dictionaries import to_floats
 
 T: TypeAlias = torch.Tensor
@@ -32,6 +37,8 @@ class MockData:
     pt: T
     eta: T
     reconstructable: T
+    batch: T
+    true_edge_index: T
 
 
 def generate_test_data(
@@ -58,6 +65,8 @@ def generate_test_data(
         pt=pt,
         eta=eta,
         reconstructable=reco,
+        batch=torch.zeros_like(reco),
+        true_edge_index=torch.from_numpy(get_truth_edge_index(pid.numpy())),
     )
 
 
@@ -160,12 +169,33 @@ def test_loss_clones():
     assert "suffix" in evaluated
 
 
+def get_ml_loss(loss_fct: Callable, td: MockData) -> dict[str, float]:
+    return to_floats(
+        loss_fct(
+            x=td.x,
+            particle_id=td.particle_id,
+            reconstructable=td.reconstructable,
+            pt=td.pt,
+            eta=td.eta,
+            batch=td.batch,
+            true_edge_index=td.true_edge_index,
+        ).loss_dct
+    )
+
+
+def test_hinge_loss():
+    assert get_ml_loss(GraphConstructionHingeEmbeddingLoss(), td1) == approx(
+        {"attractive": 0.7307405975481213, "repulsive": 0.34612957938781874}
+    )
+
+
 if __name__ == "__main__":
     for strategy in ["tiger", "rg"]:
         print(f"{strategy=}")
         print(get_condensation_loss(td1, strategy=strategy))
         print(get_condensation_loss(td2, strategy=strategy))
-    # for strategy in ["efficiency", "purity"]:
-    # print(f"{strategy=}")
-    # print(get_object_loss(td1, mode=strategy))
-    # print(get_object_loss(td2, mode=strategy))
+    for strategy in ["efficiency", "purity"]:
+        print(f"{strategy=}")
+        print(get_object_loss(td1, mode=strategy))
+        print(get_object_loss(td2, mode=strategy))
+    print(get_ml_loss(GraphConstructionHingeEmbeddingLoss(), td1))
