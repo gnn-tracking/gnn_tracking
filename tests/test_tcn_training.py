@@ -7,6 +7,7 @@ from pytorch_lightning import Trainer
 from gnn_tracking.models.edge_classifier import ECForGraphTCN
 from gnn_tracking.models.track_condensation_networks import (
     GraphTCN,
+    GraphTCNForMLGCPipeline,
     PerfectECGraphTCN,
     PreTrainedECGraphTCN,
 )
@@ -131,6 +132,14 @@ def test_train(built_graphs, t: TestTrainCase) -> None:
             L_hc=2,
             ec_tpr=0.8,
             ec_tnr=0.4,
+            **t.tc_params,
+        )
+    elif t.model == "mlgc":
+        model = GraphTCNForMLGCPipeline(
+            node_indim=node_indim,
+            edge_indim=edge_indim,
+            hidden_dim=2,
+            L_hc=2,
             **t.tc_params,
         )
     else:
