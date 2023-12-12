@@ -313,6 +313,10 @@ class GraphTCN(nn.Module, HyperparametersMixin):
         edge classification step and several interaction networks as residual layers
         for the track condensor network.
 
+        This is a small wrapper around `ModularGraphTCN`, mostly to make sure that
+        we can change the underlying implementation without invalidating config
+        files that reference this class.
+
         Args:
             node_indim: Node feature dim
             edge_indim: Edge feature dim
@@ -386,6 +390,10 @@ class PerfectECGraphTCN(nn.Module, HyperparametersMixin):
         """Similar to `GraphTCN` but with a "perfect" (i.e., truth based) edge
         classifier.
 
+        This is a small wrapper around `ModularGraphTCN`, mostly to make sure that
+        we can change the underlying implementation without invalidating config
+        files that reference this class.
+
         Args:
             node_indim: Node feature dim. Determined by input data.
             edge_indim: Edge feature dim. Determined by input data.
@@ -448,6 +456,10 @@ class PreTrainedECGraphTCN(nn.Module, HyperparametersMixin):
     ):
         """GraphTCN for the use with a pre-trained edge classifier
 
+        This is a small wrapper around `ModularGraphTCN`, mostly to make sure that
+        we can change the underlying implementation without invalidating config
+        files that reference this class.
+
         Args:
             ec: Pre-trained edge classifier
             node_indim: Node feature dim. Determined by input data.
@@ -475,6 +487,67 @@ class PreTrainedECGraphTCN(nn.Module, HyperparametersMixin):
         )
         self._gtcn = ModularGraphTCN(
             ec=ec,
+            hc_in=hc_in,
+            node_indim=node_indim,
+            edge_indim=edge_indim,
+            h_dim=h_dim,
+            e_dim=e_dim,
+            h_outdim=h_outdim,
+            hidden_dim=hidden_dim,
+            **kwargs,
+        )
+
+    def forward(
+        self,
+        data: Data,
+    ) -> dict[str, Tensor | None]:
+        return self._gtcn.forward(data=data)
+
+
+class GraphTCNForMLGCPipeline(nn.Module, HyperparametersMixin):
+    def __init__(
+        self,
+        *,
+        node_indim: int,
+        edge_indim: int,
+        h_dim=5,
+        e_dim=4,
+        h_outdim=2,
+        hidden_dim=40,
+        L_hc=3,
+        alpha_hc: float = 0.5,
+        **kwargs,
+    ):
+        """GraphTCN for use with a metric learning graph construction pipeline.
+
+        This is a small wrapper around `ModularGraphTCN`, mostly to make sure that
+        we can change the underlying implementation without invalidating config
+        files that reference this class.
+
+        Args:
+            node_indim: Node feature dim. Determined by input data.
+            edge_indim: Edge feature dim. Determined by input data.
+            h_dim: node dimension after encoding
+            e_dim: edge dimension after encoding
+            h_outdim: output dimension in clustering space
+            hidden_dim: dimension of hidden layers in all MLPs used in the interaction
+                networks
+            L_hc: message passing depth for track condenser
+            alpha_hc: strength of residual connection for multi-layer interaction
+                networks
+            **kwargs: Passed to `ModularGraphTCN`
+        """
+        super().__init__()
+        self.save_hyperparameters(ignore=["ec"])
+        hc_in = ResIN(
+            node_dim=h_dim,
+            edge_dim=e_dim,
+            object_hidden_dim=hidden_dim,
+            relational_hidden_dim=hidden_dim,
+            alpha=alpha_hc,
+            n_layers=L_hc,
+        )
+        self._gtcn = ModularGraphTCN(
             hc_in=hc_in,
             node_indim=node_indim,
             edge_indim=edge_indim,
