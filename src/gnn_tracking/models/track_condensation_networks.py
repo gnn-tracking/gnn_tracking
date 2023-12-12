@@ -3,6 +3,8 @@
 # Ignore unused arguments because of save_hyperparameters
 # ruff: noqa: ARG002
 
+import math
+
 import torch
 import torch.nn as nn
 from pytorch_lightning.core.mixins import HyperparametersMixin
@@ -102,7 +104,7 @@ class PointCloudTCN(nn.Module):
         self,
         data: Data,
         alpha: float = 0.5,
-    ) -> dict[str, Tensor]:
+    ) -> dict[str, Tensor | None]:
         # apply the edge classifier to generate edge weights
         h = data.x
         for layer in self.layers:
@@ -271,12 +273,13 @@ class ModularGraphTCN(nn.Module, HyperparametersMixin):
         beta = epsilon + (1 - 2 * epsilon) * beta
 
         h = self.p_cluster(h_hc)
-        if alpha := self.hparams.alpha_latent:
-            nec = self.hparams.n_embedding_coords
+        if alpha_residue := self.hparams.alpha_latent:
+            nec: int = self.hparams.n_embedding_coords
             assert nec > 0
             assert nec <= h.shape[1]
             _pad = (0, h.shape[1] - nec)
-            h = (1 - alpha) * h + alpha * nn.functional.pad(data.x[:, :nec], _pad)
+            residual = nn.functional.pad(data.x[:, :nec], _pad)
+            h = alpha_residue * math.sqrt(residual) + math.sqrt(1 - alpha_residue) * h
         h *= self._latent_normalization
         # track_params, _ = self.p_track_param(
         #     h_hc, data.edge_index, torch.cat(edge_attrs_hc, dim=1)
