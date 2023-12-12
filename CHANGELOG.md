@@ -3,7 +3,19 @@
 This changelog mostly collects important changes to the models that are not
 backward compatible but result in different results.
 
+## 23.12.0
+
+### Breaking changes
+
+* #465 (changed behavior of condensation losses)
+* #466 (change normalization for residual connections)
+
+### API changes
+
+* #467 (changes configuration of residual connections)
+
 ## 23.10.0
+
 
 Important fixes:
 
