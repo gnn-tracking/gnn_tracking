@@ -1,6 +1,5 @@
 from typing import Any
 
-import numpy as np
 import torch
 from pytorch_lightning.core.mixins import HyperparametersMixin
 from torch import Tensor as T
@@ -14,16 +13,82 @@ from gnn_tracking.utils.log import logger
 # ruff: noqa: ARG002
 
 
-def _first_occurrences(input_array: T) -> T:
+@torch.compile
+def _first_occurrences(x: T) -> T:
     """Return the first occurrence of each unique element in a 1D array"""
-    return torch.tensor(
-        np.unique(input_array.cpu(), return_index=True)[1], device=input_array.device
-    )
+    # from https://discuss.pytorch.org/t/first-occurrence-of-unique-values-in-a-tensor/81100/3
+    unique, inverse = torch.unique(x, sorted=True, return_inverse=True)
+    perm = torch.arange(inverse.size(0), dtype=inverse.dtype, device=inverse.device)
+    inverse, perm = inverse.flip([0]), perm.flip([0])
+    return inverse.new_empty(unique.size(0)).scatter_(0, inverse, perm)
 
 
+@torch.compile
 def _square_distances(edges: T, positions: T) -> T:
     """Returns squared distances between two sets of points"""
     return torch.sum((positions[edges[0]] - positions[edges[1]]) ** 2, dim=-1)
+
+
+@torch.compile
+def _get_alphas_first_occurences(
+    beta: T, particle_id: T, mask: T, q_min: float
+) -> tuple[T, T, T]:
+    _sorted_indices_j = torch.argsort(beta, descending=True)
+    _pids_sorted = particle_id[_sorted_indices_j]
+    _alphas = _sorted_indices_j[_first_occurrences(_pids_sorted)]
+    # Index of condensation points in node array
+    # Only particles of interest have CPs, in particular no noise hits or low pt hits
+    alphas_k = _alphas[mask[_alphas]]
+    assert alphas_k.size()[0] > 0, "No particles found, cannot evaluate loss"
+    # "Charge"
+    q_j = torch.arctanh(beta) ** 2 + q_min
+    assert not torch.isnan(q_j).any(), "q contains NaNs"
+    # 1D array (n_nodes): 1 for CPs, 0 otherwise
+    is_cp_j = torch.zeros_like(particle_id, dtype=torch.bool).scatter_(0, alphas_k, 1)
+    return alphas_k, q_j, is_cp_j
+
+
+@torch.compile
+def _get_vr_rg(
+    *,
+    radius_edges: T,
+    is_cp_j: T,
+    particle_id: T,
+    x: T,
+    q_j: T,
+    radius_threshold: float,
+):
+    # Protect against sqrt not being differentiable around 0
+    eps = 1e-9
+    # Now filter out everything that doesn't include a CP or connects two hits of the
+    # same particle
+    _to_cp_e = is_cp_j[radius_edges[0]]
+    _is_repulsive_e = particle_id[radius_edges[0]] != particle_id[radius_edges[1]]
+    # Since noise/low pt does not have CPs, they don't repel from each other
+    _repulsion_edges_e = radius_edges[:, _is_repulsive_e & _to_cp_e]
+    _repulsion_distances_e = radius_threshold - torch.sqrt(
+        eps + _square_distances(_repulsion_edges_e, x)
+    )
+    return torch.sum(
+        _repulsion_distances_e * q_j[_repulsion_edges_e[0]] * q_j[_repulsion_edges_e[1]]
+    )
+
+
+@torch.compile
+def _get_va(*, alphas_k: T, is_cp_j: T, particle_id: T, x: T, q_j: T, mask: T) -> T:
+    # hit-indices of all non-CPs
+    _non_cp_indices = torch.nonzero(~is_cp_j & mask).squeeze()
+    # for each non-CP hit, the index of the corresponding CP
+    _corresponding_alpha = alphas_k[
+        torch.searchsorted(particle_id[alphas_k], particle_id[_non_cp_indices])
+    ]
+    _attraction_edges_e = torch.stack((_non_cp_indices, _corresponding_alpha))
+    _attraction_distances_e = _square_distances(_attraction_edges_e, x)
+    return torch.sum(
+        _attraction_distances_e
+        * q_j[_attraction_edges_e[0]]
+        * q_j[_attraction_edges_e[1]]
+    )
 
 
 def _radius_graph_condensation_loss(
@@ -48,52 +113,32 @@ def _radius_graph_condensation_loss(
     # _e means indexed by edge
     # where n_objects_of_interest = len(unique(particle_id[mask]))
 
-    # -- 1. Determine indices of condensation points (CPs) and q --
-    _sorted_indices_j = torch.argsort(beta, descending=True)
-    _pids_sorted = particle_id[_sorted_indices_j]
-    _alphas = _sorted_indices_j[_first_occurrences(_pids_sorted)]
-    # Index of condensation points in node array
-    # Only particles of interest have CPs, in particular no noise hits or low pt hits
-    alphas_k = _alphas[mask[_alphas]]
-    assert alphas_k.size()[0] > 0, "No particles found, cannot evaluate loss"
-    # "Charge"
-    q_j = torch.arctanh(beta) ** 2 + q_min
-    assert not torch.isnan(q_j).any(), "q contains NaNs"
+    alphas_k, q_j, is_cp_j = _get_alphas_first_occurences(
+        beta=beta, particle_id=particle_id, mask=mask, q_min=q_min
+    )
 
-    # -- 2. Edges for repulsion loss --
     _radius_edges = radius_graph(
         x=x, r=radius_threshold, max_num_neighbors=max_num_neighbors, loop=False
     )
-    # Now filter out everything that doesn't include a CP or connects two hits of the
-    # same particle
-    # 1D array (n_nodes): 1 for CPs, 0 otherwise
-    _is_cp_j = torch.zeros_like(particle_id, dtype=torch.bool).scatter_(0, alphas_k, 1)
-    _to_cp_e = _is_cp_j[_radius_edges[0]]
-    _is_repulsive_e = particle_id[_radius_edges[0]] != particle_id[_radius_edges[1]]
-    # Since noise/low pt does not have CPs, they don't repel from each other
-    repulsion_edges_e = _radius_edges[:, _is_repulsive_e & _to_cp_e]
-
-    # -- 3. Edges for attractive loss --
-    # hit-indices of all non-CPs
-    _non_cp_indices = torch.nonzero(~_is_cp_j & mask).squeeze()
-    # for each non-CP hit, the index of the corresponding CP
-    _corresponding_alpha = _alphas[
-        torch.searchsorted(particle_id[_alphas], particle_id[_non_cp_indices])
-    ]
-    attraction_edges_e = torch.stack((_non_cp_indices, _corresponding_alpha))
-
-    # -- 4. Calculate loss --
-    # Protect against sqrt not being differentiable around 0
-    eps = 1e-9
-    repulsion_distances_e = radius_threshold - torch.sqrt(
-        eps + _square_distances(repulsion_edges_e, x)
+    vr = _get_vr_rg(
+        radius_edges=_radius_edges,
+        is_cp_j=is_cp_j,
+        particle_id=particle_id,
+        x=x,
+        q_j=q_j,
+        radius_threshold=radius_threshold,
     )
-    attraction_distances_e = _square_distances(attraction_edges_e, x)
 
-    va = (
-        attraction_distances_e * q_j[attraction_edges_e[0]] * q_j[attraction_edges_e[1]]
+    va = _get_va(
+        alphas_k=alphas_k,
+        is_cp_j=is_cp_j,
+        particle_id=particle_id,
+        x=x,
+        q_j=q_j,
+        mask=mask,
     )
-    vr = repulsion_distances_e * q_j[repulsion_edges_e[0]] * q_j[repulsion_edges_e[1]]
+
+    # -- 4. Simple postproc --
 
     if torch.isnan(vr).any():
         vr = torch.tensor([[0.0]])
@@ -105,14 +150,15 @@ def _radius_graph_condensation_loss(
     # oi = of interest = not masked
     n_hits_oi = mask.sum()
     n_particles_oi = len(alphas_k)
+    eps = 1e-9
     # every hit has a rep edge to every other CP except its own
     norm_rep = eps + (n_particles_oi - 1) * n_hits
     # need to subtract n_particle_oi to avoid double counting
     norm_att = eps + n_hits_oi - n_particles_oi
 
     losses = {
-        "attractive": torch.sum(va) / norm_att,
-        "repulsive": torch.sum(vr) / norm_rep,
+        "attractive": va / norm_att,
+        "repulsive": vr / norm_rep,
         "coward": torch.mean(1 - beta[alphas_k]),
         "noise": torch.mean(beta[hit_is_noise_j]),
     }

@@ -18,6 +18,7 @@ from gnn_tracking.metrics.losses.oc import (
     CondensationLossRG,
     CondensationLossTiger,
     ObjectLoss,
+    _first_occurrences,
 )
 from gnn_tracking.preprocessing.point_cloud_builder import get_truth_edge_index
 from gnn_tracking.utils.dictionaries import to_floats
@@ -124,6 +125,12 @@ _td2_c_losses = {
 def test_pin_condensation_losses_tiger():
     assert get_condensation_loss(td1) == approx(_td1_c_losses)
     assert get_condensation_loss(td2) == approx(_td2_c_losses)
+
+
+def test_first_occurences():
+    assert _first_occurrences(torch.tensor([0, 0, 1, 1, 2, 2])) == approx(
+        torch.tensor([0, 2, 4])
+    )
 
 
 def test_pin_condensation_losses_rg():
