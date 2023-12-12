@@ -5,6 +5,7 @@
 # ruff: noqa: ARG002
 
 import math
+from typing import Callable
 
 import numpy as np
 import torch.nn
@@ -34,7 +35,7 @@ class GraphConstructionFCNN(nn.Module, HyperparametersMixin):
         hidden_dim: int,
         out_dim: int,
         depth: int,
-        beta: float = 0.4,
+        alpha: float = 0.6,
     ):
         """Metric learning embedding fully connected NN.
 
@@ -43,7 +44,7 @@ class GraphConstructionFCNN(nn.Module, HyperparametersMixin):
             hidden_dim: Hidden dimension
             out_dim: Output dimension = embedding space
             depth: Number of layers
-            beta: 1-Strength of residual connection
+            beta: Strength of residual connection in layer-to-layer connections
         """
 
         super().__init__()
@@ -77,10 +78,11 @@ class GraphConstructionFCNN(nn.Module, HyperparametersMixin):
         x = normalize(data.x, p=2.0, dim=1, eps=1e-12, out=None)
         x = self._encoder(x)
         for layer in self._layers:
-            x = (
-                np.sqrt(self.hparams.beta) * layer(relu(x))
-                + np.sqrt(1 - self.hparams.beta) * x
-            )
+            x = np.sqrt(self.hparams.alpha) * x + np.sqrt(  # residual
+                1 - self.hparams.alpha
+            ) * layer(
+                relu(x)
+            )  # delta
         x = self._decoder(relu(x))
         x *= self._latent_normalization
         assert x.shape[1] == self.hparams.out_dim
@@ -143,7 +145,7 @@ class GraphConstructionResIN(nn.Module, HyperparametersMixin):
             n_layers=n_layers,
             alpha=alpha,
         )
-        self._decoder = jit(
+        self._decoder: Callable = jit(  # type: ignore
             MLP(
                 input_size=hidden_dim,
                 output_size=h_outdim,
