@@ -217,7 +217,7 @@ class ModularGraphTCN(nn.Module, HyperparametersMixin):
     def forward(
         self,
         data: Data,
-    ) -> dict[str, Tensor]:
+    ) -> dict[str, Tensor | None]:
         edge_weights_unmasked = None
         edge_mask = None
         hit_mask = None
@@ -360,7 +360,7 @@ class GraphTCN(nn.Module, HyperparametersMixin):
     def forward(
         self,
         data: Data,
-    ) -> dict[str, Tensor]:
+    ) -> dict[str, Tensor | None]:
         return self._gtcn.forward(data=data)
 
 
@@ -424,7 +424,7 @@ class PerfectECGraphTCN(nn.Module, HyperparametersMixin):
     def forward(
         self,
         data: Data,
-    ) -> dict[str, Tensor]:
+    ) -> dict[str, Tensor | None]:
         return self._gtcn.forward(data=data)
 
 
@@ -485,5 +485,5 @@ class PreTrainedECGraphTCN(nn.Module, HyperparametersMixin):
     def forward(
         self,
         data: Data,
-    ) -> dict[str, Tensor]:
+    ) -> dict[str, Tensor | None]:
         return self._gtcn.forward(data=data)
