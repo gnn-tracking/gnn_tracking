@@ -1,1 +1,55 @@
-undefined
+{
+  "projectName": "gnn_tracking",
+  "projectOwner": "gnn-tracking",
+  "repoType": "github",
+  "repoHost": "https://github.com",
+  "files": [
+    "README.md"
+  ],
+  "imageSize": 100,
+  "commit": false,
+  "commitConvention": "gitmoji",
+  "contributors": [
+    {
+      "login": "shubhanshu02",
+      "name": "Shubhanshu Saxena",
+      "avatar_url": "https://avatars.githubusercontent.com/u/54344426?v=4",
+      "profile": "https://github.com/shubhanshu02",
+      "contributions": [
+        "code"
+      ]
+    },
+    {
+      "login": "kingjuno",
+      "name": "Geo Jolly",
+      "avatar_url": "https://avatars.githubusercontent.com/u/69108486?v=4",
+      "profile": "https://kingjuno.github.io/",
+      "contributions": [
+        "test"
+      ]
+    },
+    {
+      "login": "jnpark3",
+      "name": "Jian Park",
+      "avatar_url": "https://avatars.githubusercontent.com/u/49174255?v=4",
+      "profile": "https://jnpark3.github.io/",
+      "contributions": [
+        "code",
+        "ideas",
+        "research"
+      ]
+    },
+    {
+      "login": "Devdoot57",
+      "name": "Devdoot Chatterjee",
+      "avatar_url": "https://avatars.githubusercontent.com/u/70021472?v=4",
+      "profile": "https://github.com/Devdoot57",
+      "contributions": [
+        "code",
+        "research"
+      ]
+    }
+  ],
+  "contributorsPerLine": 7,
+  "linkToUsage": true
+}
