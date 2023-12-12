@@ -4,6 +4,7 @@ from typing import Any
 import pytest
 from pytorch_lightning import Trainer
 
+from gnn_tracking.metrics.losses.oc import CondensationLossTiger
 from gnn_tracking.models.edge_classifier import ECForGraphTCN
 from gnn_tracking.models.track_condensation_networks import (
     GraphTCN,
@@ -22,8 +23,9 @@ from gnn_tracking.utils.seeds import fix_seeds
 class TestTrainCase:
     model: str = "graphtcn"
     loss_weights: str = "default"
-    ec_params: dict[str, Any] | None = None
-    tc_params: dict[str, Any] | None = None
+    # We will replace the Nones post init
+    ec_params: dict[str, Any] = None  # type: ignore
+    tc_params: dict[str, Any] = None  # type: ignore
 
     def __post_init__(self):
         if self.ec_params is None:
@@ -91,6 +93,7 @@ def test_train(built_graphs, t: TestTrainCase) -> None:
     g = graph_builder.data_list[0]
     node_indim = g.x.shape[1]
     edge_indim = g.edge_attr.shape[1]
+    assert g.eta.shape == g.pt.shape
 
     graphs = graph_builder.data_list
     n_graphs = len(graphs)
@@ -150,7 +153,8 @@ def test_train(built_graphs, t: TestTrainCase) -> None:
     if t.tc_params.get("mask_orphan_nodes"):
         cluster_scanner = None
 
-    lmodel = TCModule(model=model, cluster_scanner=cluster_scanner)
+    loss_fct = CondensationLossTiger()
+    lmodel = TCModule(model=model, cluster_scanner=cluster_scanner, loss_fct=loss_fct)
     logger.debug(lmodel.hparams)
     # Avoid testing with TPS
     trainer = Trainer(max_steps=1, accelerator="cpu")

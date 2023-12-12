@@ -69,7 +69,7 @@ class ResidualNetwork(ABC, nn.Module):
         self._alpha = alpha
         self._collect_hidden_edge_embeds = collect_hidden_edge_embeds
 
-    def forward(self, x, edge_index, edge_attr) -> tuple[T, T, list[T]]:
+    def forward(self, x, edge_index, edge_attr) -> tuple[T, T, list[T] | None]:
         """Forward pass
 
         Args:
@@ -110,6 +110,7 @@ class Skip1ResidualNetwork(ResidualNetwork):
                 alpha_residue=self._alpha,
             )
             if self._collect_hidden_edge_embeds:
+                assert edge_attrs is not None
                 edge_attrs.append(edge_attr)
         return x, edge_attr, edge_attrs
 
@@ -170,6 +171,7 @@ class Skip2ResidualNetwork(ResidualNetwork):
                 delta=delta_x, residue=x, alpha_residue=self._alpha
             )
             if self._collect_hidden_edge_embeds:
+                assert edge_attrs is not None
                 edge_attrs.append(edge_attr)
         return x, edge_attr, edge_attrs
 
@@ -193,7 +195,9 @@ class SkipTopResidualNetwork(ResidualNetwork):
         super().__init__(layers=layers, **kwargs)
         self._residual_layer = connect_to
 
-    def _forward(self, x: T, edge_index: T, edge_attr: T) -> tuple[T, T, list[T]]:
+    def _forward(
+        self, x: T, edge_index: T, edge_attr: T
+    ) -> tuple[T, T, list[T] | None]:
         edge_attrs = [edge_attr] if self._collect_hidden_edge_embeds else None
         x_residue = None
         for i_layer, layer in enumerate(self.layers):
@@ -208,6 +212,7 @@ class SkipTopResidualNetwork(ResidualNetwork):
             else:
                 x = delta_x
             if self._collect_hidden_edge_embeds:
+                assert edge_attrs is not None
                 edge_attrs.append(edge_attr)
         return x, edge_attr, edge_attrs
 

@@ -9,9 +9,10 @@ model:
         hidden_dim: 10
         depth: 1
     loss_fct:
-      class_path: gnn_tracking.metrics.losses.GraphConstructionHingeEmbeddingLoss
+      class_path: gnn_tracking.metrics.losses.metric_learning.GraphConstructionHingeEmbeddingLoss
       init_args:
         max_num_neighbors: 1
+        lw_repulsive: 0.3
     gc_scanner:
       class_path: gnn_tracking.graph_construction.k_scanner.GraphConstructionKNNScanner
       init_args:
