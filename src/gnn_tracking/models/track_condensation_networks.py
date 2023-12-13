@@ -279,7 +279,7 @@ class ModularGraphTCN(nn.Module, HyperparametersMixin):
             assert nec <= h.shape[1]
             _pad = (0, h.shape[1] - nec)
             residual = nn.functional.pad(data.x[:, :nec], _pad)
-            h = alpha_residue * math.sqrt(residual) + math.sqrt(1 - alpha_residue) * h
+            h = math.sqrt(alpha_residue) * residual + math.sqrt(1 - alpha_residue) * h
         h *= self._latent_normalization
         # track_params, _ = self.p_track_param(
         #     h_hc, data.edge_index, torch.cat(edge_attrs_hc, dim=1)
