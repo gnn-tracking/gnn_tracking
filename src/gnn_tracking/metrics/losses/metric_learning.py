@@ -28,10 +28,7 @@ def _hinge_loss_components(
 
     dists_rep = norm(x[rep_edges[0]] - x[rep_edges[1]], dim=-1)
     norm_rep = rep_edges.shape[1] + eps
-    v_rep = (
-        r_emb_hinge
-        - torch.sum(torch.pow(dists_rep[dists_rep < r_emb_hinge], p_rep)) / norm_rep
-    )
+    v_rep = r_emb_hinge - torch.sum(torch.pow(dists_rep, p_rep)) / norm_rep
 
     return v_att, v_rep
 
