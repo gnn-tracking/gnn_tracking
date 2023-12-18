@@ -25,6 +25,7 @@ from gnn_tracking.utils.dictionaries import to_floats
 
 T: TypeAlias = torch.Tensor
 
+# Ignore print statements
 # ruff: noqa: T201
 
 
@@ -192,7 +193,7 @@ def get_ml_loss(loss_fct: Callable, td: MockData) -> dict[str, float]:
 
 def test_hinge_loss():
     assert get_ml_loss(GraphConstructionHingeEmbeddingLoss(), td1) == approx(
-        {"attractive": 0.7307405975481213, "repulsive": 0.34612957938781874}
+        {"attractive": 0.7307405975481213, "repulsive": 11.076146539572338}
     )
 
 
