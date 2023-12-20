@@ -1,7 +1,11 @@
 import numpy as np
 import pandas as pd
 
-from gnn_tracking.analysis.efficiencies import PerformancePlot, TracksVsDBSCANPlot
+from gnn_tracking.analysis.efficiencies import (
+    PerformanceComparisonPlot,
+    PerformancePlot,
+    TracksVsDBSCANPlot,
+)
 
 
 def test_track_vs_dbscan_parameters():
@@ -32,4 +36,18 @@ def test_performance_plot():
     p = PerformancePlot(xs=np.array(pt), df=df, df_ul=df)
     p.add_blocked(1, 2)
     p.plot_var("test", color="red")
+    p.add_legend()
+
+
+def test_performance_comparison_plot():
+    df = pd.DataFrame(
+        {
+            "test": [1, 0.5, 0.25],
+            "test_err": [0.5, 0.25, 0.125],
+        }
+    )
+    pt = [1, 2, 3, 4]
+    p = PerformanceComparisonPlot(var="test", x_label="test", xs=np.array(pt))
+    p.add_blocked(1, 2)
+    p.plot_var(df, color="red", label="test")
     p.add_legend()
