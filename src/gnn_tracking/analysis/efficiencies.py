@@ -74,7 +74,7 @@ class PerformancePlot(Plot):
             df (pd.DataFrame): Dataframe with values. Errors should be in columns named with suffix ``_err``.
             df_ul (_type_, optional): Dataframe with values for upper limit. Defaults to None.
             x_label (regexp, optional): x label
-            y_label (str, optional): y abel
+            y_label (str, optional): y label
             **kwargs: Passed to `Plot`
         """
         super().__init__(**kwargs)
@@ -130,3 +130,56 @@ class PerformancePlot(Plot):
         all_handles = [item[0] for item in self._legend_items]
         all_labels = [item[1] for item in self._legend_items]
         self.ax.legend(all_handles, all_labels, **kwargs)
+
+
+class PerformanceComparisonPlot(Plot):
+    def __init__(
+        self,
+        xs: np.ndarray,
+        var: str,
+        x_label: str,
+        ylabel: str = "Efficiency",
+        **kwargs,
+    ):
+        """Similar to `PerforamncePlot`, except that we use the same x axis for
+        plots of different models (and supply the dataframes directly to `plot_var`).
+
+        Args:
+            xs (np.ndarray): x values (e.g., pt or eta). Length must be one longer than the dataframe
+                to account for bin edges.
+            var (str): Name of variable
+            x_label (regexp, optional): x label
+            y_label (str, optional): y label
+            **kwargs: Passed to `Plot`
+        """
+        super().__init__(**kwargs)
+        self.xs = xs
+        self.var = var
+        self.ax.set_xlabel(x_label)
+        self.ax.set_ylabel(ylabel)
+        self._legend_items = []
+
+    def plot_var(self, df: pd.DataFrame, label: str, color: str) -> None:
+        stairs = self.ax.stairs(df[self.var], edges=self.xs, color=color, lw=1.5)
+        mids = (self.xs[:-1] + self.xs[1:]) / 2
+        bar = self.ax.errorbar(
+            mids,
+            self.var,
+            yerr=f"{self.var}_err",
+            ls="none",
+            color=color,
+            data=df,
+        )
+        self._legend_items.append(((stairs, bar), label))
+
+    def add_legend(self, **kwargs) -> None:
+        all_handles = [item[0] for item in self._legend_items]
+        all_labels = [item[1] for item in self._legend_items]
+        self.ax.legend(all_handles, all_labels, **kwargs)
+
+    def add_blocked(self, a, b, label="Not trained for") -> None:
+        """Used to mark low pt as "not trained for"."""
+        span = self.ax.axvspan(
+            a, b, alpha=0.3, color="gray", label=label, linestyle="none"
+        )
+        self._legend_items.append(((span,), label))
