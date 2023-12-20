@@ -69,7 +69,8 @@ class PerformancePlot(Plot):
         """Plot efficiencies vs some variable (pt, eta, etc.)
 
         Args:
-            xs (np.ndarray): x values (e.g., pt or eta)
+            xs (np.ndarray): x values (e.g., pt or eta). Length must be one longer than the dataframe
+                to account for bin edges.
             df (pd.DataFrame): Dataframe with values. Errors should be in columns named with suffix ``_err``.
             df_ul (_type_, optional): Dataframe with values for upper limit. Defaults to None.
             x_label (regexp, optional): x label
