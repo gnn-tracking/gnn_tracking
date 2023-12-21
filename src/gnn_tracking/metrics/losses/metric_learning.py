@@ -19,6 +19,7 @@ def _hinge_loss_components(
     r_emb_hinge: float,
     p_attr: float,
     p_rep: float,
+    n_hits_oi: int,
 ) -> tuple[T, T]:
     eps = 1e-9
 
@@ -27,8 +28,14 @@ def _hinge_loss_components(
     v_att = torch.sum(torch.pow(dists_att, p_attr)) / norm_att
 
     dists_rep = norm(x[rep_edges[0]] - x[rep_edges[1]], dim=-1)
-    norm_rep = rep_edges.shape[1] + eps
-    v_rep = r_emb_hinge - torch.sum(torch.pow(dists_rep, p_rep)) / norm_rep
+    # There is no "good" way to normalize this: The naive way would be
+    # to normalize to the number of repulsive edges, but this number
+    # gets smaller and smaller as the training progresses, making the objective
+    # increasingly harder.
+    # The maximal number of edges that can be in the radius graph is proportional
+    # to the number of hits of interest, so we normalize by this number.
+    norm_rep = n_hits_oi + eps
+    v_rep = torch.sum(r_emb_hinge - torch.pow(dists_rep, p_rep)) / norm_rep
 
     return v_att, v_rep
 
@@ -100,6 +107,8 @@ class GraphConstructionHingeEmbeddingLoss(MultiLossFct, HyperparametersMixin):
             pt_thld=self.hparams.pt_thld,
             max_eta=self.hparams.max_eta,
         )
+        # oi = of interest
+        n_hits_oi = mask.sum()
         att_edges, rep_edges = self._get_edges(
             x=x,
             batch=batch,
@@ -114,6 +123,7 @@ class GraphConstructionHingeEmbeddingLoss(MultiLossFct, HyperparametersMixin):
             r_emb_hinge=self.hparams.r_emb,
             p_attr=self.hparams.p_attr,
             p_rep=self.hparams.p_rep,
+            n_hits_oi=n_hits_oi,
         )
         losses = {
             "attractive": attr,
@@ -123,7 +133,13 @@ class GraphConstructionHingeEmbeddingLoss(MultiLossFct, HyperparametersMixin):
             "attractive": 1.0,
             "repulsive": self.hparams.lw_repulsive,
         }
+        extra = {
+            "n_hits_oi": n_hits_oi,
+            "n_edges_att": att_edges.shape[1],
+            "n_edges_rep": rep_edges.shape[1],
+        }
         return MultiLossFctReturn(
             loss_dct=losses,
             weight_dct=weights,
+            extra_metrics=extra,
         )
