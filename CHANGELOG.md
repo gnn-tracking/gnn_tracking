@@ -3,6 +3,12 @@
 This changelog mostly collects important changes to the models that are not
 backward compatible but result in different results.
 
+## 23.12.1
+
+### Breaking changes
+
+* #475 (changed normalization of repulsive hinge loss for GC)
+
 ## 23.12.0
 
 ### Breaking changes
