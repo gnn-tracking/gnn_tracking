@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 import os
 
 from matplotlib import pyplot as plt
