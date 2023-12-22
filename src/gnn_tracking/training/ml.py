@@ -58,7 +58,7 @@ class MLModule(TrackingModule):
         metrics = (
             losses.loss_dct
             | to_floats(add_key_suffix(losses.weighted_losses, "_weighted"))
-            | losses.extra_metrics
+            | to_floats(losses.extra_metrics)
         )
         metrics["total"] = float(losses.loss)
         return losses.loss, metrics
