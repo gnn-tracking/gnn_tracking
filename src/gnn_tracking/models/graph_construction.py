@@ -78,11 +78,9 @@ class GraphConstructionFCNN(nn.Module, HyperparametersMixin):
         x = normalize(data.x, p=2.0, dim=1, eps=1e-12, out=None)
         x = self._encoder(x)
         for layer in self._layers:
-            x = np.sqrt(self.hparams.alpha) * x + np.sqrt(  # residual
+            x = np.sqrt(self.hparams.alpha) * x + np.sqrt(
                 1 - self.hparams.alpha
-            ) * layer(
-                relu(x)
-            )  # delta
+            ) * layer(relu(x))
         x = self._decoder(relu(x))
         x *= self._latent_normalization
         assert x.shape[1] == self.hparams.out_dim
