@@ -110,12 +110,10 @@ class PointCloudTCN(nn.Module):
         for layer in self.layers:
             h = layer(h)
 
-        beta = torch.sigmoid(self.B(h))
-        # protect against nans
-        beta = beta + torch.ones_like(beta) * 10e-12
-
+        beta = torch.sigmoid(self.B(h)).squeeze() + 10e-12
         h_out = self.X(h)
-        return {"W": None, "H": h_out, "B": beta.squeeze(), "P": None}
+
+        return {"W": None, "H": h_out, "B": beta, "P": None}
 
 
 class ModularGraphTCN(nn.Module, HyperparametersMixin):

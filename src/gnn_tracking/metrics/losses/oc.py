@@ -101,7 +101,7 @@ def _radius_graph_condensation_loss(
     radius_threshold: float,
     max_num_neighbors: int,
 ) -> tuple[dict[str, T], dict[str, Any]]:
-    """Extracted function for condensation loss. See `PotentialLoss` for details
+    """Extracted function for condensation loss. See `PotentialLoss` for details.
 
     Args:
         mask: Mask for objects cast to nodes
