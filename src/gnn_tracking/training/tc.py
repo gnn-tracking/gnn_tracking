@@ -76,7 +76,7 @@ class TCModule(TrackingModule):
             add_key_suffix(loss_dct, "_train"),
             prog_bar=True,
             on_step=True,
-            batch_size=self.trainer.train_dataloader.batch_size,
+            batch_size=self.trainer.train_dataloader.batch_size,  # pyright: ignore[reportOptionalMemberAccess]
         )
         assert isinstance(loss, Tensor)
         return loss
@@ -87,7 +87,8 @@ class TCModule(TrackingModule):
         loss, metrics = self.get_losses(out, data)
         metrics |= self._evaluate_cluster_metrics(out, data, batch_idx)
         self.log_dict_with_errors(
-            metrics, batch_size=self.trainer.val_dataloaders.batch_size
+            metrics,
+            batch_size=self.trainer.val_dataloaders.batch_size,  # pyright: ignore[reportOptionalMemberAccess]
         )
 
     def _evaluate_cluster_metrics(

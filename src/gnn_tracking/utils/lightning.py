@@ -7,7 +7,7 @@ from typing import Any, Literal
 import pytorch_lightning
 import torch
 from pytorch_lightning import LightningModule
-from pytorch_lightning.core.mixins import HyperparametersMixin
+from pytorch_lightning.core.mixins.hparams_mixin import HyperparametersMixin
 from torch import Tensor, nn
 from torchmetrics import Metric
 from tqdm import tqdm

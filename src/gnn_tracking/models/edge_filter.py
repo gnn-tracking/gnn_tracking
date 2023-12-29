@@ -9,7 +9,7 @@ import math
 
 import numpy as np
 import torch
-from pytorch_lightning.core.mixins import HyperparametersMixin
+from pytorch_lightning.core.mixins.hparams_mixin import HyperparametersMixin
 from torch import Tensor as T
 from torch.nn import Linear, Module, ModuleList, init
 from torch.nn.functional import normalize, relu, sigmoid

@@ -1,5 +1,5 @@
 import torch
-from pytorch_lightning.core.mixins import HyperparametersMixin
+from pytorch_lightning.core.mixins.hparams_mixin import HyperparametersMixin
 from torch import Tensor as T
 from torch.jit import script as jit
 from torch_geometric.nn import MessagePassing

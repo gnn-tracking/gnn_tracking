@@ -8,7 +8,7 @@ from functools import cached_property
 import numpy as np
 import pandas as pd
 from matplotlib import pyplot as plt
-from pytorch_lightning.core.mixins import HyperparametersMixin
+from pytorch_lightning.core.mixins.hparams_mixin import HyperparametersMixin
 from scipy.interpolate import CubicSpline
 from scipy.optimize import minimize
 from torch import Tensor

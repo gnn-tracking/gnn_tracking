@@ -1,7 +1,7 @@
 """Wrappers and other "meta" models."""
 
 import torch.nn
-from pytorch_lightning.core.mixins import HyperparametersMixin
+from pytorch_lightning.core.mixins.hparams_mixin import HyperparametersMixin
 from torch_geometric.data import Data
 
 from gnn_tracking.utils.lightning import obj_from_or_to_hparams
