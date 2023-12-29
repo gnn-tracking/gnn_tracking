@@ -31,13 +31,13 @@ def _square_distances(edges: T, positions: T) -> T:
 
 @torch.compile
 def _get_alphas_first_occurences(beta: T, particle_id: T, mask: T) -> tuple[T, T]:
-    sorted_indices_j = torch.argsort(beta, descending=True)
-    pids_sorted = particle_id[sorted_indices_j]
-    alphas = sorted_indices_j[_first_occurrences(pids_sorted)]
+    sorted_indices_j = torch.argsort(beta[mask], descending=True)
+    pids_sorted = particle_id[mask][sorted_indices_j]
     # Index of condensation points in node array
-    # Only particles of interest have CPs, in particular no noise hits or low pt hits
-    alphas_k = alphas[mask[alphas]]
-    assert alphas_k.size()[0] > 0, "No particles found, cannot evaluate loss"
+    alphas_k_masked = sorted_indices_j[_first_occurrences(pids_sorted)]
+    assert alphas_k_masked.size()[0] > 0, "No particles found, cannot evaluate loss"
+    # Now make it refer back to the original indices
+    alphas_k = torch.nonzero(mask).squeeze()[alphas_k_masked]
     # 1D array (n_nodes): 1 for CPs, 0 otherwise
     is_cp_j = torch.zeros_like(particle_id, dtype=torch.bool).scatter_(0, alphas_k, 1)
     return alphas_k, is_cp_j
