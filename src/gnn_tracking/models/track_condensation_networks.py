@@ -7,7 +7,7 @@ import math
 
 import torch
 import torch.nn as nn
-from pytorch_lightning.core.mixins import HyperparametersMixin
+from pytorch_lightning.core.mixins.hparams_mixin import HyperparametersMixin
 from torch import Tensor
 from torch_geometric.data import Data
 from torch_geometric.utils import index_to_mask

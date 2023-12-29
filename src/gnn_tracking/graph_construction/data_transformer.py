@@ -5,7 +5,7 @@ from pathlib import Path
 
 import torch
 import yaml
-from pytorch_lightning.core.mixins import HyperparametersMixin
+from pytorch_lightning.core.mixins.hparams_mixin import HyperparametersMixin
 from torch import nn
 from torch_geometric.data import Data
 from tqdm.contrib.concurrent import process_map

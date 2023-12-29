@@ -7,7 +7,7 @@ from itertools import pairwise
 from typing import Any
 
 import torch
-from pytorch_lightning.core.mixins import HyperparametersMixin
+from pytorch_lightning.core.mixins.hparams_mixin import HyperparametersMixin
 from torch import Tensor as T
 from torch import nn
 from torch.nn.functional import relu

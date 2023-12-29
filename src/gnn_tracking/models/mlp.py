@@ -1,5 +1,5 @@
 import torch.nn as nn
-from pytorch_lightning.core.mixins import HyperparametersMixin
+from pytorch_lightning.core.mixins.hparams_mixin import HyperparametersMixin
 
 
 class MLP(nn.Module, HyperparametersMixin):
