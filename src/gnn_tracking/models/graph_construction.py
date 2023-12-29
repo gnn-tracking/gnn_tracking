@@ -9,7 +9,7 @@ from typing import Callable
 
 import numpy as np
 import torch.nn
-from pytorch_lightning.core.mixins import HyperparametersMixin
+from pytorch_lightning.core.mixins.hparams_mixin import HyperparametersMixin
 from torch import Tensor as T
 from torch import nn
 from torch.jit import script as jit
