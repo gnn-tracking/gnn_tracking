@@ -42,6 +42,19 @@ class MultiLossFct(torch.nn.Module):
         ...
 
 
+class DummyMultiLoss(MultiLossFct):
+    """Dummy loss function that returns the sum of the `x` input.
+    This can be used to quickly test the speed of the training loop
+    without any actual loss function.
+    """
+
+    def forward(self, x: T, **kwargs: Any) -> MultiLossFctReturn:
+        return MultiLossFctReturn(
+            loss_dct={"dummy": torch.sum(x)},
+            weight_dct={"dummy": 1.0},
+        )
+
+
 class LossClones(torch.nn.Module):
     def __init__(self, loss: torch.nn.Module, prefixes=("w", "y")) -> None:
         """Wrapper for a loss function that evaluates it on multiple inputs.
