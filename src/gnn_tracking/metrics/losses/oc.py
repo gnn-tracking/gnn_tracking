@@ -30,9 +30,7 @@ def _square_distances(edges: T, positions: T) -> T:
 
 
 @torch.compile
-def _get_alphas_first_occurences(
-    beta: T, particle_id: T, mask: T, q_min: float
-) -> tuple[T, T, T]:
+def _get_alphas_first_occurences(beta: T, particle_id: T, mask: T) -> tuple[T, T]:
     sorted_indices_j = torch.argsort(beta, descending=True)
     pids_sorted = particle_id[sorted_indices_j]
     alphas = sorted_indices_j[_first_occurrences(pids_sorted)]
@@ -40,12 +38,9 @@ def _get_alphas_first_occurences(
     # Only particles of interest have CPs, in particular no noise hits or low pt hits
     alphas_k = alphas[mask[alphas]]
     assert alphas_k.size()[0] > 0, "No particles found, cannot evaluate loss"
-    # "Charge"
-    q_j = torch.arctanh(beta) ** 2 + q_min
-    assert not torch.isnan(q_j).any(), "q contains NaNs"
     # 1D array (n_nodes): 1 for CPs, 0 otherwise
     is_cp_j = torch.zeros_like(particle_id, dtype=torch.bool).scatter_(0, alphas_k, 1)
-    return alphas_k, q_j, is_cp_j
+    return alphas_k, is_cp_j
 
 
 @torch.compile
@@ -111,9 +106,11 @@ def _radius_graph_condensation_loss(
     # _e means indexed by edge
     # where n_objects_of_interest = len(unique(particle_id[mask]))
 
-    alphas_k, q_j, is_cp_j = _get_alphas_first_occurences(
-        beta=beta, particle_id=particle_id, mask=mask, q_min=q_min
+    alphas_k, is_cp_j = _get_alphas_first_occurences(
+        beta=beta, particle_id=particle_id, mask=mask
     )
+
+    q_j = torch.arctanh(beta) ** 2 + q_min
 
     _radius_edges = radius_graph(
         x=x, r=radius_threshold, max_num_neighbors=max_num_neighbors, loop=False
