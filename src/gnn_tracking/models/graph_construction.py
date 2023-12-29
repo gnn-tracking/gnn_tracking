@@ -293,9 +293,9 @@ class MLGraphConstruction(nn.Module, HyperparametersMixin):
         if self._ml is None:
             msg = "Cannot infer output dimension without ML model"
             raise RuntimeError(msg)
-        node_dim = self._ml.in_dim
+        node_dim: int = self._ml.in_dim  # type: ignore
         if self.hparams.use_embedding_features:
-            node_dim += self._ml.out_dim
+            node_dim += self._ml.out_dim  # type: ignore
         edge_dim = 2 * node_dim if self.hparams.build_edge_features else 0
         return node_dim, edge_dim
 

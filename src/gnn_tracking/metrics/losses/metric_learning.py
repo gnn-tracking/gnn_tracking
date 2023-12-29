@@ -99,6 +99,13 @@ class GraphConstructionHingeEmbeddingLoss(MultiLossFct, HyperparametersMixin):
         reconstructable: T,
         **kwargs,
     ) -> MultiLossFctReturn:
+        if true_edge_index is None:
+            msg = (
+                "True_edge_index must be given and not be None. Are you trying to use "
+                "this loss for OC training? In this case, double check that you are "
+                "properly passing on the true edges."
+            )
+            raise ValueError(msg)
         mask = get_good_node_mask_tensors(
             pt=pt,
             particle_id=particle_id,
