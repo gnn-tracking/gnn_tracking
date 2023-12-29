@@ -33,12 +33,12 @@ def _square_distances(edges: T, positions: T) -> T:
 def _get_alphas_first_occurences(
     beta: T, particle_id: T, mask: T, q_min: float
 ) -> tuple[T, T, T]:
-    _sorted_indices_j = torch.argsort(beta, descending=True)
-    _pids_sorted = particle_id[_sorted_indices_j]
-    _alphas = _sorted_indices_j[_first_occurrences(_pids_sorted)]
+    sorted_indices_j = torch.argsort(beta, descending=True)
+    pids_sorted = particle_id[sorted_indices_j]
+    alphas = sorted_indices_j[_first_occurrences(pids_sorted)]
     # Index of condensation points in node array
     # Only particles of interest have CPs, in particular no noise hits or low pt hits
-    alphas_k = _alphas[mask[_alphas]]
+    alphas_k = alphas[mask[alphas]]
     assert alphas_k.size()[0] > 0, "No particles found, cannot evaluate loss"
     # "Charge"
     q_j = torch.arctanh(beta) ** 2 + q_min
@@ -62,32 +62,30 @@ def _get_vr_rg(
     eps = 1e-9
     # Now filter out everything that doesn't include a CP or connects two hits of the
     # same particle
-    _to_cp_e = is_cp_j[radius_edges[0]]
-    _is_repulsive_e = particle_id[radius_edges[0]] != particle_id[radius_edges[1]]
+    to_cp_e = is_cp_j[radius_edges[0]]
+    is_repulsive_e = particle_id[radius_edges[0]] != particle_id[radius_edges[1]]
     # Since noise/low pt does not have CPs, they don't repel from each other
-    _repulsion_edges_e = radius_edges[:, _is_repulsive_e & _to_cp_e]
-    _repulsion_distances_e = radius_threshold - torch.sqrt(
-        eps + _square_distances(_repulsion_edges_e, x)
+    repulsion_edges_e = radius_edges[:, is_repulsive_e & to_cp_e]
+    repulsion_distances_e = radius_threshold - torch.sqrt(
+        eps + _square_distances(repulsion_edges_e, x)
     )
     return torch.sum(
-        _repulsion_distances_e * q_j[_repulsion_edges_e[0]] * q_j[_repulsion_edges_e[1]]
+        repulsion_distances_e * q_j[repulsion_edges_e[0]] * q_j[repulsion_edges_e[1]]
     )
 
 
 @torch.compile
 def _get_va(*, alphas_k: T, is_cp_j: T, particle_id: T, x: T, q_j: T, mask: T) -> T:
     # hit-indices of all non-CPs
-    _non_cp_indices = torch.nonzero(~is_cp_j & mask).squeeze()
+    non_cp_indices = torch.nonzero(~is_cp_j & mask).squeeze()
     # for each non-CP hit, the index of the corresponding CP
-    _corresponding_alpha = alphas_k[
-        torch.searchsorted(particle_id[alphas_k], particle_id[_non_cp_indices])
+    corresponding_alpha = alphas_k[
+        torch.searchsorted(particle_id[alphas_k], particle_id[non_cp_indices])
     ]
-    _attraction_edges_e = torch.stack((_non_cp_indices, _corresponding_alpha))
-    _attraction_distances_e = _square_distances(_attraction_edges_e, x)
+    attraction_edges_e = torch.stack((non_cp_indices, corresponding_alpha))
+    attraction_distances_e = _square_distances(attraction_edges_e, x)
     return torch.sum(
-        _attraction_distances_e
-        * q_j[_attraction_edges_e[0]]
-        * q_j[_attraction_edges_e[1]]
+        attraction_distances_e * q_j[attraction_edges_e[0]] * q_j[attraction_edges_e[1]]
     )
 
 
