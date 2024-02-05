@@ -4,7 +4,6 @@ Expected run time: ~1s / file for 32 sectors and pixel only.
 One stream has ~900 files.
 """
 
-
 import argparse
 import logging
 import os

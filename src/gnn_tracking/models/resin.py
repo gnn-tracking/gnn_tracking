@@ -1,6 +1,5 @@
 """Deep stacked interaction networks with residual connections"""
 
-
 import math
 from abc import ABC, abstractmethod
 from itertools import pairwise

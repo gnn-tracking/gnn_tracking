@@ -1,6 +1,5 @@
 """Models for edge classification"""
 
-
 import numpy as np
 import torch
 from pytorch_lightning.core.mixins.hparams_mixin import HyperparametersMixin

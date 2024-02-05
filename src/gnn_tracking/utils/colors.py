@@ -1,6 +1,5 @@
 """Utility functions for dealing with colors in plotting"""
 
-
 import colorsys
 
 import matplotlib.colors as mc

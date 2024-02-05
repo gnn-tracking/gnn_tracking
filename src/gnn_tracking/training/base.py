@@ -1,4 +1,5 @@
 """Base class used for all pytorch lightning modules."""
+
 import collections
 import logging
 import warnings
@@ -54,7 +55,6 @@ class ImprovedLogLM(LightningModule):
         """Log the uncertainties calculated in `log_dict_with_errors`.
         Needs to be called at the end of the train/val/test epoch.
         """
-        ...
         for k, v in self._uncertainties.items():
             self.log(k + "_std", v.compute(), on_epoch=True, batch_size=1)
         self._uncertainties.clear()

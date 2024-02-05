@@ -1,6 +1,5 @@
 """Plotting functions to plot the latent space"""
 
-
 from typing import Callable, Sequence
 
 import matplotlib.pyplot as plt
