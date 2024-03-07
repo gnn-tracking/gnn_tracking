@@ -26,37 +26,6 @@ from gnn_tracking.utils.log import logger
 from gnn_tracking.utils.torch_utils import freeze_if
 
 
-def ground_truth_classifier(data: Data, mode: bool = False):
-    if mode:
-        # Used when updating the dataset with the noise classifier
-        # before passing to the `Trainer`
-        return data.subgraph(data.particle_id != 0)
-    # For use with `WithNoiseClassification`
-    return data.particle_id != 0
-
-
-class NoiseClassifierModel(nn.Module):
-    def __init__(self):
-        super().__init__()
-
-    def forward(self, data: Data):
-        return ground_truth_classifier(data, True)
-
-
-class WithNoiseClassification(nn.Module, HyperparametersMixin):
-    def __init__(self, noise_model, normal_model):
-        super().__init__()
-        self.noise_model = obj_from_or_to_hparams(self, "noise_model", noise_model)
-        self.normal_model = obj_from_or_to_hparams(self, "normal_model", normal_model)
-
-    def forward(self, data: Data):
-        mask = self.noise_model(data)
-        masked_data = data.subgraph(mask)
-        out = self.normal_model(masked_data)
-        out["hit_mask"] = mask
-        return out
-
-
 class GraphConstructionFCNN(nn.Module, HyperparametersMixin):
     # noinspection PyUnusedLocal
     def __init__(
