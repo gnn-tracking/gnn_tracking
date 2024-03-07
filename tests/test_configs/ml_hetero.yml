@@ -1,0 +1,25 @@
+model:
+  class_path: gnn_tracking.training.ml.MLModule
+  init_args:
+    model:
+      class_path: gnn_tracking.models.graph_construction.GraphConstructionHeteroResFCNN
+      init_args:
+        in_dim: 14
+        out_dim: 8
+        hidden_dim: 10
+        depth: 1
+    loss_fct:
+      class_path: gnn_tracking.metrics.losses.metric_learning.GraphConstructionHingeEmbeddingLoss
+      init_args:
+        max_num_neighbors: 1
+        lw_repulsive: 0.3
+    gc_scanner:
+      class_path: gnn_tracking.graph_construction.k_scanner.GraphConstructionKNNScanner
+      init_args:
+          ks: [1, 2]
+          targets: [0.01]
+    optimizer:
+      class_path: torch.optim.Adam
+      init_args:
+        lr: 0.0001
+        weight_decay: 0.0001

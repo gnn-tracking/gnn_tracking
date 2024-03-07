@@ -63,7 +63,7 @@ def built_graphs(point_clouds_path, tmp_path_factory) -> tuple[Path, GraphBuilde
     graph_builder = GraphBuilder(
         str(point_clouds_path),
         str(out_path),
-        redo=False,
+        redo=True,
         measurement_mode=True,
     )
     graph_builder.process(stop=None)

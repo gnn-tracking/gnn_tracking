@@ -44,6 +44,10 @@ _test_train_test_cases = [
     ),
     TestTrainCase(
         "graphtcn",
+        tc_params={"heterogeneous_node_encoder": True},
+    ),
+    TestTrainCase(
+        "graphtcn",
         tc_params={"mask_orphan_nodes": True},
     ),
     TestTrainCase(
