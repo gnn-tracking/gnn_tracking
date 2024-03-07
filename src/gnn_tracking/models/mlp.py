@@ -1,5 +1,21 @@
+"""Fully connected neural network implementations"""
+
+# Ignore unused arguments because of save_hyperparameters
+# ruff: noqa: ARG002
+
+import math
+
+import numpy as np
+import torch
+import torch.nn
 import torch.nn as nn
 from pytorch_lightning.core.mixins.hparams_mixin import HyperparametersMixin
+from torch import Tensor as T
+from torch.nn import Linear, ModuleList, init
+from torch.nn.functional import normalize, relu
+from torch_geometric.data import Data
+
+from gnn_tracking.utils.asserts import assert_feat_dim
 
 
 class MLP(nn.Module, HyperparametersMixin):
@@ -48,3 +64,64 @@ class MLP(nn.Module, HyperparametersMixin):
         for layer in self.layers:
             x = layer(x)
         return x
+
+
+class ResFCNN(nn.Module, HyperparametersMixin):
+    # noinspection PyUnusedLocal
+    def __init__(
+        self,
+        *,
+        in_dim: int,
+        hidden_dim: int,
+        out_dim: int,
+        depth: int,
+        alpha: float = 0.6,
+    ):
+        """Fully connected NN with residual connections.
+
+        Args:
+            in_dim: Input dimension
+            hidden_dim: Hidden dimension
+            out_dim: Output dimension = embedding space
+            depth: Number of layers
+            beta: Strength of residual connection in layer-to-layer connections
+        """
+
+        super().__init__()
+        self.save_hyperparameters()
+
+        self._encoder = Linear(in_dim, hidden_dim, bias=False)
+        self._decoder = Linear(hidden_dim, out_dim, bias=False)
+
+        self._layers = ModuleList(
+            [Linear(hidden_dim, hidden_dim, bias=False) for _ in range(depth - 1)]
+        )
+        self._latent_normalization = torch.nn.Parameter(
+            torch.Tensor([1.0]), requires_grad=True
+        )
+        self.reset_parameters()
+
+    def reset_parameters(self):
+        self._reset_layer_parameters(self._encoder, var=1 / self.hparams.in_dim)
+        for layer in self._layers:
+            self._reset_layer_parameters(layer, var=2 / self.hparams.hidden_dim)
+        self._reset_layer_parameters(self._decoder, var=2 / self.hparams.hidden_dim)
+
+    @staticmethod
+    def _reset_layer_parameters(layer, var: float):
+        layer.reset_parameters()
+        for p in layer.parameters():
+            init.normal_(p.data, mean=0, std=math.sqrt(var))
+
+    def forward(self, data: Data) -> dict[str, T]:
+        assert_feat_dim(data.x, self.hparams.in_dim)
+        x = normalize(data.x, p=2.0, dim=1, eps=1e-12, out=None)
+        x = self._encoder(x)
+        for layer in self._layers:
+            x = np.sqrt(self.hparams.alpha) * x + np.sqrt(
+                1 - self.hparams.alpha
+            ) * layer(relu(x))
+        x = self._decoder(relu(x))
+        x *= self._latent_normalization
+        assert x.shape[1] == self.hparams.out_dim
+        return {"H": x}
