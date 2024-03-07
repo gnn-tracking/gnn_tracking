@@ -32,7 +32,7 @@ class GraphConstructionFCNN(ResFCNN):
         depth: int,
         alpha: float = 0.6,
     ):
-        """Fully connected neural network for graph construction. 
+        """Fully connected neural network for graph construction.
         Contains additional normalization parameter for the latent space.
         """
         super().__init__(
@@ -44,10 +44,10 @@ class GraphConstructionFCNN(ResFCNN):
             bias=False,
         )
         self._latent_normalization = torch.nn.Parameter(
-            torch.Tensor([1.0]), requires_grad=True
+            torch.tensor([1.0]), requires_grad=True
         )
-    
-    def forward(self, data: Data) -> dict[str, Tensor]:
+
+    def forward(self, data: Data) -> dict[str, T]:
         out = super().forward(data)
         out["H"] *= self._latent_normalization
         return out
@@ -123,7 +123,7 @@ class GraphConstructionResIN(nn.Module, HyperparametersMixin):
             )
         )
         self._latent_normalization = torch.nn.Parameter(
-            torch.Tensor([1.0]), requires_grad=True
+            torch.tensor([1.0]), requires_grad=True
         )
 
     def forward(self, data: Data) -> dict[str, T]:
@@ -333,6 +333,7 @@ class MLGraphConstruction(nn.Module, HyperparametersMixin):
             reconstructable=data.reconstructable,
             edge_attr=edge_features,
             eta=data.eta,
+            layer=data.layer,
         )
 
 
