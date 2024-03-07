@@ -1,6 +1,5 @@
 """Models for embeddings used for graph construction."""
 
-
 # Ignore unused arguments because of save_hyperparameters
 # ruff: noqa: ARG002
 

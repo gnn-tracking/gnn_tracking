@@ -1,6 +1,5 @@
 """This class collects figures of merit for binary classification"""
 
-
 from functools import cached_property
 from typing import Iterable
 

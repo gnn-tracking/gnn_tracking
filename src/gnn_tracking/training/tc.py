@@ -57,7 +57,7 @@ class TCModule(TrackingModule):
             pt=data.pt,
             reconstructable=data.reconstructable,
             eta=data.eta,
-            ec_hit_mask=out.get("ec_hit_mask", None),
+            ec_hit_mask=out.get("ec_hit_mask"),
             batch=data.batch,
             true_edge_index=getattr(data, "true_edges", None),
         )

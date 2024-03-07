@@ -2,7 +2,6 @@
 algorithm for tracking.
 """
 
-
 import functools
 import itertools
 from collections import Counter
@@ -29,8 +28,7 @@ class ClusterMetricType(Protocol):
         pts: np.ndarray,
         reconstructable: np.ndarray,
         pt_thlds: list[float],
-    ) -> float | dict[str, float]:
-        ...
+    ) -> float | dict[str, float]: ...
 
 
 class TrackingMetrics(TypedDict):

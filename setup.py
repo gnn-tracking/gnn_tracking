@@ -6,7 +6,6 @@
 you will need administrator rights).
 """
 
-
 # std
 import site
 import sys

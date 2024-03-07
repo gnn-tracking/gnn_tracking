@@ -38,8 +38,7 @@ class MultiLossFctReturn:
 class MultiLossFct(torch.nn.Module):
     """Base class for loss functions that return multiple losses."""
 
-    def forward(self, *args: Any, **kwargs: Any) -> MultiLossFctReturn:
-        ...
+    def forward(self, *args: Any, **kwargs: Any) -> MultiLossFctReturn: ...
 
 
 class DummyMultiLoss(MultiLossFct):
