@@ -23,7 +23,34 @@ from gnn_tracking.utils.torch_utils import freeze_if
 
 
 class GraphConstructionFCNN(ResFCNN):
-    """Another name for ResFCNN for backwards compatibility"""
+    def __init__(
+        self,
+        *,
+        in_dim: int,
+        hidden_dim: int,
+        out_dim: int,
+        depth: int,
+        alpha: float = 0.6,
+    ):
+        """Fully connected neural network for graph construction. 
+        Contains additional normalization parameter for the latent space.
+        """
+        super().__init__(
+            in_dim=in_dim,
+            hidden_dim=hidden_dim,
+            out_dim=out_dim,
+            depth=depth,
+            alpha=alpha,
+            bias=False,
+        )
+        self._latent_normalization = torch.nn.Parameter(
+            torch.Tensor([1.0]), requires_grad=True
+        )
+    
+    def forward(self, data: Data) -> dict[str, Tensor]:
+        out = super().forward(data)
+        out["H"] *= self._latent_normalization
+        return out
 
 
 class GraphConstructionHeterogeneousResFCNN(HeterogeneousResFCNN):
