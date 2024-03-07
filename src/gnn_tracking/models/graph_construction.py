@@ -25,14 +25,15 @@ from gnn_tracking.utils.lightning import get_model, obj_from_or_to_hparams
 from gnn_tracking.utils.log import logger
 from gnn_tracking.utils.torch_utils import freeze_if
 
-def ground_truth_classifier(data: Data, mode: bool=False):
+
+def ground_truth_classifier(data: Data, mode: bool = False):
     if mode:
         # Used when updating the dataset with the noise classifier
         # before passing to the `Trainer`
         return data.subgraph(data.particle_id != 0)
-    else:
-        # For use with `WithNoiseClassification`
-        return (data.particle_id != 0)
+    # For use with `WithNoiseClassification`
+    return data.particle_id != 0
+
 
 class NoiseClassifierModel(nn.Module):
     def __init__(self):
@@ -40,6 +41,7 @@ class NoiseClassifierModel(nn.Module):
 
     def forward(self, data: Data):
         return ground_truth_classifier(data, True)
+
 
 class WithNoiseClassification(nn.Module, HyperparametersMixin):
     def __init__(self, noise_model, normal_model):
@@ -53,6 +55,7 @@ class WithNoiseClassification(nn.Module, HyperparametersMixin):
         out = self.normal_model(masked_data)
         out["hit_mask"] = mask
         return out
+
 
 class GraphConstructionFCNN(nn.Module, HyperparametersMixin):
     # noinspection PyUnusedLocal
@@ -114,6 +117,7 @@ class GraphConstructionFCNN(nn.Module, HyperparametersMixin):
         assert x.shape[1] == self.hparams.out_dim
         return {"H": x}
 
+
 class HeterogeneousFCNN(nn.Module, HyperparametersMixin):
     def __init__(
         self,
@@ -126,13 +130,23 @@ class HeterogeneousFCNN(nn.Module, HyperparametersMixin):
         out_dim_strip: int,
         depth_strip: int,
         alpha_pix: float = 0.6,
-        alpha_strip: float = 0.6
+        alpha_strip: float = 0.6,
     ):
         super().__init__()
-        self.pixel_enc = GraphConstructionFCNN(in_dim=in_dim_pix, hidden_dim=hidden_dim_pix, out_dim=out_dim_pix,
-                                               depth=depth_pix, alpha=alpha_pix)
-        self.strip_enc = GraphConstructionFCNN(in_dim=in_dim_strip, hidden_dim=hidden_dim_strip, out_dim=out_dim_strip,
-                                               depth=depth_strip, alpha=alpha_strip)
+        self.pixel_enc = GraphConstructionFCNN(
+            in_dim=in_dim_pix,
+            hidden_dim=hidden_dim_pix,
+            out_dim=out_dim_pix,
+            depth=depth_pix,
+            alpha=alpha_pix,
+        )
+        self.strip_enc = GraphConstructionFCNN(
+            in_dim=in_dim_strip,
+            hidden_dim=hidden_dim_strip,
+            out_dim=out_dim_strip,
+            depth=depth_strip,
+            alpha=alpha_strip,
+        )
         self.save_hyperparameters()
 
     def forward(self, data: Data):
@@ -145,6 +159,7 @@ class HeterogeneousFCNN(nn.Module, HyperparametersMixin):
         embed = torch.vstack([embed_pixel, embed_strip])
 
         return {"H": embed}
+
 
 class GraphConstructionResIN(nn.Module, HyperparametersMixin):
     # noinspection PyUnusedLocal
