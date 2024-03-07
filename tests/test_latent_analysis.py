@@ -12,7 +12,7 @@ def selected_pids_test_data() -> dict[str, np.ndarray]:
     for key in ["condensation_space", "input_node_features"]:
         kwargs[key] = torch.rand(size=(100, 5))
     for key in ["particle_id", "labels"]:
-        kwargs[key] = torch.randint(10, size=(100,))
+        kwargs[key] = torch.randint(5, size=(100,))
     kwargs["ec_hit_mask"] = torch.ones(100).bool()
     return kwargs
 

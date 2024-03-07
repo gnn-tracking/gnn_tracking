@@ -75,7 +75,7 @@ class SelectedPidsPlot:
             )
             selected_pids = torch.Tensor(
                 np.random.default_rng()
-                .choice(self._pids[self._pids > 0], 10)
+                .choice(self._pids[self._pids > 0], 6)
                 .astype("int64")
             )
         self._selected_pids = selected_pids
