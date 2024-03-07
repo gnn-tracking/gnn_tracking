@@ -125,3 +125,58 @@ class ResFCNN(nn.Module, HyperparametersMixin):
         x *= self._latent_normalization
         assert x.shape[1] == self.hparams.out_dim
         return {"H": x}
+
+
+def get_pixel_mask(layer: T) -> T:
+    return torch.isin(layer, torch.tensor(list(range(18))))
+
+
+class HeterogeneousResFCNN(nn.Module, HyperparametersMixin):
+    def __init__(
+        self,
+        *,
+        in_dim_pix: int,
+        hidden_dim_pix: int,
+        out_dim_pix: int,
+        depth_pix: int,
+        in_dim_strip: int,
+        hidden_dim_strip: int,
+        out_dim_strip: int,
+        depth_strip: int,
+        alpha_pix: float = 0.6,
+        alpha_strip: float = 0.6,
+    ):
+        """Separate FCNNs for pixel and strip data, with residual connections.
+        For parameters, see `ResFCNN`.
+        """
+        super().__init__()
+        self.pixel_fcnn = ResFCNN(
+            in_dim=in_dim_pix,
+            hidden_dim=hidden_dim_pix,
+            out_dim=out_dim_pix,
+            depth=depth_pix,
+            alpha=alpha_pix,
+        )
+        self.strip_fcnn = ResFCNN(
+            in_dim=in_dim_strip,
+            hidden_dim=hidden_dim_strip,
+            out_dim=out_dim_strip,
+            depth=depth_strip,
+            alpha=alpha_strip,
+        )
+        self.save_hyperparameters()
+
+    def forward(self, data: Data) -> dict[str, T]:
+        pixel_mask = get_pixel_mask(data.layer)
+        x_pixel = data.subgraph(pixel_mask)
+        x_strip = data.subgraph(~pixel_mask)
+
+        embed_pixel = self.pixel_fcnn(x_pixel)["H"]
+        embed_strip = self.strip_fcnn(x_strip)["H"]
+
+        # We can simply concatenate without destroying the
+        # existing order, because the data is already sorted
+        # by pixel and then strip.
+        embed = torch.vstack([embed_pixel, embed_strip])
+
+        return {"H": embed}
