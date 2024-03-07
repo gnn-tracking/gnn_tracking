@@ -48,13 +48,40 @@ class GraphConstructionFCNN(ResFCNN):
         )
 
     def forward(self, data: Data) -> dict[str, T]:
-        out = super().forward(data)
-        out["H"] *= self._latent_normalization
-        return out
+        out = super().forward(data.x) * self._latent_normalization
+        return {"H": out}
 
 
 class GraphConstructionHeterogeneousResFCNN(HeterogeneousResFCNN):
     """Another name for HeterogeneousResFCNN for backwards compatibility"""
+
+    def __init__(
+        self,
+        *,
+        in_dim: int,
+        hidden_dim: int,
+        out_dim: int,
+        depth: int,
+        alpha: float = 0.6,
+    ):
+        """Fully connected neural network for graph construction.
+        Contains additional normalization parameter for the latent space.
+        """
+        super().__init__(
+            in_dim=in_dim,
+            hidden_dim=hidden_dim,
+            out_dim=out_dim,
+            depth=depth,
+            alpha=alpha,
+            bias=False,
+        )
+        self._latent_normalization = torch.nn.Parameter(
+            torch.tensor([1.0]), requires_grad=True
+        )
+
+    def forward(self, data: Data) -> dict[str, T]:
+        out = super().forward(data.x, layer=data.layer) * self._latent_normalization
+        return {"H": out}
 
 
 class GraphConstructionResIN(nn.Module, HyperparametersMixin):

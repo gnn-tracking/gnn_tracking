@@ -13,7 +13,6 @@ from pytorch_lightning.core.mixins.hparams_mixin import HyperparametersMixin
 from torch import Tensor as T
 from torch.nn import Linear, ModuleList, init
 from torch.nn.functional import normalize, relu
-from torch_geometric.data import Data
 
 from gnn_tracking.utils.asserts import assert_feat_dim
 
@@ -111,9 +110,9 @@ class ResFCNN(nn.Module, HyperparametersMixin):
         for p in layer.parameters():
             init.normal_(p.data, mean=0, std=math.sqrt(var))
 
-    def forward(self, data: Data) -> dict[str, T]:
-        assert_feat_dim(data.x, self.hparams.in_dim)
-        x = normalize(data.x, p=2.0, dim=1, eps=1e-12, out=None)
+    def forward(self, x: T, **ignore) -> T:
+        assert_feat_dim(x, self.hparams.in_dim)
+        x = normalize(x, p=2.0, dim=1, eps=1e-12, out=None)
         x = self._encoder(x)
         for layer in self._layers:
             x = np.sqrt(self.hparams.alpha) * x + np.sqrt(
@@ -121,7 +120,7 @@ class ResFCNN(nn.Module, HyperparametersMixin):
             ) * layer(relu(x))
         x = self._decoder(relu(x))
         assert x.shape[1] == self.hparams.out_dim
-        return {"H": x}
+        return x
 
 
 def get_pixel_mask(layer: T) -> T:
@@ -161,17 +160,15 @@ class HeterogeneousResFCNN(nn.Module, HyperparametersMixin):
         )
         self.save_hyperparameters()
 
-    def forward(self, data: Data) -> dict[str, T]:
-        pixel_mask = get_pixel_mask(data.layer)
-        x_pixel = data.subgraph(pixel_mask)
-        x_strip = data.subgraph(~pixel_mask)
+    def forward(self, x: T, layer: T) -> T:
+        pixel_mask = get_pixel_mask(layer)
+        x_pixel = x[pixel_mask]
+        x_strip = x[~pixel_mask]
 
-        embed_pixel = self.pixel_fcnn(x_pixel)["H"]
-        embed_strip = self.strip_fcnn(x_strip)["H"]
+        embed_pixel = self.pixel_fcnn(x_pixel)
+        embed_strip = self.strip_fcnn(x_strip)
 
         # We can simply concatenate without destroying the
         # existing order, because the data is already sorted
         # by pixel and then strip.
-        embed = torch.vstack([embed_pixel, embed_strip])
-
-        return {"H": embed}
+        return torch.vstack([embed_pixel, embed_strip])
