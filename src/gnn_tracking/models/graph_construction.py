@@ -14,7 +14,7 @@ from torch.jit import script as jit
 from torch_cluster import knn_graph
 from torch_geometric.data import Data
 
-from gnn_tracking.models.mlp import MLP, ResFCNN
+from gnn_tracking.models.mlp import MLP, HeterogeneousResFCNN, ResFCNN
 from gnn_tracking.models.resin import ResIN
 from gnn_tracking.utils.asserts import assert_feat_dim
 from gnn_tracking.utils.lightning import get_model, obj_from_or_to_hparams
@@ -26,47 +26,8 @@ class GraphConstructionFCNN(ResFCNN):
     """Another name for ResFCNN for backwards compatibility"""
 
 
-class HeterogeneousFCNN(nn.Module, HyperparametersMixin):
-    def __init__(
-        self,
-        in_dim_pix: int,
-        hidden_dim_pix: int,
-        out_dim_pix: int,
-        depth_pix: int,
-        in_dim_strip: int,
-        hidden_dim_strip: int,
-        out_dim_strip: int,
-        depth_strip: int,
-        alpha_pix: float = 0.6,
-        alpha_strip: float = 0.6,
-    ):
-        super().__init__()
-        self.pixel_enc = GraphConstructionFCNN(
-            in_dim=in_dim_pix,
-            hidden_dim=hidden_dim_pix,
-            out_dim=out_dim_pix,
-            depth=depth_pix,
-            alpha=alpha_pix,
-        )
-        self.strip_enc = GraphConstructionFCNN(
-            in_dim=in_dim_strip,
-            hidden_dim=hidden_dim_strip,
-            out_dim=out_dim_strip,
-            depth=depth_strip,
-            alpha=alpha_strip,
-        )
-        self.save_hyperparameters()
-
-    def forward(self, data: Data):
-        pixel_mask = torch.isin(data.layer, torch.tensor(list(range(18))))
-        x_pixel = data.subgraph(pixel_mask)
-        x_strip = data.subgraph(~pixel_mask)
-
-        embed_pixel = self.pixel_enc(x_pixel)["H"]
-        embed_strip = self.strip_enc(x_strip)["H"]
-        embed = torch.vstack([embed_pixel, embed_strip])
-
-        return {"H": embed}
+class GraphConstructionHeterogeneousResFCNN(HeterogeneousResFCNN):
+    """Another name for HeterogeneousResFCNN for backwards compatibility"""
 
 
 class GraphConstructionResIN(nn.Module, HyperparametersMixin):
