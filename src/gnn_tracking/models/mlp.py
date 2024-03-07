@@ -4,6 +4,7 @@
 # ruff: noqa: ARG002
 
 import math
+import os
 
 import numpy as np
 import torch
@@ -84,7 +85,7 @@ class ResFCNN(nn.Module, HyperparametersMixin):
             hidden_dim: Hidden dimension
             out_dim: Output dimension = embedding space
             depth: 1 input layer, `depth-1` hidden layers, 1 output layer
-            beta: Strength of residual connection in layer-to-layer connections
+            alpha: strength of the residual connection
         """
 
         super().__init__()
@@ -124,7 +125,7 @@ class ResFCNN(nn.Module, HyperparametersMixin):
 
 
 def get_pixel_mask(layer: T) -> T:
-    return torch.isin(layer, torch.tensor(list(range(18))))
+    return torch.isin(layer, torch.tensor(list(range(18)), device=layer.device))
 
 
 class HeterogeneousResFCNN(nn.Module, HyperparametersMixin):
@@ -162,6 +163,12 @@ class HeterogeneousResFCNN(nn.Module, HyperparametersMixin):
 
     def forward(self, x: T, layer: T) -> T:
         pixel_mask = get_pixel_mask(layer)
+        if "PYTEST_CURRENT_TEST" not in os.environ and (
+            pixel_mask.all() or not pixel_mask.any()
+        ):
+            msg = "All or no pixel data found; this doesn't make sense with heterogeneous model"
+            raise ValueError(msg)
+
         x_pixel = x[pixel_mask]
         x_strip = x[~pixel_mask]
 

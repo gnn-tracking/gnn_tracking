@@ -52,7 +52,7 @@ class GraphConstructionFCNN(ResFCNN):
         return {"H": out}
 
 
-class GraphConstructionHeterogeneousResFCNN(HeterogeneousResFCNN):
+class GraphConstructionHeteroResFCNN(HeterogeneousResFCNN):
     """Another name for HeterogeneousResFCNN for backwards compatibility"""
 
     def __init__(

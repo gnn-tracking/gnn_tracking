@@ -15,7 +15,7 @@ from torch_geometric.utils import index_to_mask
 from gnn_tracking.models.dynamic_edge_conv import DynamicEdgeConv
 from gnn_tracking.models.edge_classifier import ECForGraphTCN, PerfectEdgeClassification
 from gnn_tracking.models.interaction_network import InteractionNetwork as IN
-from gnn_tracking.models.mlp import MLP, HeterogeneousResFCNN
+from gnn_tracking.models.mlp import MLP, HeterogeneousResFCNN, ResFCNN
 from gnn_tracking.models.resin import ResIN
 from gnn_tracking.utils.asserts import assert_feat_dim
 from gnn_tracking.utils.lightning import obj_from_or_to_hparams
@@ -135,6 +135,7 @@ class ModularGraphTCN(nn.Module, HyperparametersMixin):
         use_ec_embeddings_for_hc: bool = False,
         alpha_latent: float = 0.0,
         n_embedding_coords: int = 0,
+        heterogeneous_node_encoder: bool = False,
     ):
         """Track condensation network based on preconstructed graphs. This module
         combines the following:
@@ -166,6 +167,7 @@ class ModularGraphTCN(nn.Module, HyperparametersMixin):
                 strength of the residual connection
             n_embedding_coords: Number of embedding coordinates for which to add a
                 residual connection. To be used with `alpha_latent`.
+            heterogeneous_node_encoder: Whether to use different encoders for pixel/strip
         """
         super().__init__()
         self.save_hyperparameters(ignore=["ec", "hc_in"])
@@ -180,14 +182,10 @@ class ModularGraphTCN(nn.Module, HyperparametersMixin):
         edge_enc_indim = edge_indim
         if use_ec_embeddings_for_hc:
             ec_node_latent_dim, ec_edge_latent_dim = ec.latent_dim
-            node_enc_indim += ec_node_latent_dim
-            edge_enc_indim += ec_edge_latent_dim
+            node_enc_indim += int(ec_node_latent_dim)
+            edge_enc_indim += int(ec_edge_latent_dim)
         edge_enc_indim += int(feed_edge_weights)
 
-        #: Node encoder network for track condenser
-        self.hc_node_encoder = MLP(
-            node_enc_indim, h_dim, hidden_dim=hidden_dim, L=2, bias=False
-        )
         #: Edge encoder network for track condenser
         self.hc_edge_encoder = MLP(
             edge_enc_indim,
@@ -196,6 +194,28 @@ class ModularGraphTCN(nn.Module, HyperparametersMixin):
             L=2,
             bias=False,
         )
+        # The fact that we use both MLP and ResFCNN is more historically
+        if not heterogeneous_node_encoder:
+            #: Node encoder network for track condenser
+            self.hc_node_encoder = ResFCNN(
+                in_dim=node_enc_indim,
+                out_dim=h_dim,
+                hidden_dim=hidden_dim,
+                # depth = 1 for backwards compat, note that this is
+                # equivalent to L=2
+                depth=1,
+                bias=False,
+                alpha=0,
+            )
+        else:
+            self.hc_node_encoder = HeterogeneousResFCNN(
+                in_dim=node_enc_indim,
+                out_dim=h_dim,
+                hidden_dim=hidden_dim,
+                depth=2,
+                bias=False,
+                alpha=0,
+            )
 
         #: NN to predict beta
         self.p_beta = MLP(h_dim, 1, hidden_dim, L=3)
@@ -257,9 +277,9 @@ class ModularGraphTCN(nn.Module, HyperparametersMixin):
             _edge_attrs.append(data.edge_weights)
         x = torch.cat(_xs, dim=1)
         edge_attrs = torch.cat(_edge_attrs, dim=1)
-        assert_feat_dim(x, self.hc_node_encoder.hparams.input_size)
+        assert_feat_dim(x, self.hc_node_encoder.hparams.in_dim)
         assert_feat_dim(edge_attrs, self.hc_edge_encoder.hparams.input_size)
-        h_hc = self.relu(self.hc_node_encoder(x))
+        h_hc = self.relu(self.hc_node_encoder(x, layer=data.layer))
         edge_attr_hc = self.relu(self.hc_edge_encoder(edge_attrs))
 
         # Run the track condenser
