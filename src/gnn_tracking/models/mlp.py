@@ -76,6 +76,7 @@ class ResFCNN(nn.Module, HyperparametersMixin):
         out_dim: int,
         depth: int,
         alpha: float = 0.6,
+        bias: bool = True,
     ):
         """Fully connected NN with residual connections.
 
@@ -83,21 +84,18 @@ class ResFCNN(nn.Module, HyperparametersMixin):
             in_dim: Input dimension
             hidden_dim: Hidden dimension
             out_dim: Output dimension = embedding space
-            depth: Number of layers
+            depth: 1 input layer, `depth-1` hidden layers, 1 output layer
             beta: Strength of residual connection in layer-to-layer connections
         """
 
         super().__init__()
         self.save_hyperparameters()
 
-        self._encoder = Linear(in_dim, hidden_dim, bias=False)
-        self._decoder = Linear(hidden_dim, out_dim, bias=False)
+        self._encoder = Linear(in_dim, hidden_dim, bias=bias)
+        self._decoder = Linear(hidden_dim, out_dim, bias=bias)
 
         self._layers = ModuleList(
-            [Linear(hidden_dim, hidden_dim, bias=False) for _ in range(depth - 1)]
-        )
-        self._latent_normalization = torch.nn.Parameter(
-            torch.Tensor([1.0]), requires_grad=True
+            [Linear(hidden_dim, hidden_dim, bias=bias) for _ in range(depth - 1)]
         )
         self.reset_parameters()
 
@@ -122,7 +120,6 @@ class ResFCNN(nn.Module, HyperparametersMixin):
                 1 - self.hparams.alpha
             ) * layer(relu(x))
         x = self._decoder(relu(x))
-        x *= self._latent_normalization
         assert x.shape[1] == self.hparams.out_dim
         return {"H": x}
 
@@ -135,34 +132,32 @@ class HeterogeneousResFCNN(nn.Module, HyperparametersMixin):
     def __init__(
         self,
         *,
-        in_dim_pix: int,
-        hidden_dim_pix: int,
-        out_dim_pix: int,
-        depth_pix: int,
-        in_dim_strip: int,
-        hidden_dim_strip: int,
-        out_dim_strip: int,
-        depth_strip: int,
-        alpha_pix: float = 0.6,
-        alpha_strip: float = 0.6,
+        in_dim: int,
+        out_dim: int,
+        hidden_dim: int,
+        depth: int,
+        alpha: float = 0.6,
+        bias: bool = True,
     ):
         """Separate FCNNs for pixel and strip data, with residual connections.
         For parameters, see `ResFCNN`.
         """
         super().__init__()
         self.pixel_fcnn = ResFCNN(
-            in_dim=in_dim_pix,
-            hidden_dim=hidden_dim_pix,
-            out_dim=out_dim_pix,
-            depth=depth_pix,
-            alpha=alpha_pix,
+            in_dim=in_dim,
+            hidden_dim=hidden_dim,
+            out_dim=out_dim,
+            depth=depth,
+            alpha=alpha,
+            bias=bias,
         )
         self.strip_fcnn = ResFCNN(
-            in_dim=in_dim_strip,
-            hidden_dim=hidden_dim_strip,
-            out_dim=out_dim_strip,
-            depth=depth_strip,
-            alpha=alpha_strip,
+            in_dim=in_dim,
+            hidden_dim=hidden_dim,
+            out_dim=out_dim,
+            depth=depth,
+            alpha=alpha,
+            bias=bias,
         )
         self.save_hyperparameters()
 

@@ -15,7 +15,7 @@ from torch_geometric.utils import index_to_mask
 from gnn_tracking.models.dynamic_edge_conv import DynamicEdgeConv
 from gnn_tracking.models.edge_classifier import ECForGraphTCN, PerfectEdgeClassification
 from gnn_tracking.models.interaction_network import InteractionNetwork as IN
-from gnn_tracking.models.mlp import MLP
+from gnn_tracking.models.mlp import MLP, HeterogeneousResFCNN
 from gnn_tracking.models.resin import ResIN
 from gnn_tracking.utils.asserts import assert_feat_dim
 from gnn_tracking.utils.lightning import obj_from_or_to_hparams
