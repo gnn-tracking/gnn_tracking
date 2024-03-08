@@ -197,6 +197,12 @@ def test_hinge_loss():
     )
 
 
+def test_hinge_loss_legacy():
+    assert get_ml_loss(
+        GraphConstructionHingeEmbeddingLoss(rep_normalization="n_rep_edges"), td1
+    ) == approx({"attractive": 0.7307405975481213, "repulsive": 0.34612957938781874})
+
+
 if __name__ == "__main__":
     for strategy in ["tiger", "rg"]:
         print(f"{strategy=}")

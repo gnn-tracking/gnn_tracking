@@ -20,6 +20,7 @@ def _hinge_loss_components(
     p_attr: float,
     p_rep: float,
     n_hits_oi: int,
+    normalization: str,
 ) -> tuple[T, T]:
     eps = 1e-9
 
@@ -34,7 +35,13 @@ def _hinge_loss_components(
     # increasingly harder.
     # The maximal number of edges that can be in the radius graph is proportional
     # to the number of hits of interest, so we normalize by this number.
-    norm_rep = n_hits_oi + eps
+    if normalization == "n_rep_edges":
+        norm_rep = rep_edges.shape[1] + eps
+    elif normalization == "n_hits_oi":
+        norm_rep = n_hits_oi + eps
+    else:
+        msg = f"Normalization {normalization} not recognized."
+        raise ValueError(msg)
     v_rep = torch.sum(r_emb_hinge - torch.pow(dists_rep, p_rep)) / norm_rep
 
     return v_att, v_rep
@@ -52,6 +59,7 @@ class GraphConstructionHingeEmbeddingLoss(MultiLossFct, HyperparametersMixin):
         max_eta: float = 4.0,
         p_attr: float = 1.0,
         p_rep: float = 1.0,
+        rep_normalization: str = "n_hits_oi",
     ):
         """Loss for graph construction using metric learning.
 
@@ -64,6 +72,9 @@ class GraphConstructionHingeEmbeddingLoss(MultiLossFct, HyperparametersMixin):
             max_eta: maximum eta for particles of interest
             p_attr: Power for the attraction term (default 1: linear loss)
             p_rep: Power for the repulsion term (default 1: linear loss)
+            normalization: Normalization for the repulsive term. Can be either
+                "n_rep_edges" (normalizes by the number of repulsive edges) or
+                "n_hits_oi" (normalizes by the number of hits of interest).
         """
         super().__init__()
         self.save_hyperparameters()
@@ -131,6 +142,7 @@ class GraphConstructionHingeEmbeddingLoss(MultiLossFct, HyperparametersMixin):
             p_attr=self.hparams.p_attr,
             p_rep=self.hparams.p_rep,
             n_hits_oi=n_hits_oi,
+            normalization=self.hparams.rep_normalization,
         )
         losses = {
             "attractive": attr,
