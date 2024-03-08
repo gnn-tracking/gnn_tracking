@@ -22,7 +22,7 @@ from gnn_tracking.utils.log import logger
 from gnn_tracking.utils.torch_utils import freeze_if
 
 
-class GraphConstructionFCNN(ResFCNN):
+class GraphConstructionFCNN(ResFCNN, HyperparametersMixin):
     def __init__(
         self,
         *,
@@ -46,13 +46,14 @@ class GraphConstructionFCNN(ResFCNN):
         self._latent_normalization = torch.nn.Parameter(
             torch.tensor([1.0]), requires_grad=True
         )
+        self.save_hyperparameters()
 
     def forward(self, data: Data) -> dict[str, T]:
         out = super().forward(data.x) * self._latent_normalization
         return {"H": out}
 
 
-class GraphConstructionHeteroResFCNN(HeterogeneousResFCNN):
+class GraphConstructionHeteroResFCNN(HeterogeneousResFCNN, HyperparametersMixin):
     def __init__(
         self,
         *,
@@ -77,6 +78,7 @@ class GraphConstructionHeteroResFCNN(HeterogeneousResFCNN):
         self._latent_normalization = torch.nn.Parameter(
             torch.tensor([1.0]), requires_grad=True
         )
+        self.save_hyperparameters()
 
     def forward(self, data: Data) -> dict[str, T]:
         out = super().forward(data.x, layer=data.layer) * self._latent_normalization
