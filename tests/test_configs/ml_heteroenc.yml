@@ -2,12 +2,14 @@ model:
   class_path: gnn_tracking.training.ml.MLModule
   init_args:
     model:
-      class_path: gnn_tracking.models.graph_construction.GraphConstructionHeteroResFCNN
+      class_path: gnn_tracking.models.graph_construction.GraphConstructionHeteroEncResFCNN
       init_args:
         in_dim: 14
         out_dim: 8
         hidden_dim: 10
+        hidden_dim_enc: 8
         depth: 2
+        depth_enc: 2
     loss_fct:
       class_path: gnn_tracking.metrics.losses.metric_learning.GraphConstructionHingeEmbeddingLoss
       init_args:

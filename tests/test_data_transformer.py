@@ -14,7 +14,7 @@ def test_data_transformer(test_graph: Data, tmp_path):
         in_dim=test_graph.num_node_features,
         out_dim=test_graph.num_node_features,
         hidden_dim=3,
-        depth=1,
+        depth=2,
         alpha=0.5,
     )
     gc = MLGraphConstruction(
