@@ -53,8 +53,6 @@ class GraphConstructionFCNN(ResFCNN):
 
 
 class GraphConstructionHeteroResFCNN(HeterogeneousResFCNN):
-    """Another name for HeterogeneousResFCNN for backwards compatibility"""
-
     def __init__(
         self,
         *,
@@ -65,6 +63,7 @@ class GraphConstructionHeteroResFCNN(HeterogeneousResFCNN):
         alpha: float = 0.6,
     ):
         """Fully connected neural network for graph construction.
+        Fully heterogeneous (i.e., two separate MLPs for node and edge features).
         Contains additional normalization parameter for the latent space.
         """
         super().__init__(
@@ -81,6 +80,54 @@ class GraphConstructionHeteroResFCNN(HeterogeneousResFCNN):
 
     def forward(self, data: Data) -> dict[str, T]:
         out = super().forward(data.x, layer=data.layer) * self._latent_normalization
+        return {"H": out}
+
+
+class GraphConstructionHeteroEncResFCNN(nn.Module, HyperparametersMixin):
+    def __init__(
+        self,
+        *,
+        in_dim: int,
+        hidden_dim_enc: int,
+        hidden_dim: int,
+        out_dim: int,
+        depth_enc: int,
+        depth: int,
+        alpha: float = 0.6,
+    ):
+        """Fully connected neural network for graph construction.
+        Heterogeneous encoding.
+        Contains additional normalization parameter for the latent space.
+        """
+        super().__init__()
+        self.encoder = HeterogeneousResFCNN(
+            in_dim=in_dim,
+            hidden_dim=hidden_dim_enc,
+            out_dim=hidden_dim,
+            depth=depth_enc,
+            alpha=alpha,
+            bias=False,
+        )
+        self.fcnn = ResFCNN(
+            in_dim=hidden_dim,
+            hidden_dim=hidden_dim,
+            out_dim=out_dim,
+            depth=depth,
+            alpha=alpha,
+            bias=False,
+        )
+        self._latent_normalization = torch.nn.Parameter(
+            torch.tensor([1.0]), requires_grad=True
+        )
+        self.save_hyperparameters()
+
+    def forward(self, data: Data) -> dict[str, T]:
+        assert_feat_dim(data.x, self.hparams.in_dim)
+        enc = torch.nn.functional.relu(self.encoder(data.x, layer=data.layer))
+        assert_feat_dim(enc, self.hparams.hidden_dim)
+        out = self.fcnn(enc)
+        assert_feat_dim(out, self.hparams.out_dim)
+        out *= self._latent_normalization
         return {"H": out}
 
 

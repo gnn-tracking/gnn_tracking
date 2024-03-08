@@ -7,7 +7,7 @@ model:
         in_dim: 14
         out_dim: 8
         hidden_dim: 10
-        depth: 1
+        depth: 2
     loss_fct:
       class_path: gnn_tracking.metrics.losses.metric_learning.GraphConstructionHingeEmbeddingLoss
       init_args:

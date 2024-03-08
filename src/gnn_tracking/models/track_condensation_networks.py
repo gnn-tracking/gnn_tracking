@@ -17,7 +17,6 @@ from gnn_tracking.models.edge_classifier import ECForGraphTCN, PerfectEdgeClassi
 from gnn_tracking.models.interaction_network import InteractionNetwork as IN
 from gnn_tracking.models.mlp import MLP, HeterogeneousResFCNN, ResFCNN
 from gnn_tracking.models.resin import ResIN
-from gnn_tracking.utils.asserts import assert_feat_dim
 from gnn_tracking.utils.lightning import obj_from_or_to_hparams
 
 
@@ -277,8 +276,6 @@ class ModularGraphTCN(nn.Module, HyperparametersMixin):
             _edge_attrs.append(data.edge_weights)
         x = torch.cat(_xs, dim=1)
         edge_attrs = torch.cat(_edge_attrs, dim=1)
-        assert_feat_dim(x, self.hc_node_encoder.hparams.in_dim)
-        assert_feat_dim(edge_attrs, self.hc_edge_encoder.hparams.input_size)
         h_hc = self.relu(self.hc_node_encoder(x, layer=data.layer))
         edge_attr_hc = self.relu(self.hc_edge_encoder(edge_attrs))
 
