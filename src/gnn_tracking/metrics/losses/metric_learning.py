@@ -44,7 +44,11 @@ def _hinge_loss_components(
     else:
         msg = f"Normalization {normalization} not recognized."
         raise ValueError(msg)
-    v_rep = torch.sum(r_emb_hinge - torch.pow(dists_rep, p_rep)) / norm_rep
+    # Note: Relu necessary for p < 1
+    v_rep = (
+        torch.sum(torch.nn.functional.relu(r_emb_hinge - torch.pow(dists_rep, p_rep)))
+        / norm_rep
+    )
 
     return v_att, v_rep
 
