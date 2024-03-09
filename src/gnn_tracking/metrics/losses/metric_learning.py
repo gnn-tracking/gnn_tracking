@@ -39,6 +39,8 @@ def _hinge_loss_components(
         norm_rep = rep_edges.shape[1] + eps
     elif normalization == "n_hits_oi":
         norm_rep = n_hits_oi + eps
+    elif normalization == "n_att_edges":
+        norm_rep = att_edges.shape[1] + eps
     else:
         msg = f"Normalization {normalization} not recognized."
         raise ValueError(msg)
@@ -60,6 +62,7 @@ class GraphConstructionHingeEmbeddingLoss(MultiLossFct, HyperparametersMixin):
         p_attr: float = 1.0,
         p_rep: float = 1.0,
         rep_normalization: str = "n_hits_oi",
+        rep_oi_only: bool = True,
     ):
         """Loss for graph construction using metric learning.
 
@@ -73,8 +76,11 @@ class GraphConstructionHingeEmbeddingLoss(MultiLossFct, HyperparametersMixin):
             p_attr: Power for the attraction term (default 1: linear loss)
             p_rep: Power for the repulsion term (default 1: linear loss)
             normalization: Normalization for the repulsive term. Can be either
-                "n_rep_edges" (normalizes by the number of repulsive edges) or
-                "n_hits_oi" (normalizes by the number of hits of interest).
+                "n_rep_edges" (normalizes by the number of repulsive edges < r_emb) or
+                "n_hits_oi" (normalizes by the number of hits of interest) or
+                "n_att_edges" (normalizes by the number of attractive edges of interest)
+            rep_oi_only: Only consider repulsion between hits if at least one
+                of the hits is of interest
         """
         super().__init__()
         self.save_hyperparameters()
@@ -92,7 +98,10 @@ class GraphConstructionHingeEmbeddingLoss(MultiLossFct, HyperparametersMixin):
         )
         # Every edge has to start at a particle of interest, so no special
         # case with noise
-        rep_edges = near_edges[:, mask[near_edges[0]]]
+        if self.hparams.rep_oi_only:
+            rep_edges = near_edges[:, mask[near_edges[0]]]
+        else:
+            rep_edges = near_edges
         rep_edges = rep_edges[:, particle_id[rep_edges[0]] != particle_id[rep_edges[1]]]
         att_edges = true_edge_index[:, mask[true_edge_index[0]]]
         return att_edges, rep_edges
