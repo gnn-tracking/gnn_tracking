@@ -41,7 +41,7 @@ class MLP(nn.Module):
         super().__init__()
         if hidden_dim is None:
             hidden_dim = max(input_size, output_size)
-        layers = [nn.Linear(input_size, hidden_dim, bias=bias)]
+        layers: list[nn.Module] = [nn.Linear(input_size, hidden_dim, bias=bias)]
         for _l in range(1, L - 1):
             layers.append(nn.ReLU())
             layers.append(nn.Linear(hidden_dim, hidden_dim, bias=bias))
