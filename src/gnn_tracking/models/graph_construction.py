@@ -12,6 +12,7 @@ from torch import Tensor as T
 from torch import nn
 from torch.jit import script as jit
 from torch_cluster import knn_graph
+from torch.nn.functional import softmax
 from torch_geometric.data import Data
 
 from gnn_tracking.models.mlp import MLP, HeterogeneousResFCNN, ResFCNN
@@ -31,6 +32,7 @@ class GraphConstructionFCNN(ResFCNN, HyperparametersMixin):
         out_dim: int,
         depth: int,
         alpha: float = 0.6,
+        classification: bool = False
     ):
         """Fully connected neural network for graph construction.
         Contains additional normalization parameter for the latent space.
@@ -46,10 +48,13 @@ class GraphConstructionFCNN(ResFCNN, HyperparametersMixin):
         self._latent_normalization = torch.nn.Parameter(
             torch.tensor([1.0]), requires_grad=True
         )
+        self.classification = classification
         self.save_hyperparameters()
 
     def forward(self, data: Data) -> dict[str, T]:
         out = super().forward(data.x) * self._latent_normalization
+        if self.classification:
+            out = softmax(out)
         return {"H": out}
 
 
