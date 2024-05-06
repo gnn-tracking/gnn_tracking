@@ -41,4 +41,4 @@ jobs:
       - name: Explicitly convert coverage to xml
         run: coverage xml
       - name: Upload coverage report
-        uses: codecov/codecov-action@v4.3.0
+        uses: codecov/codecov-action@v4.3.1
