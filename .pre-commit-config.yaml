@@ -1,6 +1,6 @@
 repos:
   - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.4.3
+    rev: v0.5.0
     hooks:
       - id: ruff
         args: [ --fix, --exit-non-zero-on-fix ]
@@ -19,7 +19,7 @@ repos:
         exclude: '.*\.ipynb'
       - id: trailing-whitespace
   - repo: https://github.com/codespell-project/codespell
-    rev: "v2.2.6"
+    rev: "v2.3.0"
     hooks:
       - id: codespell
         args: ["-I", "codespell.txt"]
