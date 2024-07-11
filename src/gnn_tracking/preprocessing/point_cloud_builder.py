@@ -1,7 +1,6 @@
 """Build point clouds from the input data files."""
 
 import collections
-import itertools
 import logging
 import traceback
 from pathlib import Path, PurePath
@@ -10,11 +9,7 @@ from typing import Any
 import numpy as np
 import pandas as pd
 import torch
-from numba import jit
-from numpy import ndarray as A
-from pandas import DataFrame as DF
 from torch_geometric.data import Data
-from trackml.dataset import load_event
 
 import gnn_tracking.preprocessing.exatrkx_cell_features as ecf
 from gnn_tracking.utils.log import get_logger
@@ -22,20 +17,24 @@ from gnn_tracking.utils.log import get_logger
 pd.options.mode.chained_assignment = None  # default='warn'
 
 
-@jit(forceobj=True)
-def get_truth_edge_index(pids: A) -> A:
+def get_truth_edge_index(pids: np.ndarray) -> np.ndarray:
     """Get edge index for all edges, connecting hits of the same `particle_id`.
     To save space, only edges in one direction are returned.
+    NB this assumes non-directional edges
     """
-    upids = np.unique(pids[pids > 0])
-    mask: A = pids.reshape(1, -1) == upids.reshape(-1, 1)  # type: ignore
-    edges = []
-    for i_particle in range(mask.shape[0]):
-        indices = np.nonzero(mask[i_particle])[0]
-        if len(indices) < 2:
-            continue
-        edges += list(itertools.combinations(indices, 2))
-    return np.array(edges).T
+    pid_df = pd.DataFrame({"particle_id": pids, "index": list(range(len(pids)))})
+    pid_df = pid_df[pid_df["particle_id"] != 0]
+    # gets all the combinations within each particle_id
+    index_combos_within_pid = pid_df.merge(pid_df, on="particle_id")
+    # remove connections to itself and bi-directional edges
+    non_repeating_indices = index_combos_within_pid[
+        index_combos_within_pid["index_x"] != index_combos_within_pid["index_y"]
+    ]
+    non_repeating_indices[["index_x", "index_y"]] = np.sort(
+        non_repeating_indices[["index_x", "index_y"]].values, axis=1
+    )
+    non_repeating_indices = non_repeating_indices.drop_duplicates()
+    return non_repeating_indices[["index_x", "index_y"]].to_numpy().T
 
 
 DEFAULT_FEATURES = (
@@ -64,6 +63,11 @@ _DEFAULT_FEATURE_SCALE = tuple(1 for _ in DEFAULT_FEATURES)
 #   Class should be refactored as well: Most methods, attributes are private, many are
 #   static. Refactoring to be subclass of HyperparametersMixin would allow to easily
 #   save all hyperparameters in yaml output file which could be useful for versioning
+
+# For timing performance, the costly functions are loading the data (36%),
+# appending features (22%), and getting edges (25%).
+
+
 class PointCloudBuilder:
     def __init__(
         self,
@@ -148,12 +152,15 @@ class PointCloudBuilder:
         self.add_true_edges = add_true_edges
         self._detector = ecf.load_detector(Path(detector_config))[1]
 
-    def calc_eta(self, r: A, z: A) -> A:
+    @staticmethod
+    def calc_eta(r: np.ndarray, z: np.ndarray) -> np.ndarray:
         """Compute pseudorapidity (spatial)."""
         theta = np.arctan2(r, z)
         return -np.log(np.tan(theta / 2.0))
 
-    def restrict_to_subdetectors(self, hits: DF, cells: DF) -> tuple[DF, DF]:
+    def restrict_to_subdetectors(
+        self, hits: pd.DataFrame, cells: pd.DataFrame
+    ) -> tuple[pd.DataFrame, pd.DataFrame]:
         """Rename (volume, layer) pairs with an integer label."""
         pixel_barrel = [(8, 2), (8, 4), (8, 6), (8, 8)]
         pixel_LEC = [(7, 14), (7, 12), (7, 10), (7, 8), (7, 6), (7, 4), (7, 2)]
@@ -162,31 +169,34 @@ class PointCloudBuilder:
         if self.pixel_only:
             allowed_layers = pixel_barrel + pixel_REC + pixel_LEC
 
-        hit_layer_groups = hits.groupby(["volume_id", "layer_id"])
+        available_allowed_layers = (
+            hits[["volume_id", "layer_id"]]
+            .value_counts()
+            .reset_index()
+            .sort_values(by=["volume_id", "layer_id"])
+        )
         if allowed_layers is not None:
             available_allowed_layers = sorted(
-                set(hit_layer_groups.groups.keys()) & set(allowed_layers)
+                available_allowed_layers & set(allowed_layers)
             )
-        else:
-            available_allowed_layers = sorted(hit_layer_groups.groups.keys())
-        hits = pd.concat(
-            [
-                hit_layer_groups.get_group(layer).assign(layer=i)
-                for i, layer in enumerate(available_allowed_layers)
-            ]
-        )
 
+        new_layer_ids = dict(
+            zip(available_allowed_layers, range(len(available_allowed_layers)))
+        )
+        hits["layer"] = pd.Series(list(zip(hits["volume_id"], hits["layer_id"]))).map(
+            new_layer_ids
+        )
         cells = cells[cells.hit_id.isin(hits.hit_id)].copy()
 
         return hits, cells
 
     def append_features(
         self,
-        hits: DF,
-        particles: DF,
-        truth: DF,
-        cells: DF,
-    ) -> DF:
+        hits: pd.DataFrame,
+        particles: pd.DataFrame,
+        truth: pd.DataFrame,
+        cells: pd.DataFrame,
+    ) -> pd.DataFrame:
         """Add additional features to the hits dataframe and return it."""
         particles["pt"] = np.sqrt(particles.px**2 + particles.py**2)
         particles["eta_pt"] = self.calc_eta(particles.pt, particles.pz)
@@ -226,8 +236,8 @@ class PointCloudBuilder:
         return hits.merge(truth[["hit_id", "particle_id", "pt", "eta_pt"]], on="hit_id")
 
     def sector_hits(
-        self, hits: DF, sector_id: int, particle_id_counts: dict[int, int]
-    ) -> DF:
+        self, hits: pd.DataFrame, sector_id: int, particle_id_counts: dict[int, int]
+    ) -> pd.DataFrame:
         """Break an event into (optionally) extended sectors."""
 
         if self.n_sectors == 1:
@@ -309,27 +319,30 @@ class PointCloudBuilder:
 
         return extended_sector
 
-    def _get_edge_index(self, particle_id: A) -> torch.Tensor:
+    def _get_edge_index(self, particle_id: np.ndarray) -> torch.Tensor:
         if self.add_true_edges:
-            return torch.from_numpy(get_truth_edge_index(particle_id)).long()
-        return torch.zeros((2, 0)).long()
+            edges = torch.tensor(get_truth_edge_index(particle_id)).long()
+        else:
+            edges = torch.zeros((2, 0)).long()
+        return edges
 
-    def to_pyg_data(self, hits: DF) -> Data:
+    def to_pyg_data(self, hits: pd.DataFrame) -> Data:
         """Build the output data structure"""
         return Data(
-            x=torch.from_numpy(
-                hits[self.feature_names].to_numpy() / self.feature_scale
-            ).float(),
-            edge_index=self._get_edge_index(hits["particle_id"].to_numpy()),
+            x=torch.tensor(
+                hits[self.feature_names].to_numpy() / self.feature_scale,
+                dtype=torch.float32,
+            ),
+            edge_index=self._get_edge_index(hits["particle_id"].values),
             y=torch.zeros(0).float(),
-            layer=torch.from_numpy(hits.layer.to_numpy()).long(),
-            particle_id=torch.from_numpy(hits["particle_id"].to_numpy()).long(),
-            pt=torch.from_numpy(hits["pt"].to_numpy()).float(),
-            reconstructable=torch.from_numpy(hits["reconstructable"].to_numpy()).long(),
-            sector=torch.from_numpy(hits["sector"].to_numpy()).long(),
-            eta=torch.from_numpy(hits["eta_pt"].to_numpy()).float(),
-            n_hits=torch.from_numpy(hits["n_hits"].to_numpy()).long(),
-            n_layers_hit=torch.from_numpy(hits["n_layers_hit"].to_numpy()).long(),
+            layer=torch.tensor(hits.layer.values).long(),
+            particle_id=torch.tensor(hits["particle_id"].values).long(),
+            pt=torch.tensor(hits["pt"].values).float(),
+            reconstructable=torch.tensor(hits["reconstructable"].values).long(),
+            sector=torch.tensor(hits["sector"].values).long(),
+            eta=torch.tensor(hits["eta_pt"].values).float(),
+            n_hits=torch.tensor(hits["n_hits"].values).long(),
+            n_layers_hit=torch.tensor(hits["n_layers_hit"].values).long(),
         )
 
     def get_measurements(self) -> dict[str, float]:
@@ -365,9 +378,7 @@ class PointCloudBuilder:
             evtid = int(f.name[-9:])
 
             try:
-                hits, particles, truth, cells = load_event(
-                    f, parts=["hits", "particles", "truth", "cells"]
-                )
+                hits, particles, truth, cells = simple_loader(f)
             except Exception:
                 if ignore_loading_errors:
                     self.logger.error("Error loading event %d", evtid)
@@ -377,21 +388,19 @@ class PointCloudBuilder:
 
             hits, cells = self.restrict_to_subdetectors(hits, cells)
             hits = self.append_features(hits, particles, truth, cells)
-            hits_by_pid = hits.groupby("particle_id")
 
-            # todo: This should just be a groupby operation
-            particle_id_counts = {pid: len(hit_group) for pid, hit_group in hits_by_pid}
-            pid_layers_hit = {
-                pid: len(np.unique(hit_group.layer)) for pid, hit_group in hits_by_pid
-            }
-            reconstructable = {
-                pid: ((counts >= 3) and (pid > 0))
-                for pid, counts in pid_layers_hit.items()
-            }
-            hits["reconstructable"] = hits.particle_id.map(reconstructable)
-            hits["n_layers_hit"] = hits.particle_id.map(pid_layers_hit)
-            hits["n_hits"] = hits.particle_id.map(particle_id_counts)
-
+            pid_layer_count = (
+                hits.groupby("particle_id")
+                .agg(
+                    n_hits=("particle_id", "size"), n_layers_hit=("layer_id", "nunique")
+                )
+                .reset_index()
+            )
+            # is the second condition necessary...
+            hits = hits.merge(pid_layer_count, on="particle_id", how="left")
+            hits["reconstructable"] = (hits["n_layers_hit"] >= 3) & (
+                hits["particle_id"] > 0
+            )
             n_particles = len(np.unique(hits.particle_id.to_numpy()))
             n_hits = len(hits)
             n_noise = len(hits[hits.particle_id == 0])
@@ -406,7 +415,9 @@ class PointCloudBuilder:
                     self.logger.debug("skipping %s", name)
                     continue
                 sector = self.sector_hits(
-                    hits, s, particle_id_counts=particle_id_counts
+                    hits,
+                    s,
+                    particle_id_counts=pid_layer_count[["particle_id", "n_hits"]],
                 )
                 n_sector_hits += len(sector)
                 n_sector_particles += len(np.unique(sector.particle_id.to_numpy()))
@@ -434,3 +445,15 @@ class PointCloudBuilder:
             for var in stds.index:
                 _ = f"{var}: {means[var]:.4f}+/-{stds[var]:.4f}"
                 self.logger.debug(_)
+
+
+# this speeds up the code slightly, if need more capability, use from trackml.dataset import load_event
+def simple_loader(f):
+    f = str(f)
+    suffix = ".csv.gz"
+    cells = pd.read_csv(f + "-cells" + suffix, header=0, index_col=False)
+    hits = pd.read_csv(f + "-hits" + suffix, header=0, index_col=False)
+    truth = pd.read_csv(f + "-truth" + suffix, header=0, index_col=False)
+    particles = pd.read_csv(f + "-particles" + suffix, header=0, index_col=False)
+
+    return hits, particles, truth, cells
