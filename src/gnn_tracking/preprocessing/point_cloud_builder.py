@@ -161,31 +161,34 @@ class PointCloudBuilder:
     def restrict_to_subdetectors(
         self, hits: pd.DataFrame, cells: pd.DataFrame
     ) -> tuple[pd.DataFrame, pd.DataFrame]:
-        """Rename (volume, layer) pairs with an integer label."""
+        """Rename (volume, layer) pairs with an integer label. If only pixel det, subset data"""
         pixel_barrel = [(8, 2), (8, 4), (8, 6), (8, 8)]
         pixel_LEC = [(7, 14), (7, 12), (7, 10), (7, 8), (7, 6), (7, 4), (7, 2)]
         pixel_REC = [(9, 2), (9, 4), (9, 6), (9, 8), (9, 10), (9, 12), (9, 14)]
-        allowed_layers = None
         if self.pixel_only:
-            allowed_layers = pixel_barrel + pixel_REC + pixel_LEC
-
-        available_allowed_layers = (
-            hits[["volume_id", "layer_id"]]
-            .value_counts()
-            .reset_index()
-            .sort_values(by=["volume_id", "layer_id"])
-        )
-        if allowed_layers is not None:
-            available_allowed_layers = sorted(
-                available_allowed_layers & set(allowed_layers)
+            available_allowed_layers = sorted(pixel_barrel + pixel_REC + pixel_LEC)
+        else:
+            available_allowed_layers = (
+                hits[["volume_id", "layer_id"]]
+                .value_counts()
+                .reset_index()
+                .sort_values(by=["volume_id", "layer_id"])
             )
+            available_allowed_layers = [
+                tuple(x)
+                for x in available_allowed_layers[["volume_id", "layer_id"]].to_numpy()
+            ]
 
         new_layer_ids = dict(
             zip(available_allowed_layers, range(len(available_allowed_layers)))
         )
+
         hits["layer"] = pd.Series(list(zip(hits["volume_id"], hits["layer_id"]))).map(
             new_layer_ids
         )
+
+        hits = hits.dropna(subset="layer")
+
         cells = cells[cells.hit_id.isin(hits.hit_id)].copy()
 
         return hits, cells
@@ -263,8 +266,8 @@ class PointCloudBuilder:
             if pid == 0:
                 continue
             hits_in_sector = len(sector[sector.particle_id == pid])
-            hits_for_pid = particle_id_counts[pid]
-            if (hits_in_sector / hits_for_pid) >= 0.5:
+            hits_for_pid = particle_id_counts[particle_id_counts["particle_id"] == pid]
+            if (hits_in_sector / len(hits_for_pid)) >= 0.5:
                 particle_id_sectors[pid] = sector_id
 
         lower_bound = -self.sector_ds * slope * hits.ur - self.sector_di
@@ -299,7 +302,9 @@ class PointCloudBuilder:
                     & (group.vr > -slope * group.ur)
                     & (group.pt >= self.thld)
                 )
-                n_total = particle_id_counts[pid]
+                n_total = len(
+                    particle_id_counts[particle_id_counts["particle_id"] == pid]
+                )
                 if sum(in_sector) / n_total < 0.5:
                     continue
 
@@ -378,7 +383,7 @@ class PointCloudBuilder:
             evtid = int(f.name[-9:])
 
             try:
-                hits, particles, truth, cells = simple_loader(f)
+                hits, particles, truth, cells = simple_data_loader(f)
             except Exception:
                 if ignore_loading_errors:
                     self.logger.error("Error loading event %d", evtid)
@@ -448,7 +453,7 @@ class PointCloudBuilder:
 
 
 # this speeds up the code slightly, if need more capability, use from trackml.dataset import load_event
-def simple_loader(f):
+def simple_data_loader(f):
     f = str(f)
     suffix = ".csv.gz"
     cells = pd.read_csv(f + "-cells" + suffix, header=0, index_col=False)

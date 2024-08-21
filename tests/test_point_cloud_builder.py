@@ -1,16 +1,48 @@
 import numpy as np
 import pytest
-from gnn_tracking.preprocessing.point_cloud_builder import get_truth_edge_index
-from gnn_tracking.preprocessing.point_cloud_builder import PointCloudBuilder
-from gnn_tracking.preprocessing.point_cloud_builder import simple_data_loader
 
-@pytest.fixture
+from gnn_tracking.preprocessing.point_cloud_builder import (
+    PointCloudBuilder,
+    get_truth_edge_index,
+    simple_data_loader,
+)
+
+
+@pytest.fixture()
+def test_data_files():
+    hits, particles, truth, cells = simple_data_loader(
+        "test_data/trackml/event000000001"
+    )
+    return hits, particles, truth, cells
+
+
+@pytest.fixture()
 def point_cloud_builder():
     return PointCloudBuilder(
-        outdir='',
+        outdir="",
         indir="test_data/trackml/",
         detector_config="test_data/trackml/detectors.csv.gz",
-        n_sectors=2,
+        n_sectors=4,
+        redo=False,
+        pixel_only=False,
+        sector_di=0.0001,
+        sector_ds=1.1,
+        measurement_mode=False,
+        thld=0.5,
+        remove_noise=False,
+        write_output=False,
+        collect_data=True,
+        add_true_edges=True,
+    )
+
+
+@pytest.fixture()
+def point_cloud_builder_pixel():
+    return PointCloudBuilder(
+        outdir="",
+        indir="test_data/trackml/",
+        detector_config="test_data/trackml/detectors.csv.gz",
+        n_sectors=1,
         redo=False,
         pixel_only=True,
         sector_di=0.0001,
@@ -22,6 +54,7 @@ def point_cloud_builder():
         collect_data=True,
         add_true_edges=True,
     )
+
 
 ACCEPTABLE_RANGES = {
     "r": (0, 1026),  # Example range for 'r'
@@ -39,17 +72,51 @@ ACCEPTABLE_RANGES = {
     "gphi": (-np.pi, np.pi),  # Example range for 'gphi'
 }
 
-def test_append_features(point_cloud_builder):
-    hits, particles, truth, cells = simple_data_loader('test_data/trackml/event000000001')
+
+def test_append_features(point_cloud_builder, test_data_files):
+    hits, particles, truth, cells = test_data_files
     updated_hits = point_cloud_builder.append_features(hits, particles, truth, cells)
 
-    assert 'r' in updated_hits.columns
-    assert 'phi' in updated_hits.columns
-    assert 'pt' in updated_hits.columns
+    assert "r" in updated_hits.columns
+    assert "phi" in updated_hits.columns
+    assert "pt" in updated_hits.columns
     assert len(updated_hits) == len(hits)
 
     for feature, (min_val, max_val) in ACCEPTABLE_RANGES.items():
-        assert updated_hits[feature].between(min_val, max_val).all(), f"{feature} is out of range"
+        assert (
+            updated_hits[feature].between(min_val, max_val).all()
+        ), f"{feature} is out of range"
+
+
+def test_restrict_to_subdetectors_full_det(point_cloud_builder, test_data_files):
+    hits, particles, truth, cells = test_data_files
+    hits_new_layers, cells = point_cloud_builder.restrict_to_subdetectors(hits, cells)
+    assert len(hits) == len(hits_new_layers), (
+        f" full detector used, but when relabelling layer numbers, "
+        f"the length changes: {len(hits)} != {len(hits_new_layers)}"
+    )
+    assert (
+        len(hits[["volume_id", "layer_id", "layer"]].value_counts())
+        == hits_new_layers["layer"].nunique()
+    ), "the layer id remapping is not unique"
+
+
+def test_restrict_to_subdetectors_pixel(point_cloud_builder_pixel, test_data_files):
+    hits, particles, truth, cells = test_data_files
+
+    hits_new_layers, cells = point_cloud_builder_pixel.restrict_to_subdetectors(
+        hits, cells
+    )
+    hits_in_pixels = hits[hits["volume_id"].isin([7, 8, 9])]
+    assert len(hits_in_pixels) == len(hits_new_layers), (
+        f" when subsetting to pixels "
+        f"the length changes: {len(hits_in_pixels)} != {len(hits_new_layers)}"
+    )
+
+    assert (
+        len(hits_in_pixels[["volume_id", "layer_id", "layer"]].value_counts())
+        == hits_new_layers["layer"].nunique()
+    ), "the layer id remapping is not unique"
 
 
 def test_point_cloud_builder(point_clouds_path):
@@ -62,5 +129,3 @@ def test_get_truth_edge_index():
         get_truth_edge_index(np.array([0, 1, 2, 3, 2, 1, 0]))
         == np.array([[1, 2], [5, 4]])
     ).all()
-
-
