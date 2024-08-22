@@ -12,11 +12,13 @@ from gnn_tracking.preprocessing.point_cloud_builder import (
     simple_data_loader,
 )
 
+from .test_data import trackml_test_data_dir
+
 
 @pytest.fixture()
 def test_data_files():
     hits, particles, truth, cells = simple_data_loader(
-        "test_data/trackml/event000000001"
+        trackml_test_data_dir / "event000000001"
     )
     return hits, particles, truth, cells
 
@@ -25,8 +27,8 @@ def test_data_files():
 def point_cloud_builder():
     return PointCloudBuilder(
         outdir="tmp_output/",
-        indir="test_data/trackml/",
-        detector_config="test_data/trackml/detectors.csv.gz",
+        indir=trackml_test_data_dir,
+        detector_config=trackml_test_data_dir / "detectors.csv.gz",
         n_sectors=1,
         redo=False,
         pixel_only=False,
@@ -45,8 +47,8 @@ def point_cloud_builder():
 def point_cloud_builder_pixel():
     return PointCloudBuilder(
         outdir="tmp_output/pixel/",
-        indir="test_data/trackml/",
-        detector_config="test_data/trackml/detectors.csv.gz",
+        indir=trackml_test_data_dir,
+        detector_config=trackml_test_data_dir / "detectors.csv.gz",
         n_sectors=1,
         redo=False,
         pixel_only=True,
