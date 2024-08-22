@@ -89,6 +89,7 @@ class PointCloudBuilder:
         feature_names: tuple = DEFAULT_FEATURES,
         feature_scale: tuple = _DEFAULT_FEATURE_SCALE,
         add_true_edges: bool = False,
+        return_data: bool = False,
     ):
         """Build point clouds, that is, read the input data files and convert them
         to pytorch geometric data objects (without any edges yet).
@@ -126,10 +127,10 @@ class PointCloudBuilder:
         self.remove_noise = remove_noise
         self.measurements: list[dict[str, Any]] = []
         self.write_output = write_output
-
         self.feature_names = list(feature_names)
         self.feature_scale = list(feature_scale)
         assert len(self.feature_names) == len(self.feature_scale)
+        self.return_data = return_data
 
         suffix = "-hits.csv.gz"
         self.prefixes: list[Path] = []
@@ -275,6 +276,7 @@ class PointCloudBuilder:
         extended_sector = hits[
             ((hits.vr > lower_bound) & (hits.vr < upper_bound) & (hits.ur > 0))
         ]
+
         extended_sector["sector"] = extended_sector["particle_id"].map(
             particle_id_sectors
         )
@@ -377,6 +379,7 @@ class PointCloudBuilder:
         Returns:
 
         """
+
         for f in self.prefixes[start:stop]:
             self.logger.debug("Processing %s", f)
 
@@ -411,6 +414,8 @@ class PointCloudBuilder:
             n_noise = len(hits[hits.particle_id == 0])
             n_sector_hits = 0  # total quantities appearing in sectored graph
             n_sector_particles = 0
+            sector_list = []
+
             for s in range(self.n_sectors):
                 name = f"data{evtid}_s{s}.pt"
                 if self.exists[name] and not self.redo:
@@ -427,6 +432,8 @@ class PointCloudBuilder:
                 n_sector_hits += len(sector)
                 n_sector_particles += len(np.unique(sector.particle_id.to_numpy()))
                 sector = self.to_pyg_data(sector)
+                if self.return_data and self.n_sectors > 1:
+                    sector_list.append(sector)
                 outfile = self.outdir / name
                 if self.write_output:
                     torch.save(sector, outfile)
@@ -450,6 +457,14 @@ class PointCloudBuilder:
             for var in stds.index:
                 _ = f"{var}: {means[var]:.4f}+/-{stds[var]:.4f}"
                 self.logger.debug(_)
+
+        if self.return_data and self.n_sectors > 1:
+            graph_out = sector_list
+        elif self.return_data:
+            graph_out = sector
+        else:
+            graph_out = None
+        return graph_out
 
 
 # this speeds up the code slightly, if need more capability, use from trackml.dataset import load_event

@@ -9,6 +9,7 @@ from torch.utils.data import RandomSampler
 from torch_geometric.data import Data, Dataset
 from torch_geometric.loader import DataLoader
 
+from gnn_tracking.preprocessing.point_cloud_builder import PointCloudBuilder
 from gnn_tracking.utils.log import logger
 
 
@@ -21,6 +22,7 @@ class TrackingDataset(Dataset):
         start=0,
         stop=None,
         sector: int | None = None,
+        point_cloud_builder: PointCloudBuilder | None,
     ):
         """Dataset for tracking applications
 
@@ -32,12 +34,16 @@ class TrackingDataset(Dataset):
             sector: If not None, only files with this sector number will be considered
         """
         super().__init__()
+        self.point_cloud_builder = point_cloud_builder
+
         self._processed_paths = self._get_paths(
             in_dir, start=start, stop=stop, sector=sector
         )
+        self.file_number = 0
+        self.prev_file_number = -1
 
-    @staticmethod
     def _get_paths(
+        self,
         in_dir: str | os.PathLike | list[str] | list[os.PathLike],
         *,
         start=0,
@@ -48,23 +54,26 @@ class TrackingDataset(Dataset):
         if start == stop:
             return []
 
+        if self.point_cloud_builder is not None:
+            in_dir = Path(self.point_cloud_builder.indir)
+            glob = "*-hits.csv.gz"  # avoid overcounting
+        else:
+            glob = "*.pt" if sector is None else f"*_s{sector}.pt"
+
         if not isinstance(in_dir, list):
             in_dir = [in_dir]
         for d in in_dir:
             if not Path(d).exists():
                 msg = f"Directory {d} does not exist."
                 raise FileNotFoundError(msg)
-        glob = "*.pt" if sector is None else f"*_s{sector}.pt"
+
         available_files = sorted(
             itertools.chain.from_iterable([Path(d).glob(glob) for d in in_dir])
         )
 
         if stop is not None and stop > len(available_files):
             # to avoid tracking wrong hyperparameters
-            msg = (
-                f"stop={stop} is larger than the number of files "
-                "({len(available_files)})"
-            )
+            msg = f"stop={stop} is larger than the number of files  ({len(available_files)})"
             raise ValueError(msg)
         considered_files = available_files[start:stop]
         logger.info(
@@ -80,10 +89,28 @@ class TrackingDataset(Dataset):
         return considered_files
 
     def len(self) -> int:
-        return len(self._processed_paths)
+        if self.point_cloud_builder is None or self.point_cloud_builder.n_sectors == 1:
+            return len(self._processed_paths)
+
+        return len(self._processed_paths) * self.point_cloud_builder.n_sectors
 
     def get(self, idx: int) -> Data:
-        return torch.load(self._processed_paths[idx])
+        # slightly funky logic to load each sector on the fly without re-processing each file
+        if self.point_cloud_builder is None:
+            return torch.load(self._processed_paths[idx])
+
+        if self.point_cloud_builder.n_sectors == 1:
+            return self.point_cloud_builder.process(idx, idx + 1)
+
+        self.file_number = idx // self.point_cloud_builder.n_sectors
+        if self.file_number != self.prev_file_number:
+            self.sector_results = self.point_cloud_builder.process(
+                self.file_number, self.file_number + 1
+            )
+        self.prev_file_number = self.file_number
+        return self.sector_results[
+            idx - self.file_number * self.point_cloud_builder.n_sectors
+        ]
 
 
 class TrackingDataModule(LightningDataModule):
@@ -96,6 +123,7 @@ class TrackingDataModule(LightningDataModule):
         val: dict | None = None,
         test: dict | None = None,
         cpus: int = 1,
+        builder_params: dict | None = None,  # New Parameter
     ):
         """This subclass of `LightningDataModule` configures all data for the
         ML pipeline.
@@ -130,6 +158,7 @@ class TrackingDataModule(LightningDataModule):
         }
         self._datasets = {}
         self._cpus = cpus
+        self.builder_params = builder_params
 
     @property
     def datasets(self) -> dict[str, TrackingDataset]:
@@ -154,14 +183,25 @@ class TrackingDataModule(LightningDataModule):
 
     def _get_dataset(self, key: str) -> TrackingDataset:
         config = self._configs[key]
+
+        if self.builder_params is not None:
+            in_dir = self.builder_params["indir"]
+
+        else:
+            in_dir = config["dirs"]
+        config = self._configs[key]
         if not config:
             msg = f"DataLoaderConfig for key {key} is None."
             raise ValueError(msg)
+        point_cloud_builder = None
+        if self.builder_params:
+            point_cloud_builder = PointCloudBuilder(**self.builder_params)
         return TrackingDataset(
-            in_dir=config["dirs"],
+            in_dir=in_dir,
             start=config.get("start", 0),
             stop=config.get("stop", None),
             sector=config.get("sector", None),
+            point_cloud_builder=point_cloud_builder,  # Pass builder
         )
 
     def setup(self, stage: str) -> None:
