@@ -10,7 +10,7 @@ dependencies:
   - pytorch >= 2
   - optuna
   - wandb
-  - numpy
+  - numpy < 2
   - pandas
   - scikit-learn
   - pip
