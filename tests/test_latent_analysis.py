@@ -6,7 +6,7 @@ from matplotlib import pyplot as plt
 from gnn_tracking.analysis.latent import SelectedPidsPlot
 
 
-@pytest.fixture()
+@pytest.fixture
 def selected_pids_test_data() -> dict[str, np.ndarray]:
     kwargs = {}
     for key in ["condensation_space", "input_node_features"]:
