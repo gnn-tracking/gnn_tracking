@@ -3,6 +3,7 @@ from pathlib import Path
 test_data_dir = Path(__file__).resolve().parent
 assert test_data_dir.is_dir()
 trackml_test_data_dir = test_data_dir / "trackml"
+cms_test_data_dir = test_data_dir / "cms_mc"
 assert trackml_test_data_dir.is_dir()
 trackml_test_data_prefix = "event000000001"
 trackml_test_data_detector_config = trackml_test_data_dir / "detectors.csv.gz"

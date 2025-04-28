@@ -8,8 +8,13 @@ from pytorch_lightning import LightningDataModule
 from torch.utils.data import RandomSampler
 from torch_geometric.data import Data, Dataset
 from torch_geometric.loader import DataLoader
+from torch_geometric.utils import subgraph
 
-from gnn_tracking.preprocessing.point_cloud_builder import PointCloudBuilder
+from gnn_tracking.preprocessing.point_cloud_builder import (
+    CMSPointCloudBuilder,
+    MDPointCloudBuilder,
+    TrackMLPointCloudBuilder,
+)
 from gnn_tracking.utils.log import logger
 
 DEFAULT_FEATURES = (
@@ -39,9 +44,12 @@ class TrackingDataset(Dataset):
         start=0,
         stop=None,
         sector: int | None = None,
-        point_cloud_builder: PointCloudBuilder | None,
+        point_cloud_builder: TrackMLPointCloudBuilder
+        | CMSPointCloudBuilder
+        | MDPointCloudBuilder
+        | None,
         feature_subset_names: list[str] | None = None,
-
+        pt_cut: float | None = None,
     ):
         """Dataset for tracking applications
 
@@ -66,7 +74,7 @@ class TrackingDataset(Dataset):
             ]
         else:
             self.feature_subset = None
-
+        self.pt_cut = pt_cut
 
     def _get_paths(
         self,
@@ -129,6 +137,8 @@ class TrackingDataset(Dataset):
                     msg = f"error in file {self._processed_paths[idx]}"
                     raise ValueError(msg)
                 data.x = data.x[:, self.feature_subset]
+                if self.pt_cut is not None:
+                    data = self._make_pt_cut(data)
             return data
 
 
@@ -145,6 +155,50 @@ class TrackingDataset(Dataset):
             idx - self.file_number * self.point_cloud_builder.n_sectors
         ]
 
+    def _make_pt_cut(self, data: Data) -> Data:
+        if self.pt_cut is not None:
+            mask = data.pt > self.pt_cut  # shape: [num_nodes]
+            node_idx = mask.nonzero(as_tuple=True)[0]  # shape: [num_selected_nodes]
+            new_edge_index, edge_mask = subgraph(
+                node_idx, data.edge_index, relabel_nodes=True, num_nodes=data.num_nodes
+            )
+
+            data = Data(
+                x=data.x[mask],
+                edge_index=new_edge_index,
+                y=data.y[edge_mask],
+                layer=data.layer[mask],
+                particle_id=data.particle_id[mask],
+                pt=data.pt[mask],
+                reconstructable=data.reconstructable[mask],
+                sector=data.sector[mask],
+                eta=data.eta[mask],
+                n_hits=data.n_hits[mask],
+                n_layers_hit=data.n_layers_hit[mask],
+            )
+        return self._cut_to_pixel_cms(data)
+
+    def _cut_to_pixel_cms(self, data: Data) -> Data:
+        mask = data.x[:, 0] < 200
+        node_idx = mask.nonzero(as_tuple=True)[0]  # shape: [num_selected_nodes]
+        new_edge_index, edge_mask = subgraph(
+            node_idx, data.edge_index, relabel_nodes=True, num_nodes=data.num_nodes
+        )
+
+        return Data(
+            x=data.x[mask],
+            edge_index=new_edge_index,
+            y=data.y[edge_mask],
+            layer=data.layer[mask],
+            particle_id=data.particle_id[mask],
+            pt=data.pt[mask],
+            reconstructable=data.reconstructable[mask],
+            sector=data.sector[mask],
+            eta=data.eta[mask],
+            n_hits=data.n_hits[mask],
+            n_layers_hit=data.n_layers_hit[mask],
+        )
+
 
 class TrackingDataModule(LightningDataModule):
     # noinspection PyUnusedLocal
@@ -159,7 +213,7 @@ class TrackingDataModule(LightningDataModule):
         cpus: int = 1,
         builder_params: dict | None = None,
         feature_subset_names: list[str] | None = None,
-
+        pt_cut: float | None = None,
     ):
         """This subclass of `LightningDataModule` configures all data for the
         ML pipeline.
@@ -197,6 +251,8 @@ class TrackingDataModule(LightningDataModule):
         self._cpus = cpus
         self.builder_params = builder_params
         self.feature_subset_names = feature_subset_names
+        self.pt_cut = pt_cut
+
     @property
     def datasets(self) -> dict[str, TrackingDataset]:
         if not self._datasets:
@@ -232,9 +288,8 @@ class TrackingDataModule(LightningDataModule):
             raise ValueError(msg)
         point_cloud_builder = None
         if self.builder_params is not None:
-
-
-            point_cloud_builder = PointCloudBuilder(**self.builder_params)
+            # this needs generalising to CMSPointCloudBuilder and MDPointCloudBuilder
+            point_cloud_builder = TrackMLPointCloudBuilder(**self.builder_params)
         return TrackingDataset(
             in_dir=in_dir,
             start=config.get("start", 0),
@@ -242,7 +297,7 @@ class TrackingDataModule(LightningDataModule):
             sector=config.get("sector", None),
             point_cloud_builder=point_cloud_builder,  # Pass builder
             feature_subset_names=self.feature_subset_names,
-
+            pt_cut=self.pt_cut,
         )
 
     def setup(self, stage: str) -> None:

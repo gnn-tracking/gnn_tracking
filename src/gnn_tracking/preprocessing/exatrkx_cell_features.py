@@ -168,6 +168,7 @@ def cartesian_to_spherical(x, y, z):
 def theta_to_eta(theta):
     """Adapted/copied from ExaTrkX's preprocessing. See docstring above."""
 
+    theta = np.where(theta == 0, 1e-5, theta)
     return -np.log(np.tan(0.5 * theta))
 
 
