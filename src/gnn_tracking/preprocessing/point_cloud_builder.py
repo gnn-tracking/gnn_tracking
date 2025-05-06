@@ -39,24 +39,24 @@ DEFAULT_FEATURES = (
 )
 _DEFAULT_FEATURE_SCALE = tuple(1 for _ in DEFAULT_FEATURES)
 
-
-LST_NODE_FEATURES = [
-    "MD_0_x",
-    "MD_0_y",
-    "MD_0_z",
+MD_FEATURES = [
     "MD_0_r",
-    "MD_1_x",
-    "MD_1_y",
-    "MD_1_z",
     "MD_1_r",
+    "MD_0_z",
+    "MD_1_z",
     "MD_eta",
     "MD_phi",
     "MD_dphichange",
 ]
-LST_EDGE_FEATURES = ["LS_pt", "LS_eta", "LS_phi"]
-LST_EDGE_INDEX = ["LS_MD_idx0", "LS_MD_idx1"]
-LST_Y_VAL = ["LS_isFake"]
-LST_ALL_COLUMNS = LST_NODE_FEATURES + LST_EDGE_FEATURES + LST_EDGE_INDEX + LST_Y_VAL
+MD_COLS = [*MD_FEATURES, "MD_layer"]
+LS_COLS = [
+    "LS_MD_idx0",
+    "LS_MD_idx1",
+    "LS_isInTrueTC",
+    "LS_TCidx",
+    "LS_sim_pt",
+    "LS_sim_eta",
+]
 # TODO: In need of refactoring: load_point_clouds should be factored out (this should
 #   only be used for building the graphs), and the parsing of the filenames should be
 #   done with the function that is also used in build_point_clouds
@@ -150,7 +150,10 @@ class BasePointCloudBuilder(ABC):
         self.exists: dict[str, bool] = {}
         self.outfiles = [child.name for child in self.outdir.iterdir()]
         # Sort the files to keep unit tests fixed on different platforms
-        self.infiles = sorted(self.indir.iterdir())
+        if self.data_type != "MD":
+            self.infiles = sorted(self.indir.iterdir())
+        else:
+            self.infiles = self.indir
         self.data_list: list[Data] = []
         self.logger = get_logger("PointCloudBuilder", level=log_level)
         self._collect_data = collect_data
@@ -223,7 +226,6 @@ class BasePointCloudBuilder(ABC):
 
     def save_output_file(self, name: str, hits: pd.DataFrame):
         pyg_data = self.to_pyg_data(hits)
-
         outfile = self.outdir / name
         if self.write_output:
             torch.save(pyg_data, outfile)
@@ -481,6 +483,7 @@ class TrackMLPointCloudBuilder(BasePointCloudBuilder):
                 n_total = len(
                     particle_id_counts[particle_id_counts["particle_id"] == pid]
                 )
+
                 if sum(in_sector) / n_total < 0.5:
                     continue
 
@@ -642,31 +645,59 @@ class CMSPointCloudBuilder(BasePointCloudBuilder):
 class MDPointCloudBuilder(BasePointCloudBuilder):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        self.input_tree = uproot.open(self.input_path)["tree"]
+        self.input_tree = uproot.open(self.infiles)["tree"]
+        self.feature_names = MD_FEATURES
+        self.feature_scale = tuple(1 for _ in MD_FEATURES)
 
     def read_event(self, event_id: int) -> pd.DataFrame:
-        event_data = (
-            self.input_tree.arrays(
-                LST_ALL_COLUMNS, entry_start=event_id, entry_stop=event_id + 1
-            ),
+        event_data = self.input_tree.arrays(
+            entry_start=event_id, entry_stop=event_id + 1
         )
-        node_features = torch.tensor(
-            ak.to_dataframe(event_data[LST_NODE_FEATURES]).to_numpy()
+        md = ak.to_dataframe(event_data[MD_COLS]).reset_index()
+        ls = ak.to_dataframe(event_data[LS_COLS]).reset_index()
+        # because of how the data is structured, we need to go via line segments
+        true_line_segments = ls[ls["LS_isInTrueTC"] != 0]
+
+        md.loc[
+            true_line_segments["LS_MD_idx0"], ["LS_TCidx", "LS_sim_pt", "LS_sim_eta"]
+        ] = true_line_segments[["LS_TCidx", "LS_sim_pt", "LS_sim_eta"]].to_numpy()
+        md.loc[
+            true_line_segments["LS_MD_idx1"], ["LS_TCidx", "LS_sim_pt", "LS_sim_eta"]
+        ] = true_line_segments[["LS_TCidx", "LS_sim_pt", "LS_sim_eta"]].to_numpy()
+
+        # anything that is not a true line segment is background
+
+        md["LS_TCidx"] = md["LS_TCidx"].fillna(0)
+
+        md["LS_sim_pt"] = md["LS_sim_pt"].fillna(0)
+        md["LS_sim_eta"] = md["LS_sim_eta"].fillna(0)
+
+        hits = md.rename(
+            {
+                "LS_TCidx": "particle_id",
+                "MD_layer": "layer_id",
+                "LS_sim_pt": "pt",
+                "LS_sim_eta": "eta_pt",
+            },
+            axis=1,
         )
-        edge_index = torch.tensor(
-            ak.to_dataframe(event_data[LST_EDGE_INDEX]).to_numpy().T, dtype=torch.int64
+        # hits = hits[hits['particle_id'] > 0]
+        hits = self.append_n_layers_hit(hits)
+        hits["sector"] = 0
+        hits["reconstructable"] = (hits["particle_id"] > 0) & (
+            hits["n_layers_hit"] >= 2
         )
-        edge_feature = torch.tensor(
-            ak.to_dataframe(event_data[LST_EDGE_FEATURES]).to_numpy()
-        )
-        y = (
-            torch.logical_not(
-                torch.tensor(ak.to_dataframe(event_data[LST_Y_VAL]).values)
-            )
-            .int()
-            .view(-1)
-        )
-        return Data(x=node_features, edge_index=edge_index, edge_attr=edge_feature, y=y)
+        return hits
 
     def process_event(self, event_id: int) -> pd.DataFrame():
-        self.read_event(event_id)
+        subdir = Path(f"part_{int(event_id/1000)}")
+        self.outdir = self.initial_outdir / subdir
+        # Create the directory if it doesn't exist
+        self.outdir.mkdir(parents=True, exist_ok=True)
+        hits = self.read_event(event_id)
+        assert (
+            hits.isna().to_numpy().any() is not False
+        ), f"NaN values in hits for event {event_id}"
+        assert len(hits) > 1000, f"Empty hits for event {event_id}"
+        out_file_name = f"lst_data_{event_id}_s0.pt"
+        return self.save_output_file(out_file_name, hits)

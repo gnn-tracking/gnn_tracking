@@ -9,7 +9,11 @@ import logging
 import os
 from pathlib import Path
 
-from point_cloud_builder import PointCloudBuilder
+from point_cloud_builder import (
+    CMSPointCloudBuilder,
+    MDPointCloudBuilder,
+    TrackMLPointCloudBuilder,
+)
 
 
 def get_parser() -> argparse.ArgumentParser:
@@ -23,6 +27,18 @@ def get_parser() -> argparse.ArgumentParser:
         "--outdir",
         type=str,
         help="Output directory",
+    )
+    parser.add_argument(
+        "--data_type",
+        type=str,
+        help="Data type",
+        default="TrackML",
+    )
+    parser.add_argument(
+        "--stop",
+        type=int,
+        default=10,
+        help="file number at which to stop",
     )
     default_start = int(os.environ.get("SLURM_ARRAY_TASK_ID", 0))
     parser.add_argument(
@@ -41,6 +57,12 @@ def get_parser() -> argparse.ArgumentParser:
     return parser
 
 
+pc_builder_dict = {
+    "TrackML": TrackMLPointCloudBuilder,
+    "CMS": CMSPointCloudBuilder,
+    "MD": MDPointCloudBuilder,
+}
+
 if __name__ == "__main__":
     args = get_parser().parse_args()
     # We need the kaggle version of this file, the codalab one has the pitch
@@ -49,11 +71,15 @@ if __name__ == "__main__":
     detector_config_path = Path(
         "/scratch/gpfs/IOJALVO/gnn-tracking/object_condensation/codalab-data/detector_kaggle.csv"
     )
-    pc_builder = PointCloudBuilder(
+    if args.data_type not in pc_builder_dict:
+        err = f"Invalid data type: {args.data_type}"
+        raise ValueError(err)
+
+    pc_builder = pc_builder_dict[args.data_type](
         indir=args.indir,
         outdir=args.outdir,
         n_sectors=1,
-        pixel_only=True,
+        pixel_only=False,
         redo=True,
         measurement_mode=False,
         sector_di=0,
@@ -63,9 +89,10 @@ if __name__ == "__main__":
         collect_data=False,
         add_true_edges=True,
         detector_config=detector_config_path,
+        data_type=args.data_type,
     )
-    start = args.start * args.batch_size
-    stop = None
-    if args.batch_size > 0:
-        stop = start + args.batch_size
-    pc_builder.process(start=start, stop=stop, ignore_loading_errors=True)
+    start = args.start  # * args.batch_size
+    stop = args.stop
+    # if args.batch_size > 0:
+    #     stop = start + args.batch_size
+    pc_builder.process(start=start, stop=stop)
