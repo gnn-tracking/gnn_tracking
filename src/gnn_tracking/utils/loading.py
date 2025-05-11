@@ -137,8 +137,8 @@ class TrackingDataset(Dataset):
                     msg = f"error in file {self._processed_paths[idx]}"
                     raise ValueError(msg)
                 data.x = data.x[:, self.feature_subset]
-                if self.pt_cut is not None:
-                    data = self._make_pt_cut(data)
+            if self.pt_cut is not None:
+                data = self._make_pt_cut(data)
             return data
 
 
@@ -157,6 +157,7 @@ class TrackingDataset(Dataset):
 
     def _make_pt_cut(self, data: Data) -> Data:
         if self.pt_cut is not None:
+            # Apply pt cut
             mask = data.pt > self.pt_cut  # shape: [num_nodes]
             node_idx = mask.nonzero(as_tuple=True)[0]  # shape: [num_selected_nodes]
             new_edge_index, edge_mask = subgraph(
@@ -176,7 +177,11 @@ class TrackingDataset(Dataset):
                 n_hits=data.n_hits[mask],
                 n_layers_hit=data.n_layers_hit[mask],
             )
-        return self._cut_to_pixel_cms(data)
+            # Only apply pixel CMS cut if we're doing a pt cut
+            return self._cut_to_pixel_cms(data)
+
+        # Don't apply pixel CMS cut if no pt cut was applied
+        return data
 
     def _cut_to_pixel_cms(self, data: Data) -> Data:
         mask = data.x[:, 0] < 200
