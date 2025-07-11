@@ -15,7 +15,7 @@ from torch_geometric.utils import index_to_mask
 from gnn_tracking.models.dynamic_edge_conv import DynamicEdgeConv
 from gnn_tracking.models.edge_classifier import ECForGraphTCN, PerfectEdgeClassification
 from gnn_tracking.models.interaction_network import InteractionNetwork as IN
-from gnn_tracking.models.mlp import MLP, HeterogeneousResFCNN
+from gnn_tracking.models.mlp import MLP, HeterogeneousResFCNN, ResFCNN
 from gnn_tracking.models.resin import ResIN
 from gnn_tracking.utils.lightning import obj_from_or_to_hparams
 
@@ -196,19 +196,19 @@ class ModularGraphTCN(nn.Module, HyperparametersMixin):
         # The fact that we use both MLP and ResFCNN is more historically
         if not heterogeneous_node_encoder:
             #: Node encoder network for track condenser
-            # self.hc_node_encoder = ResFCNN(
-            #     in_dim=node_enc_indim,
-            #     out_dim=h_dim,
-            #     hidden_dim=hidden_dim,
-            #     # depth = 1 for backwards compat, note that this is
-            #     # equivalent to L=2
-            #     depth=1,
-            #     bias=False,
-            #     alpha=0,
-            # )
-            self.hc_node_encoder = MLP(
-                node_enc_indim, h_dim, hidden_dim=hidden_dim, L=2, bias=False
+            self.hc_node_encoder = ResFCNN(
+                in_dim=node_enc_indim,
+                out_dim=h_dim,
+                hidden_dim=hidden_dim,
+                # depth = 1 for backwards compat, note that this is
+                # equivalent to L=2
+                depth=1,
+                bias=False,
+                alpha=0,
             )
+            # self.hc_node_encoder = MLP(
+            #     node_enc_indim, h_dim, hidden_dim=hidden_dim, L=2, bias=False
+            # )
         else:
             self.hc_node_encoder = HeterogeneousResFCNN(
                 in_dim=node_enc_indim,
@@ -280,7 +280,7 @@ class ModularGraphTCN(nn.Module, HyperparametersMixin):
         x = torch.cat(_xs, dim=1)
         edge_attrs = torch.cat(_edge_attrs, dim=1)
         # h_hc = self.relu(self.hc_node_encoder(x, layer=data.layer))
-        h_hc = self.hc_node_encoder(x)
+        h_hc = self.relu(self.hc_node_encoder(x))
         edge_attr_hc = self.relu(self.hc_edge_encoder(edge_attrs))
 
         # Run the track condenser
