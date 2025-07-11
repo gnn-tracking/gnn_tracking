@@ -64,7 +64,7 @@ Please also cite our [latest preprint][preprint].
 
 A good place to start contributing are the [issues marked with 'good first issue'][gfi]. It is always best to have the issue assigned to you before starting to work on it.
 
-Core developers ([emoji key](https://allcontributors.org/docs/en/emoji-key)):
+Core developers:
 
 <!-- prettier-ignore-start -->
 <!-- markdownlint-disable -->
