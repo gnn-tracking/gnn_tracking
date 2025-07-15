@@ -210,7 +210,7 @@ class BasePointCloudBuilder(ABC):
 
     @staticmethod
     def get_truth_edge_index(pids: np.ndarray) -> np.ndarray:
-        """Connect all hits belonging to a given particle"""
+        # """Connect all hits belonging to a given particle"""
 
         particle_indices = defaultdict(list)
         for idx, pid in enumerate(pids):
@@ -240,6 +240,8 @@ class BasePointCloudBuilder(ABC):
 
     def to_pyg_data(self, hits: pd.DataFrame) -> Data:
         """Build the output data structure"""
+        layer_field = "layer" if "layer" in hits.columns else "layer_id"
+
         return Data(
             x=torch.tensor(
                 hits[self.feature_names].to_numpy() / self.feature_scale,
@@ -247,7 +249,7 @@ class BasePointCloudBuilder(ABC):
             ),
             edge_index=self._get_edge_index(hits["particle_id"].values),
             y=torch.zeros(0).float(),
-            layer=torch.tensor(hits.layer_id.values).long(),
+            layer=torch.tensor(hits[layer_field].values).long(),
             particle_id=torch.tensor(hits["particle_id"].values).long(),
             pt=torch.tensor(hits["pt"].values).float(),
             reconstructable=torch.tensor(hits["reconstructable"].values).long(),
