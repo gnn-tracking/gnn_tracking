@@ -9,7 +9,7 @@ import logging
 import os
 from pathlib import Path
 
-from point_cloud_builder import (
+from gnn_tracking.preprocessing.point_cloud_builder import (
     CMSPointCloudBuilder,
     MDPointCloudBuilder,
     TrackMLPointCloudBuilder,

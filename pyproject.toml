@@ -56,3 +56,6 @@ lint.unfixable = [
 ]
 exclude = []
 lint.flake8-unused-arguments.ignore-variadic-names = true
+
+[tool.ruff.per-file-ignores]
+"test_point_cloud_builder.py" = ["SIM118"]

@@ -44,10 +44,9 @@ class TrackingDataset(Dataset):
         start=0,
         stop=None,
         sector: int | None = None,
-        point_cloud_builder: TrackMLPointCloudBuilder
-        | CMSPointCloudBuilder
-        | MDPointCloudBuilder
-        | None,
+        point_cloud_builder: (
+            TrackMLPointCloudBuilder | CMSPointCloudBuilder | MDPointCloudBuilder | None
+        ),
         feature_subset_names: list[str] | None = None,
         pt_cut: float | None = None,
     ):
@@ -140,7 +139,6 @@ class TrackingDataset(Dataset):
             if self.pt_cut is not None:
                 data = self._make_pt_cut(data)
             return data
-
 
         if self.point_cloud_builder.n_sectors == 1:
             return self.point_cloud_builder.process(idx, idx + 1)

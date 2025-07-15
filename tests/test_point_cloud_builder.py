@@ -111,6 +111,11 @@ ACCEPTABLE_RANGES = {
 
 # cms uses cm, tml does not
 acceptable_ranges_cms = ACCEPTABLE_RANGES.copy()
+# this needs changing with new data source
+acceptable_ranges_cms["charge_frac"] = (0, 100000)
+acceptable_ranges_cms["leta"] = (-13, 13)
+acceptable_ranges_cms["geta"] = (-40, 40)
+
 keys_to_divide = ["r", "z", "lx", "ly", "lz"]
 CMS_ACCEPTABLE_RANGES = {
     k: (v[0] / 10, v[1] / 10) if k in keys_to_divide else v
@@ -168,16 +173,9 @@ def test_point_cloud_builder(point_clouds_path):
     assert point_clouds_path.is_dir()
 
 
-def test_get_truth_edge_index():
-    builder = TrackMLPointCloudBuilder(
-        outdir="tmp_output/",
-        indir=trackml_test_data_dir,
-        detector_config=trackml_test_data_dir / "detectors.csv.gz",
-        n_sectors=1,
-        data_type="TrackML",
-    )
+def test_get_truth_edge_index(point_cloud_builder):
     assert (
-        builder.get_truth_edge_index(np.array([0, 1, 2, 3, 2, 1, 0]))
+        point_cloud_builder.get_truth_edge_index(np.array([0, 1, 2, 3, 2, 1, 0]))
         == np.array([[1, 2], [5, 4]])
     ).all()
 
@@ -191,7 +189,7 @@ def test_process_no_sectors(point_cloud_builder_pixel, test_data_files):
     hits = original_hits.merge(truth, on="hit_id")
     hits = hits[hits["volume_id"].isin([7, 8, 9])]
     separate_check = ["x", "edge_index", "y"]
-    length_check_keys = [key for key in graph_data if key not in separate_check]
+    length_check_keys = [key for key in graph_data.keys() if key not in separate_check]
     for key in length_check_keys:
         assert len(graph_data[key]) == len(hits), (
             f"length of {key} "
@@ -226,7 +224,7 @@ def test_process_sectors(point_cloud_builder, test_data_files):
     hits = original_hits.merge(truth, on="hit_id")
 
     separate_check = ["x", "edge_index", "y", "ptr"]
-    length_check_keys = [key for key in graph_data if key not in separate_check]
+    length_check_keys = [key for key in graph_data.keys() if key not in separate_check]
     for key in length_check_keys:
         assert len(graph_data[key]) == len(hits), (
             f"length of {key} "
@@ -285,4 +283,4 @@ def test_cms_processing(cms_point_cloud_builder):
     for feature, (min_val, max_val) in CMS_ACCEPTABLE_RANGES.items():
         assert (
             graph_data_df[feature].between(min_val, max_val).all()
-        ), f"{feature} is out of range, {min_val, max_val}, {max(graph_data_df[feature])}"
+        ), f"{feature} is out of range, {min_val, max_val}, {max(graph_data_df[feature])}, {min(graph_data_df[feature])}"
