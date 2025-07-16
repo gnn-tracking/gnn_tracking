@@ -13,6 +13,7 @@ repos:
     rev: v4.6.0
     hooks:
       - id: check-added-large-files
+        exclude: '^(tests/test_data/cms_mc/ntuple_1.root|tests/test_data/cms_mc/cms_Extended2026D110_ModulePositions.csv)$'
       - id: check-case-conflict
       - id: check-merge-conflict
       - id: detect-private-key
