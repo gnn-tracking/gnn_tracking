@@ -24,7 +24,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Install Conda environment from environment.yml
-        uses: mamba-org/provision-with-micromamba@main
+        uses: mamba-org/setup-micromamba@main
         with:
           environment-file: environments/minimal.yml
           environment-name: anaconda-client-env
@@ -38,4 +38,3 @@ jobs:
       - name: Test with pytest
         run: |
           pytest
-

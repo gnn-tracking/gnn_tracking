@@ -20,7 +20,7 @@ from gnn_tracking.metrics.losses.oc import (
     ObjectLoss,
     _first_occurrences,
 )
-from gnn_tracking.preprocessing.point_cloud_builder import get_truth_edge_index
+from gnn_tracking.preprocessing.point_cloud_builder import BasePointCloudBuilder
 from gnn_tracking.utils.dictionaries import to_floats
 
 T: TypeAlias = torch.Tensor
@@ -68,7 +68,9 @@ def generate_test_data(
         eta=eta,
         reconstructable=reco,
         batch=torch.zeros_like(reco),
-        true_edge_index=torch.from_numpy(get_truth_edge_index(pid.numpy())),
+        true_edge_index=torch.from_numpy(
+            BasePointCloudBuilder.get_truth_edge_index(pid.numpy())
+        ),
     )
 
 

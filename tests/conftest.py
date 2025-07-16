@@ -5,7 +5,7 @@ import torch
 from torch_geometric.data import Data
 
 from gnn_tracking.graph_construction.graph_builder import GraphBuilder
-from gnn_tracking.preprocessing.point_cloud_builder import PointCloudBuilder
+from gnn_tracking.preprocessing.point_cloud_builder import TrackMLPointCloudBuilder
 
 from .test_data import graph_test_data_first, trackml_test_data_dir
 
@@ -42,7 +42,7 @@ def pytest_runtest_setup(item):
 @pytest.fixture(scope="session")
 def point_clouds_path(tmp_path_factory) -> Path:
     out_path = Path(tmp_path_factory.mktemp("point_clouds"))
-    pc_builder = PointCloudBuilder(
+    pc_builder = TrackMLPointCloudBuilder(
         indir=trackml_test_data_dir,
         outdir=str(out_path),
         n_sectors=2,
@@ -65,6 +65,7 @@ def built_graphs(point_clouds_path, tmp_path_factory) -> tuple[Path, GraphBuilde
         str(out_path),
         redo=True,
         measurement_mode=True,
+        pixel_only=True,
     )
     graph_builder.process(stop=None)
     return out_path, graph_builder

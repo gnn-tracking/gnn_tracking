@@ -5,14 +5,18 @@
 
 import math
 import os
+from math import sqrt
 
 import numpy as np
 import torch
+import torch._dynamo
 import torch.nn
 import torch.nn as nn
 from torch import Tensor as T
-from torch.nn import Linear, ModuleList, init
+from torch.nn import Linear, Module, ModuleList, Tanh, init
 from torch.nn.functional import normalize, relu
+
+torch._dynamo.config.suppress_errors = True
 
 
 class MLP(nn.Module):
@@ -176,3 +180,86 @@ class HeterogeneousResFCNN(nn.Module):
         # existing order, because the data is already sorted
         # by pixel and then strip.
         return torch.vstack([embed_pixel, embed_strip])
+
+
+class ResMLP(nn.Module):
+    """Fully connected NN w/ residual connections and Gaussian init
+    Args:
+    in_dim: input dimension
+    out_dim: output dimension
+    width: # neurons per internal layer
+    beta: strength of the residual connection
+    gamma_0: tuning of final layer output normalisation
+    depth: number of hidden layers
+    """
+
+    # hidden
+    # detph
+    # alpha
+    # bias
+
+    def __init__(
+        self,
+        in_dim: int,
+        out_dim: int,
+        hidden_dim: int,
+        depth: int = 4,
+        beta: float = 1.0,
+        gamma_0: float = 1.0,
+        eta_0: float = 0.01,
+        activation: Module = Tanh,
+        optimizer: str = "adam",
+        bias: bool = True,
+        **kwargs,
+    ):
+        super().__init__()
+
+        self.layers = ModuleList()
+        for layer in range(depth + 1):
+            self.layers.append(
+                Linear(
+                    in_dim if (layer == 0) else hidden_dim,
+                    out_dim if (layer == depth) else hidden_dim,
+                    bias=False,
+                )
+            )
+
+        self.in_dim = in_dim
+        self.out_dim = out_dim
+        self.width = hidden_dim
+
+        self.beta = beta
+        self.gamma_0 = gamma_0
+        self.eta_0 = eta_0
+        self.gamma = gamma_0 * sqrt(hidden_dim)
+        self.depth = depth
+        self.act = activation()
+
+        self.lr = self.get_lr(optimizer)
+
+        self.reset_parameters()
+
+    def reset_parameters(self):
+        for _, weights in enumerate(self.layers):
+            for p in weights.weight:
+                init.normal_(p.data, mean=0, std=1)
+
+    def get_lr(self, optimizer):
+        if "sgd" in optimizer.lower():
+            return self.eta_0 * self.gamma_0**2 * self.width
+        if "adam" in optimizer.lower():
+            return self.eta_0 * self.gamma_0 * sqrt(self.width)
+        exception_message = f"Cannot locate parametrization for optimizer {optimizer}"
+        raise Exception(exception_message)
+
+    def forward(self, x):
+        for layer, weights in enumerate(self.layers):
+            if layer == 0:
+                x = weights(x) / sqrt(self.in_dim)
+            elif (layer > 0) and (layer < self.depth):
+                x = x + (self.beta / sqrt(self.depth * self.width)) * weights(
+                    self.act(x)
+                )
+            else:
+                x = weights(self.act(x)) / (self.width * self.gamma)
+        return x

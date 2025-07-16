@@ -385,7 +385,7 @@ def tracking_metrics_vs_eta(
 
 
 def flatten_track_metrics(
-    custom_metrics_result: dict[float, dict[str, float]]
+    custom_metrics_result: dict[float, dict[str, float]],
 ) -> dict[str, float]:
     """Flatten the result of `custom_metrics` by using pt suffixes to arrive at a
     flat dictionary, rather than a nested one.

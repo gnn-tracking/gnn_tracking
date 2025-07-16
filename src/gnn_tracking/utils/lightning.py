@@ -145,6 +145,10 @@ def get_model(
     """
     if not chkpt_path:
         return None
+    if isinstance(chkpt_path, Path):
+        err = f"Checkpoint path {chkpt_path} is not a file"
+        assert chkpt_path.is_file(), err
+
     lm = get_lightning_module(class_path, chkpt_path, freeze=freeze, device=device)
     if lm is None:
         return None
@@ -195,7 +199,12 @@ class SimpleTqdmProgressBar(pytorch_lightning.callbacks.ProgressBar):
             )
 
     def on_train_batch_end(
-        self, trainer, pl_module, outputs, batch, batch_idx  # noqa: ARG002
+        self,
+        trainer,
+        pl_module,
+        outputs,  # noqa: ARG002
+        batch,  # noqa: ARG002
+        batch_idx,  # noqa: ARG002
     ):
         if self.bar:
             self.bar.update(1)

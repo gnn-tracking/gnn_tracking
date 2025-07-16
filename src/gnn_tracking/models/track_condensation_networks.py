@@ -176,7 +176,7 @@ class ModularGraphTCN(nn.Module, HyperparametersMixin):
         self.ec = obj_from_or_to_hparams(self, "ec", ec)
         #: Track condensation network (usually made up of interaction networks)
         self.hc_in = obj_from_or_to_hparams(self, "hc_in", hc_in)
-
+        self.use_acat_standard = True
         node_enc_indim = node_indim
         edge_enc_indim = edge_indim
         if use_ec_embeddings_for_hc:
@@ -195,17 +195,24 @@ class ModularGraphTCN(nn.Module, HyperparametersMixin):
         )
         # The fact that we use both MLP and ResFCNN is more historically
         if not heterogeneous_node_encoder:
-            #: Node encoder network for track condenser
-            self.hc_node_encoder = ResFCNN(
-                in_dim=node_enc_indim,
-                out_dim=h_dim,
-                hidden_dim=hidden_dim,
-                # depth = 1 for backwards compat, note that this is
-                # equivalent to L=2
-                depth=1,
-                bias=False,
-                alpha=0,
-            )
+            # this led to very different results, needs looking into
+            if self.use_acat_standard:
+                self.hc_node_encoder = MLP(
+                    node_enc_indim, h_dim, hidden_dim=hidden_dim, L=2, bias=False
+                )
+            else:
+                #: Node encoder network for track condenser
+                self.hc_node_encoder = ResFCNN(
+                    in_dim=node_enc_indim,
+                    out_dim=h_dim,
+                    hidden_dim=hidden_dim,
+                    # depth = 1 for backwards compat, note that this is
+                    # equivalent to L=2
+                    depth=1,
+                    bias=False,
+                    alpha=0,
+                )
+
         else:
             self.hc_node_encoder = HeterogeneousResFCNN(
                 in_dim=node_enc_indim,
@@ -276,7 +283,10 @@ class ModularGraphTCN(nn.Module, HyperparametersMixin):
             _edge_attrs.append(data.edge_weights)
         x = torch.cat(_xs, dim=1)
         edge_attrs = torch.cat(_edge_attrs, dim=1)
-        h_hc = self.relu(self.hc_node_encoder(x, layer=data.layer))
+        if self.use_acat_standard and not self.hparams.heterogeneous_node_encoder:
+            h_hc = self.relu(self.hc_node_encoder(x))
+        else:
+            h_hc = self.relu(self.hc_node_encoder(x, layer=data.layer))
         edge_attr_hc = self.relu(self.hc_edge_encoder(edge_attrs))
 
         # Run the track condenser
@@ -295,6 +305,7 @@ class ModularGraphTCN(nn.Module, HyperparametersMixin):
             _pad = (0, h.shape[1] - nec)
             residual = nn.functional.pad(data.x[:, :nec], _pad)
             h = math.sqrt(alpha_residue) * residual + math.sqrt(1 - alpha_residue) * h
+
         h *= self._latent_normalization
         # track_params, _ = self.p_track_param(
         #     h_hc, data.edge_index, torch.cat(edge_attrs_hc, dim=1)
