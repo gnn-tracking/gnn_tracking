@@ -454,6 +454,26 @@ def test_custom_metrics(test_case):
     test_case.run()
 
 
+def test_perfect_diagnostics_distinguish_fragmentation_from_contamination():
+    fragmented = ClusterMetricTestCase(
+        truth=[0, 0, 0, 0],
+        predicted=[0, 0, 1, 1],
+        perfectly_homogeneous=1.0,
+        perfectly_inclusive=0.0,
+        perfect=0.0,
+    )
+    contaminated = ClusterMetricTestCase(
+        truth=[0, 0, 1],
+        predicted=[0, 0, 0],
+        perfectly_homogeneous=0.0,
+        perfectly_inclusive=0.5,
+        perfect=0.0,
+    )
+
+    fragmented.run()
+    contaminated.run()
+
+
 def test_count_cluster_hits():
     r = count_hits_per_cluster(np.array([0, 0, 0, 1, 1, 2, 3, 3, 3]))
     assert (r == np.array([1, 1, 2])).all()
@@ -493,6 +513,8 @@ def test_fix_cluster_metrics():
             "n_particles": 10,
             "n_cleaned_clusters": 4,
             "perfect": 0.0,
+            "perfectly_homogeneous": 0.0,
+            "perfectly_inclusive": 0.0,
             "double_majority": 0.1,
             "lhc": 0.0,
             "fake_perfect": 1,
@@ -503,6 +525,8 @@ def test_fix_cluster_metrics():
             "n_particles": 8,
             "n_cleaned_clusters": 4,
             "perfect": 0.0,
+            "perfectly_homogeneous": 0.0,
+            "perfectly_inclusive": 0.0,
             "double_majority": 0.125,
             "lhc": 0.0,
             "fake_perfect": 1.0,
@@ -513,6 +537,8 @@ def test_fix_cluster_metrics():
             "n_particles": 6,
             "n_cleaned_clusters": 3,
             "perfect": 0.0,
+            "perfectly_homogeneous": 0.0,
+            "perfectly_inclusive": 0.0,
             "double_majority": 0.16666666666666666,
             "lhc": 0.0,
             "fake_perfect": 1.0,
